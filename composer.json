@@ -1,0 +1,13 @@
+{
+  "name": "techzone/ecommerce",
+  "description": "TechZone PHP eCommerce — root package for Railway/Railpack PHP detection",
+  "type": "project",
+  "require": {
+    "php": "^8.2",
+    "ext-pdo": "*",
+    "ext-pdo_mysql": "*"
+  },
+  "config": {
+    "optimize-autoloader": true
+  }
+}

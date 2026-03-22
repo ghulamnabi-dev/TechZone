@@ -41,6 +41,30 @@ function site_url(string $path = ''): string
 }
 
 /**
+ * Absolute filesystem path to Admin Portal (supports AdminPortal or legacy "Admin Portal" folder name).
+ */
+function admin_portal_filesystem_root(): string
+{
+    static $path = null;
+    if ($path !== null) {
+        return $path;
+    }
+    $candidates = [
+        __DIR__ . '/../../AdminPortal',
+        __DIR__ . '/../../Admin Portal',
+    ];
+    foreach ($candidates as $candidate) {
+        $resolved = realpath($candidate);
+        if ($resolved && is_dir($resolved)) {
+            $path = $resolved;
+            return $path;
+        }
+    }
+    $path = '';
+    return $path;
+}
+
+/**
  * Web path to Admin Portal root (sibling of Marketing Site), e.g. /TechZone/Admin Portal
  */
 function admin_portal_public_path(): string
@@ -49,7 +73,7 @@ function admin_portal_public_path(): string
     if ($base !== null) {
         return $base;
     }
-    $adminRoot = realpath(__DIR__ . '/../../Admin Portal');
+    $adminRoot = admin_portal_filesystem_root();
     $doc = realpath($_SERVER['DOCUMENT_ROOT'] ?? '');
     if (!$adminRoot || !$doc || strpos($adminRoot, $doc) !== 0) {
         $base = '';

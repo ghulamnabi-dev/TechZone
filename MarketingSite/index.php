@@ -224,7 +224,7 @@ try {
         <?php
             $catName = $category['name'];
             $imgPath = !empty($category['image'])
-                ? '../Admin Portal/uploads/' . rawurlencode($category['image'])
+                ? admin_portal_asset_url('uploads/' . rawurlencode($category['image']))
                 : null;
             $grad = $fallbackGradients[$index % count($fallbackGradients)];
             list($c1, $c2) = explode(',', $grad);
