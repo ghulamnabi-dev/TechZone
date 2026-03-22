@@ -1,0 +1,815 @@
+
+/* Login/Signup pages: match admin panel background and purple theme, no scroll */
+.admin-login-body {
+    background-color: #0f172a;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem 0;
+    box-sizing: border-box;
+}
+
+.admin-login-body .container {
+    max-width: 100%;
+    flex: 0 1 auto;
+}
+
+.admin-login-body .card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(30, 41, 59, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #e2e8f0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.admin-login-body .card .text-dark {
+    color: #f1f5f9 !important;
+}
+
+.admin-login-body .card .text-muted {
+    color: #94a3b8 !important;
+}
+
+.admin-login-body .card .form-label {
+    color: #e2e8f0;
+}
+
+.admin-login-body .card .form-control {
+    background-color: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+}
+
+.admin-login-body .card .form-control:focus {
+    background-color: rgba(15, 23, 42, 0.9);
+    border-color: #764ba2;
+    color: #e2e8f0;
+    box-shadow: 0 0 0 0.25rem rgba(118, 75, 162, 0.25);
+}
+
+.admin-login-body .card .form-control::placeholder {
+    color: #64748b;
+}
+
+.admin-login-body .card a {
+    color: #a78bfa;
+}
+
+.admin-login-body .card a:hover {
+    color: #c4b5fd;
+}
+
+.admin-login-body .card .admin-login-helper {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+
+.admin-sidebar {
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 250px;
+    background-color: #0f172a;
+    padding-top: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+}
+
+.admin-sidebar .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 20px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 8px;
+}
+
+.admin-sidebar .sidebar-brand-icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.admin-sidebar .sidebar-brand-text {
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.admin-sidebar .sidebar-brand-text span {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 400;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.admin-sidebar .sidebar-nav {
+    flex: 1;
+    padding: 4px 0;
+}
+
+.admin-sidebar .nav-section-label {
+    color: #6b7280;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 12px 20px 4px;
+}
+
+.admin-sidebar .nav-link {
+    color: #9ca3af;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.admin-sidebar .nav-link:hover {
+    background-color: rgba(255,255,255,0.06);
+    color: #e2e8f0;
+    border-left-color: #764ba2;
+}
+
+.admin-sidebar .nav-link.active {
+    background-color: rgba(118, 75, 162, 0.15);
+    color: #c4aff0;
+    border-left-color: #764ba2;
+}
+
+.admin-sidebar .nav-link i {
+    width: 18px;
+    text-align: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.admin-sidebar .sidebar-divider {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    margin: 8px 0;
+}
+
+.admin-sidebar .nav-link.logout-link {
+    color: #f87171;
+}
+
+.admin-sidebar .nav-link.logout-link:hover {
+    background-color: rgba(248, 113, 113, 0.1);
+    color: #fca5a5;
+    border-left-color: #f87171;
+}
+
+.admin-content {
+    margin-left: 250px;
+    padding: 0;
+    background-color: #0f172a;
+    min-height: 100vh;
+}
+
+.admin-header {
+    background-color: #0f172a;
+    padding: 12px 24px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    margin-bottom: 0;
+}
+
+.admin-header-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin: 0;
+}
+
+.admin-header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.admin-header-avatar {
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.85rem;
+}
+
+.admin-header-info {
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+.admin-header-info strong {
+    color: #e2e8f0;
+    display: block;
+    font-weight: 600;
+    font-size: 0.875rem;
+    line-height: 1.2;
+}
+
+.admin-header-info small {
+    font-size: 0.72rem;
+    color: #64748b;
+}
+
+.admin-page-content {
+    padding: 20px 24px 28px;
+}
+
+
+.stats-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.25s, box-shadow 0.25s;
+}
+
+.stats-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.13);
+}
+
+.stats-card.sales {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.stats-card.orders {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.stats-card.products {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+}
+
+.stats-card.customers {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    color: white;
+}
+
+.stats-card.categories {
+    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    color: white;
+}
+
+.stats-card h3 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin: 8px 0;
+}
+
+.stats-card h6 {
+    font-size: 0.8rem;
+    font-weight: 500;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.table-container {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 20px 22px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.15);
+    /* OS dark mode / Bootstrap color-mode can lighten --bs-secondary; white cards must stay readable */
+    color-scheme: light;
+    --bs-body-color: #212529;
+    --bs-secondary: #6c757d;
+    --bs-secondary-rgb: 108, 117, 125;
+    --bs-emphasis-color: #212529;
+    color: #212529;
+}
+
+.table-container .table {
+    --bs-table-color: #212529;
+    --bs-table-striped-color: #212529;
+    color: var(--bs-table-color);
+}
+
+/* Outline secondary on white cards (e.g. Orders "Update") — explicit colors, does not rely on theme variables */
+.table-container .btn-outline-secondary {
+    color: #374151 !important;
+    border-color: #6b7280 !important;
+    background-color: transparent !important;
+}
+
+.table-container .btn-outline-secondary:hover,
+.table-container .btn-outline-secondary:focus,
+.table-container .btn-outline-secondary:active {
+    color: #fff !important;
+    background-color: #4b5563 !important;
+    border-color: #4b5563 !important;
+}
+
+.table th {
+    background-color: #1e2a38;
+    color: #e2e8f0;
+    border: none;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 12px 16px;
+}
+
+.table td {
+    padding: 12px 16px;
+    vertical-align: middle;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+
+/* Admin primary buttons: purple theme (no blue) */
+.admin-content .btn-primary,
+.admin-content .btn-primary:hover,
+.admin-content .btn-primary:focus,
+.admin-content .btn-primary:active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border-color: transparent !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(118, 75, 162, 0.35);
+}
+
+.admin-content .btn-primary:hover {
+    box-shadow: 0 4px 14px rgba(118, 75, 162, 0.45);
+}
+
+.admin-content .btn-outline-primary {
+    color: #764ba2 !important;
+    border-color: #764ba2 !important;
+    background: transparent !important;
+}
+
+.admin-content .btn-outline-primary:hover,
+.admin-content .btn-outline-primary:focus,
+.admin-content .btn-outline-primary:active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border-color: transparent !important;
+    color: #fff !important;
+}
+
+/* Login/signup pages (body has admin-login-body) */
+.admin-login-body .btn-primary,
+.admin-login-body .btn-primary:hover,
+.admin-login-body .btn-primary:focus,
+.admin-login-body .btn-primary:active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border-color: transparent !important;
+    color: #fff !important;
+}
+
+.btn-action {
+    padding: 5px 15px;
+    font-size: 0.875rem;
+}
+
+
+.badge {
+    padding: 5px 10px;
+    font-weight: 500;
+}
+
+/* Order status pills — strong contrast on light table rows */
+.badge-status {
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.3rem 0.8rem;
+}
+
+.badge-status-pending {
+    background: #fef3c7 !important;
+    color: #92400e !important;
+    border: 1px solid #f59e0b !important;
+}
+
+.badge-status-processing {
+    background: #dbeafe !important;
+    color: #1e40af !important;
+    border: 1px solid #3b82f6 !important;
+}
+
+.badge-status-shipped {
+    background: #ede9fe !important;
+    color: #5b21b6 !important;
+    border: 1px solid #8b5cf6 !important;
+}
+
+.badge-status-delivered {
+    background: #d1fae5 !important;
+    color: #065f46 !important;
+    border: 1px solid #10b981 !important;
+}
+
+.badge-status-cancelled {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+    border: 1px solid #ef4444 !important;
+}
+
+/* Contact messages statuses — strong contrast on light table rows */
+.badge-status-new {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #f87171;
+}
+
+.badge-status-read {
+    background: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #94a3b8;
+}
+
+.badge-status-replied {
+    background: #ede9fe;
+    color: #5b21b6;
+    border: 1px solid #a78bfa;
+}
+
+.badge-status-archived {
+    background: #e5e7eb;
+    color: #1f2937;
+    border: 1px solid #6b7280;
+}
+
+/* Generic empty state */
+.empty-state {
+    padding: 2.75rem 1.75rem;
+    text-align: center;
+    background: #f9fafb;
+    border-radius: 0.75rem;
+    border: 1px dashed #e5e7eb;
+}
+
+.empty-state-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #4f46e5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin: 0 auto 1rem;
+}
+
+.empty-state-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.empty-state-text {
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
+/* Promotion cards in table-container */
+.table-container .promotion-card {
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-left: 4px solid #764ba2;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+.table-container .promotion-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+
+.form-container {
+    background: white;
+    padding: 28px;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+
+
+.chart-container {
+    background: white;
+    padding: 22px;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    margin-bottom: 20px;
+}
+
+
+@media (max-width: 768px) {
+    .admin-sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+    }
+
+    .admin-content {
+        margin-left: 0;
+    }
+}
+
+
+.profile-img {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+    border: 4px solid #764ba2;
+}
+
+
+.product-img-small {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+}
+
+/* Notification Snackbar Styles */
+#notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+.notification {
+    background: white;
+    padding: 15px 20px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    min-width: 300px;
+    opacity: 0;
+    transform: translateX(400px);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+}
+
+.notification.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.notification-success {
+    border-left: 4px solid #28a745;
+}
+
+.notification-error {
+    border-left: 4px solid #dc3545;
+}
+
+.notification-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.notification-warning {
+    border-left: 4px solid #ffc107;
+}
+
+/* Confirmation Dialog Styles */
+.confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.confirm-overlay.show {
+    opacity: 1;
+}
+
+.confirm-dialog {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    max-width: 400px;
+    width: 90%;
+}
+
+.confirm-message {
+    font-size: 16px;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.confirm-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.confirm-buttons button {
+    padding: 8px 20px;
+}
+
+/* -------------------------------
+   DASHBOARD CHARTS
+--------------------------------- */
+.chart-row .chart-container {
+    height: 430px; /* same height for both charts */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.chart-container canvas {
+    flex-grow: 1; /* canvas fills the remaining height */
+      height: 100%;
+}
+.chart-label {
+    margin-top: -5px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+#categoryChart{
+    height: 380px !important;
+}
+/* Modal Z-Index Fix - Ensure modals are above everything and clickable */
+/* Bootstrap modals are appended to body, so they need high z-index */
+
+/* CRITICAL: Modal backdrop MUST be below modal - set very low z-index */
+.modal-backdrop {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 1040 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background-color: #000;
+    opacity: 0.5;
+    /* Backdrop should allow clicks to pass through to modal content above it */
+    /* Bootstrap handles pointer-events correctly - don't override */
+}
+
+.modal-backdrop.fade {
+    opacity: 0;
+}
+
+.modal-backdrop.show,
+.modal-backdrop.showing {
+    z-index: 1040 !important;
+    opacity: 0.5;
+}
+
+body.modal-open .modal-backdrop,
+body.modal-open .modal-backdrop.show {
+    z-index: 1040 !important;
+}
+
+/* Base modal container - Use Bootstrap defaults, just ensure z-index */
+.modal {
+    z-index: 1055 !important;
+}
+
+.modal.show,
+.modal.showing {
+    z-index: 1055 !important;
+}
+
+/* Modal dialog and content - Bootstrap handles these correctly */
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+    overflow: hidden;
+    padding-right: 0 !important;
+}
+
+/* Variation modal should appear above product modal when nested */
+#variationFormModal {
+    z-index: 1060 !important;
+}
+
+#variationFormModal.show,
+#variationFormModal.showing {
+    z-index: 1060 !important;
+}
+
+#variationFormModal .modal-dialog {
+    z-index: 1061 !important;
+}
+
+#variationFormModal .modal-content {
+    z-index: 1062 !important;
+}
+
+/* When variation modal is open, its backdrop should be between modals */
+body.modal-open #variationFormModal + .modal-backdrop,
+body.modal-open .modal-backdrop:last-of-type {
+    z-index: 1055 !important;
+}
+
+/* Category modal - same as regular modals */
+#categoryModal {
+    z-index: 1055 !important;
+}
+
+#categoryModal.show,
+#categoryModal.showing {
+    z-index: 1055 !important;
+}
+
+/* Order details modal */
+#orderDetailsModal {
+    z-index: 1055 !important;
+}
+
+#orderDetailsModal.show,
+#orderDetailsModal.showing {
+    z-index: 1055 !important;
+}
+
+/* Update status modal */
+#updateStatusModal {
+    z-index: 1055 !important;
+}
+
+#updateStatusModal.show,
+#updateStatusModal.showing {
+    z-index: 1055 !important;
+}
+
+/* Product modal */
+#productModal {
+    z-index: 1055 !important;
+}
+
+#productModal.show,
+#productModal.showing {
+    z-index: 1055 !important;
+}
+
+/* Variations modal */
+#variationsModal {
+    z-index: 1055 !important;
+}
+
+#variationsModal.show,
+#variationsModal.showing {
+    z-index: 1055 !important;
+}
+
+/* Ensure admin sidebar doesn't interfere */
+.admin-sidebar {
+    z-index: 1000 !important;
+}
+
+/* Admin content - DO NOT add z-index or position here as it creates stacking context that blocks modals */
