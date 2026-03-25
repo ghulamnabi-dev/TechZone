@@ -36,7 +36,7 @@ require_once 'includes/header.php';
         </div>
         <div class="col-lg-6">
             <div class="about-img-wrap">
-                <img src="images/TechzoneStore.jpg" alt="TechZone store" class="about-main-img">
+                <img src="assets/images/TechzoneStore.jpg" alt="TechZone store" class="about-main-img">
             </div>
         </div>
     </div>
