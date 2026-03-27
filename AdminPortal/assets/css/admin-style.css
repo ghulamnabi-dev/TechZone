@@ -813,3 +813,111 @@ body.modal-open .modal-backdrop:last-of-type {
 }
 
 /* Admin content - DO NOT add z-index or position here as it creates stacking context that blocks modals */
+/* ==========================================================
+   PROFESSIONAL ADMIN OVERRIDES (Muted / Less Neon)
+   ========================================================== */
+:root {
+    --tz-admin-bg: #0f172a;
+    --tz-admin-surface: #111827;
+    --tz-admin-surface-2: #1f2937;
+    --tz-admin-border: #334155;
+    --tz-admin-text: #e5e7eb;
+    --tz-admin-muted: #94a3b8;
+    --tz-admin-accent: #334155;
+}
+
+body,
+.admin-login-body {
+    background: var(--tz-admin-bg) !important;
+    color: var(--tz-admin-text);
+}
+
+.admin-sidebar,
+.admin-header,
+.table-container,
+.card,
+.modal-content,
+.confirm-dialog {
+    background: var(--tz-admin-surface) !important;
+    border: 1px solid var(--tz-admin-border) !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22) !important;
+}
+
+.admin-sidebar .nav-link,
+.admin-header small,
+.text-muted,
+small {
+    color: var(--tz-admin-muted) !important;
+}
+
+.admin-sidebar .nav-link.active,
+.admin-sidebar .nav-link:hover {
+    background: rgba(148, 163, 184, 0.12) !important;
+    color: #f8fafc !important;
+}
+
+.btn-primary,
+.btn-success,
+.btn-info,
+.btn-warning,
+.btn-danger {
+    background: #334155 !important;
+    border-color: #334155 !important;
+    color: #f8fafc !important;
+    box-shadow: none !important;
+}
+
+.btn-primary:hover,
+.btn-success:hover,
+.btn-info:hover,
+.btn-warning:hover,
+.btn-danger:hover {
+    background: #1f2937 !important;
+    border-color: #1f2937 !important;
+}
+
+.btn-outline-primary,
+.btn-outline-secondary,
+.btn-outline-danger {
+    border-color: #475569 !important;
+    color: #cbd5e1 !important;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-secondary:hover,
+.btn-outline-danger:hover {
+    background: #1f2937 !important;
+    color: #fff !important;
+}
+
+.stats-card,
+.empty-state,
+.category-card,
+.promotion-card {
+    background: var(--tz-admin-surface-2) !important;
+    border-color: var(--tz-admin-border) !important;
+}
+
+.badge,
+.badge-status,
+.bg-success,
+.bg-warning,
+.bg-danger,
+.bg-info,
+.bg-primary {
+    background: #334155 !important;
+    color: #f1f5f9 !important;
+}
+
+.form-control,
+.form-select {
+    background: #0b1220 !important;
+    border-color: #334155 !important;
+    color: #e5e7eb !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #64748b !important;
+    box-shadow: 0 0 0 0.2rem rgba(100, 116, 139, 0.2) !important;
+}
