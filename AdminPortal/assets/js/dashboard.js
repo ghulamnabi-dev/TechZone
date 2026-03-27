@@ -36,10 +36,10 @@ function loadDashboard() {
             var productsHtml = '';
             for (var i = 0; i < data.topProducts.length; i++) {
                 var product = data.topProducts[i];
-                productsHtml += '<div class="d-flex align-items-center mb-3 pb-3 border-bottom">';
-                productsHtml += '<div class="badge bg-primary me-3">' + (i+1) + '</div>';
-                productsHtml += '<div class="flex-grow-1"><strong>' + product.name + '</strong><br><small>' + product.sold + ' sold</small></div>';
-                productsHtml += '<div>Rs. ' + product.price + '</div>';
+                productsHtml += '<div class="d-flex align-items-center mb-3 pb-3 border-bottom top-product-row">';
+                productsHtml += '<div class="badge bg-primary me-3 top-product-rank">' + (i+1) + '</div>';
+                productsHtml += '<div class="flex-grow-1"><strong class="top-product-name">' + product.name + '</strong><br><small class="top-product-meta">' + product.sold + ' sold</small></div>';
+                productsHtml += '<div class="top-product-price">Rs. ' + product.price + '</div>';
                 productsHtml += '</div>';
             }
             document.getElementById('topProductsList').innerHTML = productsHtml;
@@ -144,4 +144,5 @@ function createCategoryChart(categoryData) {
     }
     });
 }
+
 
