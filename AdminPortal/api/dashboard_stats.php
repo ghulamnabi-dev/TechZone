@@ -51,7 +51,8 @@ $categoryData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Low stock products (inventory <= 5); skip if column missing
 $lowStockProducts = [];
 try {
-    $stmt = $conn->query("SELECT id, name, inventory FROM products WHERE inventory <= 5 AND inventory >= 0 ORDER BY inventory ASC LIMIT 10");
+    // same rule as the sidebar / bell: at or below each product's threshold, archived excluded
+    $stmt = $conn->query("SELECT id, name, inventory, low_stock_threshold FROM products WHERE status <> 'archived' AND inventory <= low_stock_threshold AND inventory >= 0 ORDER BY inventory ASC LIMIT 10");
     $lowStockProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     // products.inventory may not exist in older schema

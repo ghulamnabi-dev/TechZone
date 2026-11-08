@@ -63,8 +63,9 @@ require_once __DIR__ . '/../includes/header.php';
                         <option value="Processing">Processing</option>
                         <option value="Shipped">Shipped</option>
                         <option value="Delivered">Delivered</option>
-                        <option value="Cancelled">Cancelled</option>
+                        <option value="Cancelled" data-cap="orders.cancel">Cancelled</option>
                     </select>
+                    <p class="form-text mt-2 mb-0">Moving forward records the confirm, ship and delivery steps on the order's timeline. Cancelling restocks every item.</p>
                 </form>
             </div>
             <div class="modal-footer">

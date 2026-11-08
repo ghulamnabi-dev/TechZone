@@ -1,5 +1,6 @@
 <?php
-$pageTitle = 'Dashboard';
+$pageTitle = 'Home';
+$pageSubtitle = 'Sales, orders and stock at a glance';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 

@@ -8,6 +8,10 @@ require_once __DIR__ . '/../../core/validation.php';
 
 checkLogin(true);
 json_headers();
+// Any write needs products.write (core/permissions.php); reads are open to every role.
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    require_can('products.write');
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 

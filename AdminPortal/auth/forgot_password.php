@@ -80,10 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en" data-bs-theme="light">
 <head>
     <title>Forgot Password - TechZone.pk Admin</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="<?php echo htmlspecialchars(admin_url('assets/css/admin-style.css'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/css/admin-style.css'); ?>">
 </head>
 <body class="admin-login-body">
@@ -92,9 +95,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="col-md-5">
             <div class="card shadow-lg">
                 <div class="card-body p-4">
-                    <div class="text-center mb-3">
-                        <h2 class="fw-bold text-dark mb-0">TechZone.pk</h2>
-                        <p class="text-muted small mb-0">Admin Password Reset</p>
+                    <div class="auth-brand mb-3">
+                        <span class="brand-mark"><i class="fas fa-microchip"></i></span>
+                        <div><h1>TechZone</h1><p>Reset your password</p></div>
                     </div>
                     <p class="text-muted small mb-3">Enter your <strong>email</strong>, <strong>username</strong>, and <strong>phone</strong> so we can verify your account and let you reset your password.</p>
 

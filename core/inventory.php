@@ -119,3 +119,123 @@ function calculateFinalPriceWithVariations(PDO $conn, int $productId, float $bas
 }
 
 
+/* ==========================================================================
+   Stock ledger (docs/ADMIN.md: "stock is only changed through this")
+   ========================================================================== */
+
+/** Reasons allowed by inventory_adjustments.reason. */
+const INVENTORY_REASONS = ['received', 'sold', 'returned', 'damaged', 'correction', 'cancelled_order'];
+
+/** Stock change refused (would go negative, unknown product). Message is safe to show. */
+class InventoryException extends RuntimeException
+{
+}
+
+/**
+ * Change stock by $delta and record it in inventory_adjustments. The ONLY way stock changes.
+ *
+ * - products.inventory always moves by $delta; when $variationId is given, that variation's
+ *   inventory moves by the same delta (a variation's stock is part of the product's stock).
+ * - Both UPDATEs are guarded ("inventory + delta >= 0"), so stock can never go negative even
+ *   under concurrent writers; a refused change throws InventoryException.
+ * - products.sold follows the ledger: 'sold' adds -delta, 'cancelled_order' / 'returned' take it back.
+ * - Runs inside the caller's transaction (place_order, order_cancel …). Called outside one it
+ *   opens and commits its own, so the three writes are always atomic.
+ *
+ * @param PDO         $conn
+ * @param int         $productId
+ * @param int|null    $variationId product_variations.id or null for product-level stock
+ * @param int         $delta       positive = stock in, negative = stock out; 0 is a no-op
+ * @param string      $reason      one of INVENTORY_REASONS
+ * @param string|null $reference   "order #12", "PO 2026-11-04", free text (max 120)
+ * @param int|null    $adminId     staff member responsible (null = customer / system)
+ * @return int inventory_adjustments.id (0 when $delta is 0)
+ * @throws InventoryException   when the change would make stock negative or the row is missing
+ * @throws InvalidArgumentException for an unknown reason
+ */
+function adjust_inventory(PDO $conn, int $productId, ?int $variationId, int $delta, string $reason, ?string $reference, ?int $adminId): int
+{
+    if (!in_array($reason, INVENTORY_REASONS, true)) {
+        throw new InvalidArgumentException('Unknown inventory reason: ' . $reason);
+    }
+    if ($delta === 0) {
+        return 0;
+    }
+
+    $own = !$conn->inTransaction();
+    if ($own) {
+        $conn->beginTransaction();
+    }
+    try {
+        $soldExpr = 'sold';
+        if ($reason === 'sold') {
+            $soldExpr = 'sold - ?';                 // delta is negative: sold grows
+        } elseif ($reason === 'cancelled_order' || $reason === 'returned') {
+            $soldExpr = 'GREATEST(sold - ?, 0)';    // delta is positive: sold shrinks
+        }
+        $params = [$delta];
+        if ($soldExpr !== 'sold') {
+            $params[] = $delta;
+        }
+        array_push($params, $productId, $delta);
+        $st = $conn->prepare("UPDATE products SET inventory = inventory + ?, sold = $soldExpr WHERE id = ? AND inventory + ? >= 0");
+        $st->execute($params);
+        if ($st->rowCount() !== 1) {
+            $chk = $conn->prepare('SELECT name, inventory FROM products WHERE id = ?');
+            $chk->execute([$productId]);
+            $row = $chk->fetch(PDO::FETCH_ASSOC);
+            throw new InventoryException($row
+                ? "Only {$row['inventory']} left of '{$row['name']}'."
+                : 'Product #' . $productId . ' no longer exists.');
+        }
+
+        if ($variationId !== null) {
+            $st = $conn->prepare('UPDATE product_variations SET inventory = inventory + ? WHERE id = ? AND product_id = ? AND inventory + ? >= 0');
+            $st->execute([$delta, $variationId, $productId, $delta]);
+            if ($st->rowCount() !== 1) {
+                $chk = $conn->prepare('SELECT variation_value, inventory FROM product_variations WHERE id = ? AND product_id = ?');
+                $chk->execute([$variationId, $productId]);
+                $row = $chk->fetch(PDO::FETCH_ASSOC);
+                throw new InventoryException($row
+                    ? "Only {$row['inventory']} left of option '{$row['variation_value']}'."
+                    : 'That product option no longer exists.');
+            }
+        }
+
+        $st = $conn->prepare('INSERT INTO inventory_adjustments (product_id, variation_id, delta, reason, reference, admin_id) VALUES (?, ?, ?, ?, ?, ?)');
+        $st->execute([$productId, $variationId, $delta, $reason, $reference !== null ? mb_substr($reference, 0, 120) : null, $adminId]);
+        $id = (int) $conn->lastInsertId();
+
+        if ($own) {
+            $conn->commit();
+        }
+        return $id;
+    } catch (Throwable $e) {
+        if ($own && $conn->inTransaction()) {
+            $conn->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
+ * Products at or below their low-stock threshold (per product, falling back to the
+ * low_stock_threshold setting), excluding archived ones. Lowest stock first.
+ *
+ * @return array<int, array{id:string,name:string,sku:?string,inventory:string,threshold:string,imagelink:?string,status:string}>
+ */
+function low_stock_products(PDO $conn, int $limit = 50): array
+{
+    $fallback = 5;
+    if (function_exists('setting')) {
+        $fallback = (int) setting('low_stock_threshold', 5);
+    }
+    $limit = max(1, min(500, $limit));
+    $st = $conn->prepare("SELECT id, name, sku, inventory, COALESCE(low_stock_threshold, ?) AS threshold, imagelink, status
+        FROM products
+        WHERE status <> 'archived' AND inventory <= COALESCE(low_stock_threshold, ?)
+        ORDER BY inventory ASC, name ASC
+        LIMIT $limit");
+    $st->execute([$fallback, $fallback]);
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}

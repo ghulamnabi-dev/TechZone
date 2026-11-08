@@ -24,7 +24,7 @@
 
     var MOBILE_MAX = 991.98;
     var PLACEHOLDER_IMG = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-    var FONT = 'Inter, "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif';
+    var FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
     function isMobile() { return window.matchMedia('(max-width: ' + MOBILE_MAX + 'px)').matches; }
     function $(x) { return typeof x === 'string' ? document.querySelector(x) : x; }
@@ -50,63 +50,63 @@
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
 
-    /* ---------- theme: Quartz, every colour from our tokens ---------- */
+    /* ---------- theme: Quartz (light), every colour from the ADMIN.md tokens ---------- */
     var theme = null;
     function adminTheme() {
         if (theme) return theme;
-        theme = agGrid.themeQuartz.withPart(agGrid.colorSchemeDark).withParams({
-            browserColorScheme: 'dark',
+        theme = agGrid.themeQuartz.withParams({
+            browserColorScheme: 'light',
             backgroundColor: 'var(--surface)',
             foregroundColor: 'var(--ink)',
             textColor: 'var(--ink)',
             subtleTextColor: 'var(--ink-3)',
-            chromeBackgroundColor: 'var(--surface-2)',
-            headerBackgroundColor: 'var(--surface-2)',
+            chromeBackgroundColor: 'var(--surface)',
+            headerBackgroundColor: 'var(--surface)',
             headerTextColor: 'var(--ink-3)',
             headerFontSize: 11,
             headerFontWeight: 600,
-            headerHeight: 40,
-            headerColumnResizeHandleColor: 'var(--line-strong)',
+            headerHeight: 36,
+            headerColumnResizeHandleColor: 'var(--line)',
             borderColor: 'var(--line)',
             wrapperBorder: false,
             wrapperBorderRadius: 0,
-            rowBorder: { color: 'var(--line)' },
+            rowBorder: { color: 'var(--line-2)' },
             columnBorder: false,
-            headerRowBorder: { color: 'var(--line-strong)' },
-            footerRowBorder: { color: 'var(--line)' },
-            pinnedColumnBorder: { color: 'var(--line)' },
+            headerRowBorder: { color: 'var(--line)' },
+            footerRowBorder: { color: 'var(--line-2)' },
+            pinnedColumnBorder: { color: 'var(--line-2)' },
             oddRowBackgroundColor: 'var(--surface)',
-            rowHoverColor: 'var(--surface-2)',
-            selectedRowBackgroundColor: 'rgba(255, 212, 0, .10)',
-            accentColor: 'var(--accent)',
-            rangeSelectionBorderColor: 'var(--accent)',
-            focusShadow: '0 0 0 2px rgba(255, 212, 0, .45)',
-            inputFocusShadow: '0 0 0 3px rgba(255, 212, 0, .22)',
-            inputFocusBorder: { color: 'var(--accent)' },
-            inputBackgroundColor: 'var(--bg)',
-            inputBorder: { color: 'var(--line-strong)' },
-            menuBackgroundColor: 'var(--surface-2)',
-            menuBorder: { color: 'var(--line-strong)' },
+            rowHoverColor: 'var(--canvas)',
+            selectedRowBackgroundColor: 'var(--info-bg)',
+            accentColor: 'var(--ink)',
+            rangeSelectionBorderColor: 'var(--brand)',
+            focusShadow: '0 0 0 2px var(--brand)',
+            inputFocusShadow: '0 0 0 2px var(--brand)',
+            inputFocusBorder: { color: '#b8a000' },
+            inputBackgroundColor: 'var(--surface)',
+            inputBorder: { color: 'var(--line)' },
+            menuBackgroundColor: 'var(--surface)',
+            menuBorder: { color: 'var(--line)' },
             menuShadow: 'var(--shadow-pop)',
             menuTextColor: 'var(--ink)',
-            pickerButtonBackgroundColor: 'var(--bg)',
-            pickerListBackgroundColor: 'var(--surface-2)',
-            checkboxUncheckedBackgroundColor: 'var(--bg)',
-            checkboxUncheckedBorderColor: 'var(--line-strong)',
-            checkboxCheckedBackgroundColor: 'var(--accent)',
-            checkboxCheckedBorderColor: 'var(--accent)',
-            checkboxCheckedShapeColor: 'var(--accent-ink)',
-            checkboxIndeterminateBackgroundColor: 'var(--accent)',
-            checkboxIndeterminateBorderColor: 'var(--accent)',
-            checkboxIndeterminateShapeColor: 'var(--accent-ink)',
-            toggleButtonOnBackgroundColor: 'var(--accent)',
+            pickerButtonBackgroundColor: 'var(--surface)',
+            pickerListBackgroundColor: 'var(--surface)',
+            checkboxUncheckedBackgroundColor: 'var(--surface)',
+            checkboxUncheckedBorderColor: '#c4c8cf',
+            checkboxCheckedBackgroundColor: 'var(--ink)',
+            checkboxCheckedBorderColor: 'var(--ink)',
+            checkboxCheckedShapeColor: '#fff',
+            checkboxIndeterminateBackgroundColor: 'var(--ink)',
+            checkboxIndeterminateBorderColor: 'var(--ink)',
+            checkboxIndeterminateShapeColor: '#fff',
+            toggleButtonOnBackgroundColor: 'var(--ink)',
             iconColor: 'var(--ink-3)',
             fontFamily: FONT,
-            fontSize: 13.5,
-            dataFontSize: 13.5,
-            rowHeight: 48,
-            listItemHeight: 32,
-            cellHorizontalPadding: 14,
+            fontSize: 13,
+            dataFontSize: 13,
+            rowHeight: 44,
+            listItemHeight: 30,
+            cellHorizontalPadding: 12,
             borderRadius: 6,
             spacing: 8
         });
@@ -299,7 +299,7 @@
             var n = 0;
             (ctrl.rows || []).forEach(function (r) { n = Math.max(n, rowActionsFor(r).length); });
             if (!n && opts.rowActions) n = opts.maxActions || 2;
-            return isMobile() ? 56 : Math.max(64, n * 34 + 26);
+            return isMobile() ? 84 : Math.max(88, n * 30 + 28);   // wide enough for the "Actions" label
         }
 
         /* column defs */
@@ -318,7 +318,7 @@
         var mobileWidth = (opts.columns && opts.columns[0] && opts.columns[0].mobileWidth) || 150;
         if (opts.rowActions) {
             cols.push({
-                colId: 'actions', headerName: '', cellRenderer: actionsRenderer, sortable: false, filter: false,
+                colId: 'actions', headerName: 'Actions', cellRenderer: actionsRenderer, sortable: false, filter: false,
                 resizable: false, suppressMovable: true, lockVisible: true, width: 120, minWidth: 56,
                 cellClass: 'grid-actions-cell', headerClass: 'grid-actions-head', suppressHeaderMenuButton: true,
                 suppressNavigable: false, suppressSizeToFit: true
@@ -462,7 +462,7 @@
             getRowId: function (p) { return String(p.data.id); },
             animateRows: true,
             pagination: true,
-            rowHeight: opts.rowHeight || 48,
+            rowHeight: opts.rowHeight || 44,
             paginationPageSize: 25,
             paginationPageSizeSelector: [10, 25, 50, 100],
             domLayout: 'autoHeight',

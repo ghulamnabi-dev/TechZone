@@ -65,7 +65,8 @@ try {
             : 'Email already registered', 409);
     }
 
-    $stmt = $conn->prepare("INSERT INTO admins (name, username, email, phone, password) VALUES (?, ?, ?, ?, ?)");
+    // Invite-code sign-ups always start as Staff; the owner promotes them in Settings → Staff & roles.
+    $stmt = $conn->prepare("INSERT INTO admins (name, username, email, phone, password, role) VALUES (?, ?, ?, ?, ?, 'staff')");
     $stmt->execute([$name, $username, $email, $phone, password_hash($password, PASSWORD_DEFAULT)]);
 
     login_clear_failures($conn, 'admin_signup');

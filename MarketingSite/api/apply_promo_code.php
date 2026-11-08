@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../../core/security.php';
 require_once __DIR__ . '/../../core/validation.php';
+require_once __DIR__ . '/../../core/discounts.php';
 
 json_headers();
 
@@ -24,47 +25,45 @@ if (count($fails) >= 10) {
 }
 
 try {
-    $stmt = $conn->prepare("
-        SELECT id, title, discount_percentage, discount_amount, promo_code, start_date, end_date
-        FROM promotions
-        WHERE UPPER(promo_code) = ?
-          AND is_active = 1
-          AND (start_date IS NULL OR start_date <= CURDATE())
-          AND (end_date IS NULL OR end_date >= CURDATE())
-        LIMIT 1
-    ");
-    $stmt->execute([$promo_code]);
-    $promotion = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$promotion) {
-        $fails[] = $now;
-        $_SESSION['promo_failures'] = array_values($fails);
-        json_error('Invalid or expired promo code', 404);
-    }
-
-    $cart_total = 0;
-    if (isset($_SESSION['cart']) && is_array($_SESSION['cart'])) {
-        foreach ($_SESSION['cart'] as $item) {
-            if (isset($item['price'], $item['quantity'])) {
-                $cart_total += (float) $item['price'] * (int) $item['quantity'];
-            }
+    $cart = isset($_SESSION['cart']) && is_array($_SESSION['cart']) ? $_SESSION['cart'] : [];
+    $lines = [];
+    $cart_total = 0.0;
+    foreach ($cart as $item) {
+        if (isset($item['id'], $item['price'], $item['quantity'])) {
+            $lines[] = ['product_id' => (int) $item['id'], 'price' => (float) $item['price'], 'quantity' => (int) $item['quantity']];
+            $cart_total += (float) $item['price'] * (int) $item['quantity'];
         }
     }
-
-    $_SESSION['applied_promo_code'] = $promo_code;
-    $_SESSION['applied_promo_data'] = $promotion;   // re-validated at checkout
-
-    $discount = 0;
-    if ($promotion['discount_percentage'] > 0) {
-        $discount = ($cart_total * $promotion['discount_percentage']) / 100;
-    } elseif ($promotion['discount_amount'] > 0) {
-        $discount = min((float) $promotion['discount_amount'], $cart_total);
+    $city = '';
+    if (isset($_SESSION['customer_id'])) {
+        $st = $conn->prepare('SELECT city FROM customers WHERE id = ?');
+        $st->execute([(int) $_SESSION['customer_id']]);
+        $city = (string) ($st->fetchColumn() ?: '');
     }
+
+    $result = evaluate_promo($conn, $promo_code, $lines, $cart_total, $city);
+
+    if (!$result['ok']) {
+        if ($result['promo'] === null) {
+            // unknown / expired code: counts towards the brute-force guard
+            $fails[] = $now;
+            $_SESSION['promo_failures'] = array_values($fails);
+            json_error($result['message'], 404);
+        }
+        // a real code that this cart doesn't qualify for (minimum, category): say why
+        json_error($result['message'], 422);
+    }
+
+    $promotion = $result['promo'];
+    $_SESSION['applied_promo_code'] = $result['code'];
+    $_SESSION['applied_promo_data'] = $promotion;   // re-validated by the cart and at checkout
 
     json_response([
         'success' => true,
-        'message' => 'Promo code applied successfully!',
-        'discount' => $discount,
+        'message' => $result['message'],
+        'discount' => $result['discount'],
+        'kind' => $result['kind'],
+        'free_shipping' => $result['free_shipping'],
         'discount_percentage' => $promotion['discount_percentage'],
         'discount_amount' => $promotion['discount_amount'],
         'promo_title' => $promotion['title'],

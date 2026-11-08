@@ -62,7 +62,7 @@ window.onload = function() {
         onRowOpen: function(o) { showOrderDetails(o.id); },
         bulkActions: [{
             label: 'Mark as', icon: 'fa-arrows-rotate',
-            menu: ORDER_STATUS_LIST.map(function(s) { return { label: s, value: s }; }),
+            menu: ORDER_STATUS_LIST.filter(function(s) { return s !== 'Cancelled' || tzCan('orders.cancel'); }).map(function(s) { return { label: s, value: s }; }),
             progress: 'Updating',
             perRow: function(o, status) { return o.status === status ? true : putOrderStatus(o.id, status); },
             done: function(ok, failed) {

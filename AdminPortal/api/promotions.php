@@ -4,9 +4,29 @@ require_once __DIR__ . '/../config/auth.php';
 require_once __DIR__ . '/../../core/security.php';
 require_once __DIR__ . '/../../core/validation.php';
 require_once __DIR__ . '/../../core/uploads.php';
+require_once __DIR__ . '/../../core/audit.php';
+
+/**
+ * Keep the discount-engine columns in step with the legacy form fields: the schedule follows
+ * start/end date, and kind follows which discount field is set (free_shipping is kept when
+ * both are zero).
+ */
+function promotion_sync_engine(PDO $conn, int $id): void
+{
+    $conn->prepare("UPDATE promotions SET
+            starts_at = IF(start_date IS NULL, NULL, TIMESTAMP(start_date)),
+            ends_at = IF(end_date IS NULL, NULL, TIMESTAMP(end_date, '23:59:59')),
+            kind = CASE WHEN discount_percentage > 0 THEN 'percent' WHEN discount_amount > 0 THEN 'fixed'
+                        WHEN kind = 'free_shipping' THEN 'free_shipping' ELSE kind END
+        WHERE id = ?")->execute([$id]);
+}
 
 checkLogin(true);
 json_headers();
+// Any write needs discounts.write (core/permissions.php); reads are open to every role.
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    require_can('discounts.write');
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 $uploadDir = __DIR__ . '/../uploads';
@@ -94,12 +114,17 @@ try {
             if ($oldImage && $oldImage !== $imageUrl && strpos($oldImage, 'uploads/') === 0) {
                 delete_upload_if_unused($conn, $oldImage, $uploadDir);
             }
+            promotion_sync_engine($conn, $id);
+            audit('discount.update', 'promotion', $id, 'Updated discount ' . ($code ?: $title));
             json_response(['success' => true, 'message' => 'Promotion updated successfully']);
         }
 
         $stmt = $conn->prepare("INSERT INTO promotions (title, description, image_url, discount_percentage, discount_amount, promo_code, start_date, end_date, is_active, display_order, link_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([$title, $description, $imageUrl, $pct, $amount, $code, $start, $end, $isActive, $order, $link]);
-        json_response(['success' => true, 'message' => 'Promotion created successfully', 'id' => $conn->lastInsertId()]);
+        $newId = (int) $conn->lastInsertId();
+        promotion_sync_engine($conn, $newId);
+        audit('discount.create', 'promotion', $newId, 'Created discount ' . ($code ?: $title));
+        json_response(['success' => true, 'message' => 'Promotion created successfully', 'id' => $newId]);
     }
 
     // PUT - JSON update (kept for backward compatibility; image cannot be changed here)
@@ -114,6 +139,8 @@ try {
 
         $stmt = $conn->prepare("UPDATE promotions SET title = ?, description = ?, discount_percentage = ?, discount_amount = ?, promo_code = ?, start_date = ?, end_date = ?, is_active = ?, display_order = ?, link_url = ? WHERE id = ?");
         $stmt->execute([$title, $description, $pct, $amount, $code, $start, $end, $isActive, $order, $link, $id]);
+        promotion_sync_engine($conn, $id);
+        audit('discount.update', 'promotion', $id, 'Updated discount ' . ($code ?: $title));
         json_response(['success' => true, 'message' => 'Promotion updated successfully']);
     }
 
@@ -131,6 +158,7 @@ try {
         $image = $stmt->fetchColumn();
 
         $conn->prepare("DELETE FROM promotions WHERE id = ?")->execute([$id]);
+        audit('discount.delete', 'promotion', $id, 'Deleted discount #' . $id);
         if ($image && strpos($image, 'uploads/') === 0) {
             delete_upload_if_unused($conn, $image, $uploadDir);
         }

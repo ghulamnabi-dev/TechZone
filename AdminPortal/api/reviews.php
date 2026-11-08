@@ -6,6 +6,10 @@ require_once __DIR__ . '/../../core/validation.php';
 
 checkLogin(true);
 json_headers();
+// Any write needs reviews.moderate (core/permissions.php); reads are open to every role.
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    require_can('reviews.moderate');
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 const REVIEW_STATUSES = ['Pending', 'Approved', 'Rejected'];

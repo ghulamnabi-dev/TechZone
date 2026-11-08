@@ -4,7 +4,7 @@ require_once __DIR__ . '/../config/paths.php';
 require_once __DIR__ . '/../../core/security.php';
 ?>
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en" data-bs-theme="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,15 +17,16 @@ require_once __DIR__ . '/../../core/security.php';
 <body class="admin-login-body">
 <main class="auth-card">
     <div class="auth-brand">
-        <span class="sidebar-brand-icon"><i class="fas fa-microchip"></i></span>
+        <span class="brand-mark"><i class="fas fa-microchip"></i></span>
         <div>
-            <h1>TechZone.pk</h1>
-            <p>Admin portal</p>
+            <h1>TechZone</h1>
+            <p>Admin</p>
         </div>
     </div>
     <div class="card">
         <div class="card-body p-4">
-            <h2 class="h6 mb-3" style="font-weight:600">Sign in to your account</h2>
+            <h2 class="auth-title">Sign in</h2>
+            <p class="auth-sub">Use your staff email and password.</p>
             <form id="adminLoginForm" novalidate>
                 <div id="errorMessage" class="alert alert-danger d-none mb-3" role="alert"></div>
 
@@ -42,12 +43,19 @@ require_once __DIR__ . '/../../core/security.php';
                     <input type="password" class="form-control" id="adminPassword" placeholder="••••••••" autocomplete="current-password">
                 </div>
 
-                <button type="submit" class="btn btn-primary w-100 py-2 mt-1">Sign in</button>
+                <button type="submit" class="btn btn-primary btn-lg w-100 mt-1">Sign in</button>
             </form>
-            <div class="auth-demo">Demo: <code>admin@techzone.pk</code> / <code>Admin@1234</code></div>
+            <div class="auth-demo">
+                Demo accounts
+                <dl>
+                    <dt>Owner</dt><dd><code>admin@techzone.pk</code> / <code>Admin@1234</code></dd>
+                    <dt>Manager</dt><dd><code>sana.manager@techzone.pk</code> / <code>Manager@1234</code></dd>
+                    <dt>Staff</dt><dd><code>bilal.staff@techzone.pk</code> / <code>Staff@1234</code></dd>
+                </dl>
+            </div>
         </div>
     </div>
-    <p class="text-center mt-3 mb-0 small" style="color:var(--ink-3)">No account? <a href="<?php echo htmlspecialchars(admin_url('auth/signup.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-decoration-none">Create one</a></p>
+    <p class="text-center mt-3 mb-0 muted">Have an invite code? <a href="<?php echo htmlspecialchars(admin_url('auth/signup.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-decoration-none">Create your account</a></p>
 </main>
 
 <script src="<?php echo htmlspecialchars(admin_url('assets/js/common.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>

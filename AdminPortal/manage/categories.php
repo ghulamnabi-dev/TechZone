@@ -1,5 +1,7 @@
 <?php
 $pageTitle = 'Categories';
+$navActive = 'categories.php';
+$pageActions = '<button class="btn btn-primary" id="addCategoryBtn" type="button" data-cap="products.write"><i class="fas fa-plus"></i> Add category</button>';
 $useGrid = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -14,9 +16,6 @@ require_once __DIR__ . '/../includes/header.php';
             <span class="grid-count" id="categoryCount" aria-live="polite">Loading…</span>
             <button type="button" class="btn btn-secondary" id="categoriesExport"><i class="fas fa-file-csv"></i> Export CSV</button>
             <button type="button" class="btn btn-secondary btn-square" id="categoriesReset" data-bs-toggle="tooltip" data-bs-title="Reset columns" aria-label="Reset columns"><i class="fas fa-table-columns"></i></button>
-            <button class="btn btn-primary" id="addCategoryBtn" type="button">
-                <i class="fas fa-plus"></i> Add category
-            </button>
         </div>
     </div>
     <div id="categoriesGrid" aria-label="Categories"></div>

@@ -14,7 +14,7 @@ $adminId = (int) $_SESSION['admin_id'];
 try {
     // GET - profile (no password hash)
     if ($method === 'GET') {
-        $stmt = $conn->prepare("SELECT id, username, email, name, phone, created_at FROM admins WHERE id = ?");
+        $stmt = $conn->prepare("SELECT id, username, email, name, phone, role, last_login_at, created_at FROM admins WHERE id = ?");
         $stmt->execute([$adminId]);
         json_response(['success' => true, 'admin' => $stmt->fetch(PDO::FETCH_ASSOC)]);
     }

@@ -66,6 +66,7 @@ function initPromotionsGrid() {
         ],
         rowActions: promo => {
             const id = parseInt(promo.id, 10);
+            if (!tzCan('discounts.write')) return [];
             return [
                 { icon: 'fa-pen', label: 'Edit', attrs: `data-edit-promotion="${id}"` },
                 { icon: 'fa-trash', label: 'Delete', attrs: `data-delete-promotion="${id}"`, tone: 'danger' }

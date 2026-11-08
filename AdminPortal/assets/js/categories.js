@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ],
         rowActions: function (cat) {
             var id = parseInt(cat.id, 10);
+            if (!tzCan('products.write')) return [];
             return [
                 { icon: 'fa-pen', label: 'Edit', attrs: 'data-edit-category="' + id + '"' },
                 { icon: 'fa-trash', label: 'Delete', attrs: 'data-delete-category="' + id + '"', tone: 'danger' }

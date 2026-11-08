@@ -5,6 +5,8 @@ $pageTitle = 'Shopping Cart';
 require_once __DIR__ . '/../config/database.php';
 
 require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/discounts.php';
+require_once __DIR__ . '/../../core/shipping.php';
 
 $cartUrl = site_url('shop/cart.php');
 
@@ -321,19 +323,33 @@ foreach ($cart as $item) {
     $total += $item['price'] * $item['quantity'];
 }
 
-// Calculate discount if promo code is applied
+// Delivery city: the signed-in customer's (guests see shipping at checkout)
+$shipCity = null;
+if (isset($_SESSION['customer_id'])) {
+    $cityStmt = $conn->prepare("SELECT city FROM customers WHERE id = ?");
+    $cityStmt->execute([(int) $_SESSION['customer_id']]);
+    $shipCity = trim((string) ($cityStmt->fetchColumn() ?: '')) ?: null;
+}
+
+// Discount: re-evaluated against the current cart (core/discounts.php)
 $discount = 0;
 $applied_promo = null;
-if (isset($_SESSION['applied_promo_code']) && isset($_SESSION['applied_promo_data'])) {
-    $applied_promo = $_SESSION['applied_promo_data'];
-    if ($applied_promo['discount_percentage'] > 0) {
-        $discount = ($total * $applied_promo['discount_percentage']) / 100;
-    } elseif ($applied_promo['discount_amount'] > 0) {
-        $discount = $applied_promo['discount_amount'];
+$promo_notice = null;
+$free_shipping_code = false;
+if (isset($_SESSION['applied_promo_code']) && $cart) {
+    $promoLines = array_map(static fn($i) => ['product_id' => (int) $i['id'], 'price' => (float) $i['price'], 'quantity' => (int) $i['quantity']], $cart);
+    $promoResult = evaluate_promo($conn, (string) $_SESSION['applied_promo_code'], array_values($promoLines), (float) $total, (string) $shipCity);
+    if ($promoResult['ok']) {
+        $applied_promo = $promoResult['promo'];
+        $discount = $promoResult['discount'];
+        $free_shipping_code = $promoResult['free_shipping'];
+    } else {
+        $promo_notice = $promoResult['message'];
     }
 }
 
-$shipping = $total > 5000 ? 0 : 500;
+$quote = $shipCity !== null ? shipping_quote($conn, $shipCity, (float) $total) : null;
+$shipping = $quote === null || $free_shipping_code ? 0 : $quote['fee'];
 $final_total = $total - $discount + $shipping;
 if ($final_total < 0) $final_total = 0;
 ?>
@@ -423,7 +439,7 @@ if ($final_total < 0) $final_total = 0;
                                 <button type="button" class="link-btn" onclick="removePromoCode()">Remove</button>
                             </div>
                         <?php endif; ?>
-                        <div id="promoCodeMessage" class="mt-2"></div>
+                        <div id="promoCodeMessage" class="mt-2"><?php if ($promo_notice): ?><div class="alert alert-warning mb-0" role="status"><?php echo $h($promo_notice); ?></div><?php endif; ?></div>
                     </div>
 
                     <dl class="summary__rows">
@@ -431,9 +447,18 @@ if ($final_total < 0) $final_total = 0;
                         <?php if ($discount > 0): ?>
                             <div class="is-discount"><dt>Discount (<?php echo $h($_SESSION['applied_promo_code']); ?>)</dt><dd>&minus;<?php echo format_pkr($discount); ?></dd></div>
                         <?php endif; ?>
-                        <div><dt>Shipping</dt><dd><?php echo $shipping > 0 ? format_pkr($shipping) : 'Free'; ?></dd></div>
+                        <?php if ($quote === null): ?>
+                            <div><dt>Shipping</dt><dd>Calculated at checkout</dd></div>
+                        <?php else: ?>
+                            <div><dt>Shipping<?php if ($quote['zone']): ?> · <?php echo $h($quote['zone']['name']); ?><?php endif; ?></dt><dd><?php echo $shipping > 0 ? format_pkr($shipping) : 'Free'; ?></dd></div>
+                        <?php endif; ?>
                         <div class="summary__total"><dt>Total</dt><dd><?php echo format_pkr($final_total); ?></dd></div>
                     </dl>
+                    <?php if ($quote !== null && !$free_shipping_code && $quote['remaining_for_free'] !== null): ?>
+                        <p class="summary__note">Add <?php echo format_pkr($quote['remaining_for_free']); ?> more for free delivery to <?php echo $h($shipCity); ?><?php if ($quote['eta']): ?> (<?php echo $h($quote['eta']); ?>)<?php endif; ?>.</p>
+                    <?php elseif ($quote !== null && $quote['eta']): ?>
+                        <p class="summary__note">Delivery to <?php echo $h($shipCity); ?> in <?php echo $h($quote['eta']); ?>.</p>
+                    <?php endif; ?>
 
                     <?php if (isset($_SESSION['customer_id'])): ?>
                         <a href="<?php echo $h(site_url('shop/checkout.php')); ?>" class="btn btn-ink w-100 checkout-button">Proceed to Checkout</a>

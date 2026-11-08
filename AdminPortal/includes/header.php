@@ -1,27 +1,68 @@
 <?php
+/**
+ * Admin shell: <head>, 240px sidebar, 56px topbar (⌘K search, notifications, account) and the
+ * page heading. Pages set before including it:
+ *   $pageTitle     string   heading + <title>
+ *   $pageSubtitle  ?string  one line under the heading
+ *   $pageActions   ?string  trusted HTML for the right side of the heading (buttons)
+ *   $pageBack      ?array   ['href' => …, 'label' => …] back link above the heading (detail pages)
+ *   $useGrid       bool     load AG Grid + assets/js/grid.js
+ *   $pageCap       ?string  capability required to open the page (require_can)
+ */
 require_once __DIR__ . '/../config/paths.php';
+require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
 require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/permissions.php';
 checkLogin();
-$adminName = getAdminName();
+if (!empty($pageCap)) {
+    require_can($pageCap);
+}
+
+$tzAdmin = current_admin() ?? ['id' => (int) $_SESSION['admin_id'], 'name' => getAdminName(), 'email' => '', 'role' => 'staff'];
+$adminName = $tzAdmin['name'];
+$adminRole = admin_role() ?? 'staff';
+$adminRoleLabel = role_label($adminRole);
 $adminInitial = strtoupper(substr($adminName, 0, 1));
 $adminCsrfToken = csrf_token();
+$tzE = static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+$tzAsset = static fn(string $rel): string => htmlspecialchars(admin_url($rel), ENT_QUOTES, 'UTF-8') . '?v=' . (int) @filemtime(__DIR__ . '/../' . $rel);
+
+// Counts for the sidebar badges and the notification bell (cheap aggregate queries).
+$tzCounts = ['unfulfilled' => 0, 'unpaid' => 0, 'pending_reviews' => 0, 'new_messages' => 0, 'low_stock' => 0, 'today_orders' => 0];
+try {
+    $tzCounts = array_map('intval', $conn->query("SELECT
+        (SELECT COUNT(*) FROM orders WHERE status <> 'Cancelled' AND fulfillment_status <> 'fulfilled') AS unfulfilled,
+        (SELECT COUNT(*) FROM orders WHERE status <> 'Cancelled' AND payment_status = 'pending') AS unpaid,
+        (SELECT COUNT(*) FROM reviews WHERE status = 'Pending') AS pending_reviews,
+        (SELECT COUNT(*) FROM contact_messages WHERE status = 'new') AS new_messages,
+        (SELECT COUNT(*) FROM products WHERE status <> 'archived' AND inventory <= low_stock_threshold) AS low_stock,
+        (SELECT COUNT(*) FROM orders WHERE order_date >= CURDATE()) AS today_orders")->fetch(PDO::FETCH_ASSOC));
+} catch (PDOException $e) {
+    log_exception($e, 'admin-shell-counts');
+}
+$tzBellCount = $tzCounts['unfulfilled'] + $tzCounts['pending_reviews'] + $tzCounts['low_stock'] + $tzCounts['new_messages'];
 ?>
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en" data-bs-theme="light">
 <head>
     <meta charset="utf-8">
-    <title><?php if(isset($pageTitle)) echo htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') . ' · '; ?>TechZone Admin</title>
+    <title><?php if (isset($pageTitle)) echo $tzE($pageTitle) . ' · '; ?>TechZone Admin</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="dark">
-    <meta name="csrf-token" content="<?= htmlspecialchars($adminCsrfToken, ENT_QUOTES, 'UTF-8') ?>">
+    <meta name="color-scheme" content="light">
+    <meta name="csrf-token" content="<?= $tzE($adminCsrfToken) ?>">
+    <link rel="preload" href="<?= $tzE(admin_url('assets/fonts/inter-latin-400-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(admin_url('assets/css/admin-style.css'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/css/admin-style.css'); ?>">
+    <link rel="stylesheet" href="<?= $tzAsset('assets/css/admin-style.css') ?>">
+    <script>
+        window.TZ_CAPS = <?= json_encode(admin_capabilities()) ?>;
+        window.TZ_ROLE = <?= json_encode($adminRole) ?>;
+    </script>
 <?php if (!empty($useGrid)): ?>
     <!-- AG Grid Community 36.2.0 (MIT, vendored: assets/vendor/ag-grid/LICENSE.txt) + our wrapper -->
-    <script src="<?php echo htmlspecialchars(admin_url('assets/vendor/ag-grid/ag-grid-community.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
-    <script src="<?php echo htmlspecialchars(admin_url('assets/js/grid.js'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/js/grid.js'); ?>"></script>
+    <script src="<?= $tzE(admin_url('assets/vendor/ag-grid/ag-grid-community.min.js')) ?>"></script>
+    <script src="<?= $tzAsset('assets/js/grid.js') ?>"></script>
 <?php endif; ?>
 </head>
 <body class="admin-body">
@@ -33,24 +74,82 @@ $adminCsrfToken = csrf_token();
         <button type="button" class="sidebar-toggle" data-sidebar-toggle aria-label="Open navigation" aria-controls="adminSidebar" aria-expanded="false">
             <i class="fas fa-bars"></i>
         </button>
-        <h1 class="admin-header-title"><?php echo htmlspecialchars($pageTitle ?? 'Dashboard', ENT_QUOTES, 'UTF-8'); ?></h1>
+        <div class="topbar-search">
+            <button type="button" class="search-trigger" data-search-open aria-haspopup="dialog" aria-label="Search (Ctrl K)">
+                <i class="fas fa-magnifying-glass"></i>
+                <span class="search-trigger-text">Search orders, products, customers</span>
+                <kbd class="search-kbd" data-kbd-mod>⌘K</kbd>
+            </button>
+        </div>
         <div class="admin-header-right">
             <div class="dropdown">
+                <button type="button" class="topbar-icon" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notifications<?= $tzBellCount ? ' (' . $tzBellCount . ')' : '' ?>">
+                    <i class="fas fa-bell"></i>
+                    <?php if ($tzBellCount > 0): ?><span class="topbar-dot" aria-hidden="true"></span><?php endif; ?>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end notif-menu">
+                    <div class="notif-head"><strong>Notifications</strong><span class="meta">Live counts</span></div>
+                    <div class="notif-list">
+                        <?php
+                        $tzNotes = [];
+                        if ($tzCounts['unfulfilled']) $tzNotes[] = ['fa-box', 'info', $tzCounts['unfulfilled'] . ' order' . ($tzCounts['unfulfilled'] === 1 ? '' : 's') . ' to fulfil', $tzCounts['today_orders'] . ' placed today', 'manage/orders.php'];
+                        if ($tzCounts['unpaid']) $tzNotes[] = ['fa-money-bill-wave', 'warn', $tzCounts['unpaid'] . ' payment' . ($tzCounts['unpaid'] === 1 ? '' : 's') . ' to collect', 'Cash on delivery and JazzCash', 'manage/orders.php'];
+                        if ($tzCounts['low_stock']) $tzNotes[] = ['fa-triangle-exclamation', 'danger', $tzCounts['low_stock'] . ' product' . ($tzCounts['low_stock'] === 1 ? '' : 's') . ' low on stock', 'At or below the threshold', 'manage/inventory.php'];
+                        if ($tzCounts['pending_reviews']) $tzNotes[] = ['fa-star', 'neutral', $tzCounts['pending_reviews'] . ' review' . ($tzCounts['pending_reviews'] === 1 ? '' : 's') . ' awaiting approval', 'Moderation queue', 'manage/reviews.php'];
+                        if ($tzCounts['new_messages']) $tzNotes[] = ['fa-envelope', 'neutral', $tzCounts['new_messages'] . ' new message' . ($tzCounts['new_messages'] === 1 ? '' : 's'), 'Contact form', 'manage/contact_messages.php'];
+                        ?>
+                        <?php if (!$tzNotes): ?>
+                            <div class="notif-empty">You're all caught up.</div>
+                        <?php endif; ?>
+                        <?php foreach ($tzNotes as [$icon, $tone, $title, $sub, $href]): ?>
+                            <a class="notif-item" href="<?= $tzE(admin_url($href)) ?>">
+                                <span class="notif-icon tone-<?= $tone ?>"><i class="fas <?= $icon ?>"></i></span>
+                                <span class="notif-text"><strong><?= $tzE($title) ?></strong><small><?= $tzE($sub) ?></small></span>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+            <div class="dropdown">
                 <button type="button" class="user-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu">
+                    <span class="avatar" aria-hidden="true"><?= $tzE($adminInitial) ?></span>
                     <span class="who">
-                        <strong><?php echo htmlspecialchars($adminName, ENT_QUOTES, 'UTF-8'); ?></strong>
-                        <small>Administrator</small>
+                        <strong><?= $tzE($adminName) ?></strong>
+                        <span class="role-badge role-<?= $tzE($adminRole) ?>"><?= $tzE($adminRoleLabel) ?></span>
                     </span>
-                    <span class="admin-header-avatar"><?php echo htmlspecialchars($adminInitial, ENT_QUOTES, 'UTF-8'); ?></span>
                     <i class="fas fa-chevron-down caret"></i>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                    <li><a class="dropdown-item" href="<?php echo htmlspecialchars(admin_url('manage/profile.php'), ENT_QUOTES, 'UTF-8'); ?>"><i class="fas fa-user"></i> Profile</a></li>
-                    <li><a class="dropdown-item" href="<?php echo htmlspecialchars(rtrim(dirname(admin_portal_base_path() ?: '/'), '/') . '/MarketingSite/index.php', ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> View storefront</a></li>
+                <ul class="dropdown-menu dropdown-menu-end account-menu">
+                    <li class="account-head">
+                        <strong><?= $tzE($adminName) ?></strong>
+                        <span><?= $tzE($tzAdmin['email'] ?? '') ?></span>
+                        <span class="role-badge role-<?= $tzE($adminRole) ?>"><?= $tzE($adminRoleLabel) ?></span>
+                    </li>
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item text-danger" href="<?php echo htmlspecialchars(admin_url('api/logout.php'), ENT_QUOTES, 'UTF-8'); ?>"><i class="fas fa-arrow-right-from-bracket"></i> Log out</a></li>
+                    <li><a class="dropdown-item" href="<?= $tzE(admin_url('manage/profile.php')) ?>"><i class="fas fa-user"></i> Profile</a></li>
+                    <li><a class="dropdown-item" href="<?= $tzE(rtrim(dirname(admin_portal_base_path() ?: '/'), '/') . '/MarketingSite/index.php') ?>" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> View storefront</a></li>
+                    <li><button type="button" class="dropdown-item" data-shortcuts-open><i class="fas fa-keyboard"></i> Keyboard shortcuts <kbd class="ms-auto">?</kbd></button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="<?= $tzE(admin_url('api/logout.php')) ?>"><i class="fas fa-arrow-right-from-bracket"></i> Log out</a></li>
                 </ul>
             </div>
         </div>
     </header>
-    <main class="admin-page-content">
+    <div class="save-bar" id="saveBar" hidden role="region" aria-label="Unsaved changes">
+        <span class="save-bar-text"><i class="fas fa-circle-exclamation"></i> Unsaved changes</span>
+        <span class="save-bar-actions">
+            <button type="button" class="btn btn-sm btn-ghost-light" data-save-discard>Discard</button>
+            <button type="button" class="btn btn-sm btn-brand" data-save-submit>Save</button>
+        </span>
+    </div>
+    <main class="admin-page-content" id="main">
+        <?php if (!empty($pageBack)): ?>
+            <a class="page-back" href="<?= $tzE($pageBack['href']) ?>"><i class="fas fa-arrow-left"></i> <?= $tzE($pageBack['label']) ?></a>
+        <?php endif; ?>
+        <div class="page-head">
+            <div class="page-head-text">
+                <h1 class="page-title"><?= $tzE($pageTitle ?? 'Home') ?></h1>
+                <?php if (!empty($pageSubtitle)): ?><p class="page-sub"><?= $tzE($pageSubtitle) ?></p><?php endif; ?>
+            </div>
+            <?php if (!empty($pageActions)): ?><div class="page-actions"><?= $pageActions ?></div><?php endif; ?>
+        </div>

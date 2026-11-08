@@ -39,7 +39,8 @@ window.onload = function() {
     
     initProductsGrid();
 
-    document.getElementById('addProductBtn').onclick = function() {
+    var addProductBtn = document.getElementById('addProductBtn');   // absent for roles without products.write
+    if (addProductBtn) addProductBtn.onclick = function() {
         openAddProductModal();
     };
     
@@ -174,12 +175,12 @@ function deleteProductRequest(id) {
 function initProductsGrid() {
     productsGrid = createAdminGrid(document.getElementById('productsTable'), {
         storageKey: 'tz.grid.products.v2',
-        rowHeight: 60,
+        rowHeight: 52,
         noun: ['product', 'products'],
         emptyText: 'No products match these filters.',
         exportName: 'products',
         toolbar: { search: '#productSearch', count: '#productCount', exportBtn: '#productsExport', resetBtn: '#productsReset' },
-        selectable: true,
+        selectable: tzCan('products.write'),
         columns: [
             { field: 'name', headerName: 'Product', kind: 'thumb', flex: 1, minWidth: 260, mobileWidth: 170,
               cellRendererParams: { wrap: true, image: productThumbUrl, sub: function(p) { return 'SKU ' + productSku(p); } },
@@ -188,7 +189,7 @@ function initProductsGrid() {
             { field: 'category_name', headerName: 'Category', kind: 'chip', width: 156,
               valueGetter: function(p) { return p.data.category_name || 'Uncategorised'; } },
             { field: 'price', headerName: 'Price', kind: 'money', width: 130 },
-            { field: 'inventory', headerName: 'Inventory', kind: 'stock', width: 104 },
+            { field: 'inventory', headerName: 'Inventory', kind: 'stock', width: 124 },
             { field: 'sold', headerName: 'Sold', kind: 'number', width: 76 },
             { colId: 'status', headerName: 'Status', kind: 'status', width: 116,
               valueGetter: function(p) { return isProductActive(p.data) ? 'Active' : 'Inactive'; } }
@@ -196,29 +197,31 @@ function initProductsGrid() {
         rowActions: function(product) {
             var id = parseInt(product.id, 10);
             var active = isProductActive(product);
+            // role gating (the API enforces the same capabilities)
+            var write = tzCan('products.write');
             return [
-                { icon: 'fa-layer-group', label: 'Variations', attrs: 'data-manage-variations="' + id + '"' },
-                { icon: 'fa-pen', label: 'Edit', attrs: 'data-edit-product="' + id + '"' },
-                { icon: active ? 'fa-eye-slash' : 'fa-eye', label: active ? 'Deactivate' : 'Activate', attrs: 'data-toggle-status="' + id + '" data-current-status="' + (active ? 1 : 0) + '"', tone: active ? '' : 'ok' },
-                { icon: 'fa-trash', label: 'Delete', attrs: 'data-delete-product="' + id + '"', tone: 'danger' }
+                write && { icon: 'fa-layer-group', label: 'Variations', attrs: 'data-manage-variations="' + id + '"' },
+                { icon: write ? 'fa-pen' : 'fa-eye', label: write ? 'Edit' : 'View', attrs: 'data-edit-product="' + id + '"' },
+                write && { icon: active ? 'fa-eye-slash' : 'fa-eye', label: active ? 'Deactivate' : 'Activate', attrs: 'data-toggle-status="' + id + '" data-current-status="' + (active ? 1 : 0) + '"', tone: active ? '' : 'ok' },
+                tzCan('products.delete') && { icon: 'fa-trash', label: 'Delete', attrs: 'data-delete-product="' + id + '"', tone: 'danger' }
             ];
         },
         onRowOpen: function(p) { openEditProductModal(p.id); },
         bulkActions: [
-            { label: 'Activate', icon: 'fa-eye', progress: 'Activating',
+            tzCan('products.write') && { label: 'Activate', icon: 'fa-eye', progress: 'Activating',
               perRow: function(p) { return isProductActive(p) ? true : patchProductActive(p.id, true); },
               done: function(ok, failed) { return ok + ' ' + (ok === 1 ? 'product' : 'products') + ' activated' + (failed ? ', ' + failed + ' failed' : ''); } },
-            { label: 'Deactivate', icon: 'fa-eye-slash', progress: 'Deactivating',
+            tzCan('products.write') && { label: 'Deactivate', icon: 'fa-eye-slash', progress: 'Deactivating',
               perRow: function(p) { return !isProductActive(p) ? true : patchProductActive(p.id, false); },
               done: function(ok, failed) { return ok + ' ' + (ok === 1 ? 'product' : 'products') + ' deactivated' + (failed ? ', ' + failed + ' failed' : ''); } },
-            { label: 'Delete', icon: 'fa-trash', tone: 'danger', progress: 'Deleting',
+            tzCan('products.delete') && { label: 'Delete', icon: 'fa-trash', tone: 'danger', progress: 'Deleting',
               confirm: function(rows) { return 'Delete ' + rows.length + ' ' + (rows.length === 1 ? 'product' : 'products') + '? Products that already have orders are kept.'; },
               confirmLabel: 'Delete',
               perRow: function(p) { return deleteProductRequest(p.id); },
               done: function(ok, failed) {
                   return ok + ' ' + (ok === 1 ? 'product' : 'products') + ' deleted' + (failed ? ', ' + failed + ' kept (they have orders)' : '');
               } }
-        ],
+        ].filter(Boolean),
         onBulkDone: function() { loadProducts(); }
     });
     productsGrid.bindSelect('#productCategoryFilter', 'category_name', function(v) { return { filterType: 'text', type: 'equals', filter: v }; });

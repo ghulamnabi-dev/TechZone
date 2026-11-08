@@ -9,7 +9,7 @@ if (isset($_SESSION['admin_id'])) {
 $signupEnabled = env('ADMIN_SIGNUP_CODE') !== null;
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,9 +25,9 @@ $signupEnabled = env('ADMIN_SIGNUP_CODE') !== null;
             <div class="col-md-5">
                 <div class="card shadow-lg admin-login-card--signup">
                     <div class="card-body p-4">
-                        <div class="text-center mb-3">
-                            <h2 class="fw-bold text-dark mb-0" style="font-size: 1.5rem;">TechZone.pk</h2>
-                            <p class="text-muted small">Admin Signup</p>
+                        <div class="auth-brand mb-3">
+                            <span class="brand-mark"><i class="fas fa-microchip"></i></span>
+                            <div><h1>TechZone</h1><p>Create a staff account</p></div>
                         </div>
 
                         <form id="adminSignupForm" novalidate class="admin-signup-form">

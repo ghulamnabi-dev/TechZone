@@ -7,6 +7,9 @@ require_once __DIR__ . '/../config/paths.php';
 require_once __DIR__ . '/../../core/security.php';
 require_once __DIR__ . '/../../core/validation.php';
 require_once __DIR__ . '/../../core/uploads.php';
+require_once __DIR__ . '/../../core/inventory.php';
+require_once __DIR__ . '/../../core/audit.php';
+require_once __DIR__ . '/../../core/settings.php';
 
 /** For JSON: browser-ready path; DB still stores uploads/filename */
 function product_imagelink_for_client(?string $link): string
@@ -90,7 +93,13 @@ try {
     $isUpdate = $method === 'PUT'
         || ($method === 'POST' && ((($_POST['_method'] ?? '') === 'PUT') || !empty($_POST['id'])));
 
+    // Writes: products.write; DELETE additionally products.delete (owner only)
+    if ($method !== 'GET') {
+        require_can($method === 'DELETE' ? 'products.delete' : 'products.write');
+    }
+
     // UPDATE - POST with _method=PUT (multipart, so image uploads work)
+    // Stock is never written directly: a changed inventory becomes a 'correction' in the ledger.
     if ($isUpdate) {
         enforce_csrf_json();
         $id = v_id($_POST['id'] ?? 0);
@@ -99,7 +108,7 @@ try {
         }
         [$name, $description, $price, $categoryId, $inventory, $sold, $isActive] = product_input();
 
-        $stmt = $conn->prepare("SELECT imagelink FROM products WHERE id = ?");
+        $stmt = $conn->prepare("SELECT name, description, price, category_id, imagelink, inventory, sold, is_active, status, sku FROM products WHERE id = ?");
         $stmt->execute([$id]);
         $existing = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$existing) {
@@ -116,8 +125,39 @@ try {
             }
         }
 
-        $stmt = $conn->prepare("UPDATE products SET name = ?, description = ?, price = ?, category_id = ?, imagelink = ?, inventory = ?, sold = ?, is_active = ? WHERE id = ?");
-        $stmt->execute([$name, $description, $price, $categoryId, $imagelink, $inventory, $sold, $isActive, $id]);
+        // is_active is the storefront switch; status keeps 'archived' unless re-activated
+        $status = $isActive === 1 ? 'active' : ($existing['status'] === 'archived' ? 'archived' : 'draft');
+        $conn->beginTransaction();
+        try {
+            $lock = $conn->prepare("SELECT inventory FROM products WHERE id = ? FOR UPDATE");
+            $lock->execute([$id]);
+            $delta = $inventory - (int) $lock->fetchColumn();
+            if ($delta !== 0) {
+                require_can('inventory.adjust');
+                adjust_inventory($conn, $id, null, $delta, 'correction', 'Edited on the product form', (int) $_SESSION['admin_id']);
+            }
+            $stmt = $conn->prepare("UPDATE products SET name = ?, description = ?, price = ?, category_id = ?, imagelink = ?, sold = ?, is_active = ?, status = ? WHERE id = ?");
+            $stmt->execute([$name, $description, $price, $categoryId, $imagelink, $sold, $isActive, $status, $id]);
+            [$before, $after] = audit_diff($existing, [
+                'name' => $name, 'description' => $description, 'price' => number_format((float) $price, 2, '.', ''),
+                'category_id' => $categoryId, 'imagelink' => $imagelink, 'inventory' => $inventory, 'sold' => $sold, 'status' => $status,
+            ]);
+            if (isset($before['description'])) {
+                $before['description'] = '…';
+                $after['description'] = '…';
+            }
+            audit('product.update', 'product', $id, 'Updated ' . ($existing['sku'] ? $existing['sku'] . ' ' : '') . $name
+                . ($after ? ' (' . implode(', ', array_keys($after)) . ')' : ''), $before ?: null, $after ?: null);
+            $conn->commit();
+        } catch (Throwable $e) {
+            if ($conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if ($e instanceof InventoryException) {
+                json_error($e->getMessage(), 409);
+            }
+            throw $e;
+        }
 
         if ($imagelink !== $oldImagelink && strpos($oldImagelink, 'uploads/') === 0) {
             delete_upload_if_unused($conn, $oldImagelink, $uploadDir);
@@ -139,9 +179,25 @@ try {
             }
         }
 
-        $stmt = $conn->prepare("INSERT INTO products (name, description, price, category_id, imagelink, inventory, sold, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$name, $description, $price, $categoryId, $imagelink, $inventory, $sold, $isActive]);
-        $productId = $conn->lastInsertId();
+        // Created with 0 stock; the opening quantity goes through the ledger as 'received'.
+        $conn->beginTransaction();
+        try {
+            $stmt = $conn->prepare("INSERT INTO products (name, description, price, category_id, imagelink, inventory, sold, is_active, status, low_stock_threshold) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)");
+            $stmt->execute([$name, $description, $price, $categoryId, $imagelink, $sold, $isActive, $isActive === 1 ? 'active' : 'draft', (int) setting('low_stock_threshold', 5)]);
+            $productId = (int) $conn->lastInsertId();
+            $sku = sprintf('TZ-%04d', $productId);
+            $conn->prepare("UPDATE products SET sku = ? WHERE id = ? AND sku IS NULL")->execute([$sku, $productId]);
+            if ($inventory > 0) {
+                adjust_inventory($conn, $productId, null, $inventory, 'received', 'Opening stock', (int) $_SESSION['admin_id']);
+            }
+            audit('product.create', 'product', $productId, "Created $sku $name", null, ['price' => $price, 'inventory' => $inventory, 'status' => $isActive === 1 ? 'active' : 'draft']);
+            $conn->commit();
+        } catch (Throwable $e) {
+            if ($conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            throw $e;
+        }
         // Default variation creation is handled by the admin JS after product creation.
         json_response(['success' => true, 'message' => 'Product added successfully', 'product_id' => $productId, 'id' => $productId]);
     }
@@ -154,7 +210,7 @@ try {
             json_error('Product ID is required', 422);
         }
 
-        $stmt = $conn->prepare("SELECT imagelink FROM products WHERE id = ?");
+        $stmt = $conn->prepare("SELECT imagelink, name, sku FROM products WHERE id = ?");
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
@@ -174,6 +230,7 @@ try {
         if ($stmt->rowCount() === 0) {
             json_error('Failed to delete product', 500);
         }
+        audit('product.delete', 'product', $id, 'Deleted ' . trim(($row['sku'] ?? '') . ' ' . $row['name']), ['name' => $row['name']], null);
         if (!empty($row['imagelink']) && strpos($row['imagelink'], 'uploads/') === 0) {
             delete_upload_if_unused($conn, $row['imagelink'], $uploadDir);
         }
@@ -189,8 +246,18 @@ try {
         if ($id === 0 || $isActive === null) {
             json_error('Invalid request', 422);
         }
-        $stmt = $conn->prepare("UPDATE products SET is_active = ? WHERE id = ?");
-        $stmt->execute([$isActive, $id]);
+        $stmt = $conn->prepare("SELECT name, sku, status FROM products WHERE id = ?");
+        $stmt->execute([$id]);
+        $cur = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$cur) {
+            json_error('Product not found', 404);
+        }
+        $status = $isActive === 1 ? 'active' : ($cur['status'] === 'archived' ? 'archived' : 'draft');
+        $stmt = $conn->prepare("UPDATE products SET is_active = ?, status = ? WHERE id = ?");
+        $stmt->execute([$isActive, $status, $id]);
+        if ($status !== $cur['status']) {
+            audit('product.status', 'product', $id, ($isActive ? 'Activated ' : 'Deactivated ') . trim(($cur['sku'] ?? '') . ' ' . $cur['name']), ['status' => $cur['status']], ['status' => $status]);
+        }
         json_response(['success' => true, 'message' => 'Product status updated successfully']);
     }
 

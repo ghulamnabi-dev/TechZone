@@ -1,68 +1,76 @@
 <?php
+/**
+ * Sidebar navigation (docs/ADMIN.md "Information architecture").
+ * Each item: [file, label, icon, badge count|null, capability|null, children].
+ * A page marks itself active by file name; detail pages set $navActive (e.g. 'orders.php').
+ */
 if (!function_exists('admin_url')) {
     require_once __DIR__ . '/../config/paths.php';
 }
-$currentPage = basename($_SERVER['PHP_SELF']);
+$currentPage = $navActive ?? basename($_SERVER['PHP_SELF']);
+$tzCounts = $tzCounts ?? [];
+$e = static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+
+$tzNav = [
+    [
+        ['dashboard.php', 'Home', 'fa-house', null, null, []],
+        ['orders.php', 'Orders', 'fa-inbox', $tzCounts['unfulfilled'] ?? null, null, ['order.php']],
+        ['products.php', 'Products', 'fa-tag', null, null, ['product.php', 'categories.php']],
+        ['inventory.php', 'Inventory', 'fa-boxes-stacked', null, null, []],
+        ['customers.php', 'Customers', 'fa-user-group', null, null, ['customer.php']],
+        ['promotions.php', 'Discounts', 'fa-percent', null, null, []],
+    ],
+    [
+        ['reviews.php', 'Reviews', 'fa-star', $tzCounts['pending_reviews'] ?? null, null, []],
+        ['contact_messages.php', 'Messages', 'fa-envelope', $tzCounts['new_messages'] ?? null, null, []],
+        ['analytics.php', 'Analytics', 'fa-chart-simple', null, null, []],
+    ],
+];
+$tzSub = [
+    'products.php' => [['products.php', 'All products'], ['categories.php', 'Categories']],
+];
+$settingsPages = ['settings.php'];
 ?>
-<aside class="admin-sidebar" id="adminSidebar">
-    <a href="<?php echo htmlspecialchars(admin_url('manage/dashboard.php'), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand text-decoration-none">
-        <div class="sidebar-brand-icon">
-      <i class="fas fa-microchip"></i>
-        </div>
-        <div class="sidebar-brand-text">
-            TechZone.pk
-            <span>Admin Panel</span>
-        </div>
+<aside class="admin-sidebar" id="adminSidebar" aria-label="Main navigation">
+    <a href="<?= $e(admin_url('manage/dashboard.php')) ?>" class="sidebar-brand">
+        <span class="brand-mark" aria-hidden="true"><i class="fas fa-microchip"></i></span>
+        <span class="brand-name">TechZone</span>
+        <span class="brand-env">Admin</span>
     </a>
 
-    <div class="sidebar-nav">
-        <div class="nav-section-label">Main</div>
-        <nav class="nav flex-column">
-            <a class="nav-link <?php if($currentPage == 'dashboard.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/dashboard.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-gauge-high"></i> Dashboard
-            </a>
-            <a class="nav-link <?php if($currentPage == 'orders.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/orders.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-shopping-bag"></i> Orders
-            </a>
-            <a class="nav-link <?php if($currentPage == 'products.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/products.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-box-open"></i> Products
-            </a>
-            <a class="nav-link <?php if($currentPage == 'categories.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/categories.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-tags"></i> Categories
-            </a>
-        </nav>
+    <nav class="sidebar-nav">
+        <?php foreach ($tzNav as $gi => $group): ?>
+            <?php if ($gi > 0): ?><div class="nav-sep" role="separator"></div><?php endif; ?>
+            <ul class="nav-list">
+                <?php foreach ($group as [$file, $label, $icon, $badge, $cap, $children]):
+                    if ($cap !== null && !can($cap)) continue;
+                    $active = $currentPage === $file || in_array($currentPage, $children, true);
+                ?>
+                    <li>
+                        <a class="nav-link<?= $active ? ' active' : '' ?>" href="<?= $e(admin_url('manage/' . $file)) ?>"<?= $active ? ' aria-current="page"' : '' ?>>
+                            <i class="fas <?= $icon ?>" aria-hidden="true"></i>
+                            <span class="nav-label"><?= $e($label) ?></span>
+                            <?php if (!empty($badge)): ?><span class="nav-badge"><?= (int) $badge ?></span><?php endif; ?>
+                        </a>
+                        <?php if ($active && isset($tzSub[$file])): ?>
+                            <ul class="nav-sub">
+                                <?php foreach ($tzSub[$file] as [$sf, $sl]): ?>
+                                    <li><a class="nav-sublink<?= $currentPage === $sf || ($sf === $file && $currentPage === 'product.php') ? ' active' : '' ?>" href="<?= $e(admin_url('manage/' . $sf)) ?>"><?= $e($sl) ?></a></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endforeach; ?>
+    </nav>
 
-        <div class="nav-section-label">People</div>
-        <nav class="nav flex-column">
-            <a class="nav-link <?php if($currentPage == 'customers.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/customers.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-users"></i> Customers
-            </a>
-            <a class="nav-link <?php if($currentPage == 'reviews.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/reviews.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-star"></i> Reviews
-            </a>
-            <a class="nav-link <?php if($currentPage == 'contact_messages.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/contact_messages.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-envelope"></i> Messages
-            </a>
-        </nav>
-
-        <div class="nav-section-label">Marketing</div>
-        <nav class="nav flex-column">
-            <a class="nav-link <?php if($currentPage == 'promotions.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/promotions.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-percent"></i> Promotions
-            </a>
-            <a class="nav-link <?php if($currentPage == 'analytics.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/analytics.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-chart-line"></i> Analytics
-            </a>
-        </nav>
-
-        <div class="sidebar-divider"></div>
-        <nav class="nav flex-column">
-            <a class="nav-link <?php if($currentPage == 'profile.php') echo 'active'; ?>" href="<?php echo htmlspecialchars(admin_url('manage/profile.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-user-circle"></i> Profile
-            </a>
-            <a class="nav-link logout-link" href="<?php echo htmlspecialchars(admin_url('api/logout.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </a>
-        </nav>
+    <?php if (can('settings.write') || can('activity.view')): ?>
+    <div class="sidebar-foot">
+        <a class="nav-link<?= in_array($currentPage, $settingsPages, true) ? ' active' : '' ?>" href="<?= $e(admin_url('manage/settings.php')) ?>">
+            <i class="fas fa-gear" aria-hidden="true"></i>
+            <span class="nav-label">Settings</span>
+        </a>
     </div>
+    <?php endif; ?>
 </aside>

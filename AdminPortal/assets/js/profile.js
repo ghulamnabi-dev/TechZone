@@ -95,6 +95,8 @@ function loadProfile() {
             document.getElementById('displayName').textContent = admin.name;
             document.getElementById('displayEmail').textContent = admin.email;
             document.getElementById('displayPhone').textContent = admin.phone || '—';
+            var lastLogin = document.getElementById('displayLastLogin');
+            if (lastLogin) lastLogin.textContent = admin.last_login_at ? formatDateTime(admin.last_login_at) : '—';
             
             if (admin.created_at) {
                 document.getElementById('memberSince').textContent = formatDate(admin.created_at);

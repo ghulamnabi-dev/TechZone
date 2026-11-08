@@ -1,10 +1,10 @@
 /* Dashboard: KPIs, sales area chart, category donut, recent orders, top sellers, low stock. */
 var TOKENS = {
-    accent: '#ffd400', line: 'rgba(255,255,255,.08)', ink: '#e7eaf3', ink2: '#a7afc4', ink3: '#6f7891',
-    surface: '#171d2f', surface2: '#1e2538', gray: '#4a5168'
+    accent: '#1a1d23', line: '#eef0f3', ink: '#1a1d23', ink2: '#5c6370', ink3: '#8a909c',
+    surface: '#ffffff', surface2: '#f4f5f7', gray: '#e1e3e8'
 };
-// volt yellow -> amber -> slate tints; the last slice is always neutral gray
-var DONUT_RAMP = ['#ffd400', '#f5b800', '#e09a0a', '#b97a14', '#a7afc4', '#7f889e', '#5d6578'];
+// ink -> slate tints (calm, no brand fills); the last slice is always the light neutral
+var DONUT_RAMP = ['#1a1d23', '#3b414c', '#5c6370', '#7a808c', '#9aa0aa', '#b9bdc5', '#d3d6dc'];
 
 window.addEventListener('load', loadDashboard);
 
@@ -60,7 +60,7 @@ function renderKpis(data) {
     document.getElementById('customersSub').textContent = cust > 0 ? (orders / cust).toFixed(1) + ' orders per customer' : 'Registered accounts';
     var low = (data.lowStockProducts || []).length;
     document.getElementById('productsSub').innerHTML = formatNumber(s.totalCategories) + ' categories · ' +
-        (low > 0 ? '<span class="text-warning">' + low + ' low stock</span>' : 'stock healthy');
+        (low > 0 ? '<a class="text-warning" href="' + adminUrl('manage/inventory.php') + '">' + low + ' low stock</a>' : 'stock healthy');
 }
 
 function renderRecentOrders(list) {
@@ -103,10 +103,10 @@ function applyChartDefaults() {
     Chart.defaults.color = TOKENS.ink3;
     Chart.defaults.borderColor = TOKENS.line;
     var tt = Chart.defaults.plugins.tooltip;
-    tt.backgroundColor = '#2c3550';
-    tt.titleColor = TOKENS.ink;
-    tt.bodyColor = TOKENS.ink2;
-    tt.borderColor = 'rgba(255,255,255,.12)';
+    tt.backgroundColor = TOKENS.ink;
+    tt.titleColor = '#fff';
+    tt.bodyColor = '#e1e3e8';
+    tt.borderColor = TOKENS.ink;
     tt.borderWidth = 1;
     tt.padding = 10;
     tt.cornerRadius = 6;
@@ -130,8 +130,8 @@ function createSalesChart(monthlySales) {
     var canvas = document.getElementById('salesChart');
     var ctx = canvas.getContext('2d');
     var grad = ctx.createLinearGradient(0, 0, 0, canvas.parentNode.clientHeight || 290);
-    grad.addColorStop(0, 'rgba(255,212,0,.22)');
-    grad.addColorStop(1, 'rgba(255,212,0,0)');
+    grad.addColorStop(0, 'rgba(26,29,35,.10)');
+    grad.addColorStop(1, 'rgba(26,29,35,0)');
 
     new Chart(ctx, {
         type: 'line',
@@ -149,7 +149,7 @@ function createSalesChart(monthlySales) {
                 pointRadius: 0,
                 pointHoverRadius: 4,
                 pointHoverBackgroundColor: TOKENS.accent,
-                pointHoverBorderColor: '#fff',
+                pointHoverBorderColor: '#ffd400',
                 pointHoverBorderWidth: 2
             }]
         },

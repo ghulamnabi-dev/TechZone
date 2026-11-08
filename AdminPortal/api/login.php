@@ -26,13 +26,18 @@ if ($locked > 0) {
 }
 
 try {
-    $stmt = $conn->prepare("SELECT id, username, name, password FROM admins WHERE email = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT id, username, name, password, role, is_active FROM admins WHERE email = ? LIMIT 1");
     $stmt->execute([$email]);
     $admin = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
     if (!verify_password_constant($password, $admin['password'] ?? null)) {
         login_register_failure($conn, 'admin');
         json_error(LOGIN_FAILED_MESSAGE, 401);
+    }
+
+    // Checked only after the password, so a wrong guess cannot tell whether an account is disabled.
+    if ((int) $admin['is_active'] !== 1) {
+        json_error('This account has been deactivated. Ask the store owner to restore access.', 403);
     }
 
     if (password_needs_rehash($admin['password'], PASSWORD_DEFAULT)) {
@@ -45,6 +50,8 @@ try {
     $_SESSION['admin_id'] = (int) $admin['id'];
     $_SESSION['admin_username'] = $admin['username'];
     $_SESSION['admin_name'] = $admin['name'];
+    $_SESSION['admin_role'] = $admin['role'];
+    $conn->prepare("UPDATE admins SET last_login_at = NOW() WHERE id = ?")->execute([$admin['id']]);
 
     json_response(['success' => true, 'message' => 'Login successful']);
 } catch (PDOException $e) {

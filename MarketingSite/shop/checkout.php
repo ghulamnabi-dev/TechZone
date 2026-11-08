@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../../core/inventory.php';
 require_once __DIR__ . '/../../core/security.php';
 require_once __DIR__ . '/../../core/validation.php';
-require_once __DIR__ . '/../../core/orders.php';
+require_once __DIR__ . '/../../core/orders.php';   // + discounts.php, shipping.php
 
 // Check if customer is logged in
 checkCustomerLogin();
@@ -33,22 +33,35 @@ foreach ($cart as $item) {
     $subtotal += $item['price'] * $item['quantity'];
 }
 
-// Calculate discount if promo code is applied
+// Summary preview; place_order() recomputes all of it server-side from the posted city.
+$shipCity = (string) ($_POST['city'] ?? ($customer['city'] ?? ''));
 $discount = 0;
 $applied_promo_code = null;
-if (isset($_SESSION['applied_promo_code']) && isset($_SESSION['applied_promo_data'])) {
-    $applied_promo_code = $_SESSION['applied_promo_code'];
-    $applied_promo = $_SESSION['applied_promo_data'];
-    if ($applied_promo['discount_percentage'] > 0) {
-        $discount = ($subtotal * $applied_promo['discount_percentage']) / 100;
-    } elseif ($applied_promo['discount_amount'] > 0) {
-        $discount = $applied_promo['discount_amount'];
+$free_shipping_code = false;
+if (isset($_SESSION['applied_promo_code'])) {
+    $promoLines = array_map(static fn($i) => ['product_id' => (int) $i['id'], 'price' => (float) $i['price'], 'quantity' => (int) $i['quantity']], $cart);
+    $promoResult = evaluate_promo($conn, (string) $_SESSION['applied_promo_code'], array_values($promoLines), (float) $subtotal, $shipCity);
+    if ($promoResult['ok']) {
+        $applied_promo_code = $promoResult['code'];
+        $discount = $promoResult['discount'];
+        $free_shipping_code = $promoResult['free_shipping'];
     }
 }
 
-$shipping = $subtotal > 5000 ? 0 : 500;
+$quote = shipping_quote($conn, $shipCity, (float) $subtotal);
+$shipping = $free_shipping_code ? 0 : $quote['fee'];
 $total = $subtotal - $discount + $shipping;
 if ($total < 0) $total = 0;
+
+// Zones for the live preview when the customer edits the city field
+$zonesForJs = array_map(static fn($z) => [
+    'name' => $z['name'],
+    'cities' => array_map(static fn($c) => mb_strtolower(trim($c), 'UTF-8'), $z['cities']),
+    'is_default' => $z['is_default'],
+    'amount' => $z['rate']['amount'] ?? 500,
+    'free_over' => $z['rate']['free_over'] ?? null,
+    'eta' => $z['rate']['eta'] ?? null,
+], shipping_zones($conn));
 
 // Handle form submission
 $error = '';
@@ -208,18 +221,64 @@ require_once __DIR__ . '/../includes/header.php';
                     <?php if ($discount > 0): ?>
                         <div class="is-discount"><dt>Discount (<?php echo $h($applied_promo_code); ?>)</dt><dd>&minus;<?php echo format_pkr($discount); ?></dd></div>
                     <?php endif; ?>
-                    <div><dt>Shipping</dt><dd><?php echo $shipping > 0 ? format_pkr($shipping) : 'Free'; ?></dd></div>
-                    <div class="summary__total"><dt>Total</dt><dd><?php echo format_pkr($total); ?></dd></div>
+                    <div><dt id="shipLabel">Shipping<?php if ($quote['zone']): ?> · <?php echo $h($quote['zone']['name']); ?><?php endif; ?></dt><dd id="shipFee"><?php echo $shipping > 0 ? format_pkr($shipping) : 'Free'; ?></dd></div>
+                    <div class="summary__total"><dt>Total</dt><dd id="orderTotal"><?php echo format_pkr($total); ?></dd></div>
                 </dl>
-                <?php if ($subtotal < 5000): ?>
-                    <p class="summary__note">Add <?php echo format_pkr(5000 - $subtotal); ?> more for free shipping.</p>
-                <?php endif; ?>
+                <p class="summary__note" id="shipNote"<?php if ($free_shipping_code || ($quote['remaining_for_free'] === null && !$quote['eta'])): ?> hidden<?php endif; ?>><?php
+                    if (!$free_shipping_code && $quote['remaining_for_free'] !== null) {
+                        echo 'Add ' . format_pkr($quote['remaining_for_free']) . ' more for free delivery to ' . $h($shipCity) . '.';
+                    } elseif ($quote['eta']) {
+                        echo 'Delivery in ' . $h($quote['eta']) . '.';
+                    }
+                ?></p>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+// Live shipping preview as the city changes (the server recomputes it when the order is placed).
+(function () {
+    var zones = <?php echo json_encode($zonesForJs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    var subtotal = <?php echo json_encode(round((float) $subtotal, 2)); ?>;
+    var discount = <?php echo json_encode(round((float) $discount, 2)); ?>;
+    var freeCode = <?php echo $free_shipping_code ? 'true' : 'false'; ?>;
+    var pkr = function (n) { return 'Rs ' + Math.round(n).toLocaleString('en-US'); };
+    function zoneFor(city) {
+        var key = String(city || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        var def = null;
+        for (var i = 0; i < zones.length; i++) {
+            if (key && zones[i].cities.indexOf(key) !== -1) return zones[i];
+            if (zones[i].is_default && !def) def = zones[i];
+        }
+        return def;
+    }
+    function update() {
+        var city = document.getElementById('co_city').value;
+        var z = zoneFor(city);
+        if (!z) return;
+        var free = freeCode || (z.free_over !== null && subtotal >= z.free_over);
+        var fee = free ? 0 : z.amount;
+        document.getElementById('shipLabel').textContent = 'Shipping · ' + z.name;
+        document.getElementById('shipFee').textContent = fee > 0 ? pkr(fee) : 'Free';
+        document.getElementById('orderTotal').textContent = pkr(Math.max(0, subtotal - discount + fee));
+        var note = document.getElementById('shipNote');
+        if (!freeCode && z.free_over !== null && subtotal < z.free_over) {
+            note.textContent = 'Add ' + pkr(z.free_over - subtotal) + ' more for free delivery to ' + city.trim() + '.';
+            note.hidden = false;
+        } else if (z.eta) {
+            note.textContent = 'Delivery in ' + z.eta + '.';
+            note.hidden = false;
+        } else {
+            note.hidden = true;
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        var input = document.getElementById('co_city');
+        if (input) input.addEventListener('input', update);
+    });
+})();
+
 function toggleJazzCash() {
     const jazzcashRadio = document.getElementById('payment_jazzcash');
     const jazzcashFields = document.getElementById('jazzcash_fields');

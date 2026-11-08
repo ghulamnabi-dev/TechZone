@@ -7,16 +7,18 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-lg-6">
         <div class="panel h-100 mb-0">
             <div class="panel-head">
-                <span class="admin-header-avatar" style="width:40px;height:40px;font-size:1rem"><?php echo htmlspecialchars($adminInitial, ENT_QUOTES, 'UTF-8'); ?></span>
+                <span class="avatar avatar-lg"><?php echo htmlspecialchars($adminInitial, ENT_QUOTES, 'UTF-8'); ?></span>
                 <div>
                     <h2 class="panel-title" id="displayName">Loading…</h2>
-                    <div class="panel-sub">Administrator · member since <span id="memberSince">—</span></div>
+                    <div class="panel-sub"><span class="role-badge role-<?= htmlspecialchars($adminRole, ENT_QUOTES, 'UTF-8') ?>" id="displayRole"><?= htmlspecialchars($adminRoleLabel, ENT_QUOTES, 'UTF-8') ?></span> · member since <span id="memberSince">—</span></div>
                 </div>
             </div>
             <div class="panel-body">
                 <dl class="kv mb-4">
                     <dt>Email</dt><dd id="displayEmail">—</dd>
                     <dt>Phone</dt><dd id="displayPhone" class="tabular">—</dd>
+                    <dt>Role</dt><dd><?= htmlspecialchars($adminRoleLabel, ENT_QUOTES, 'UTF-8') ?> <span class="muted">· <?= htmlspecialchars(['owner' => 'everything, including settings and staff', 'manager' => 'orders, catalogue, discounts and activity', 'staff' => 'orders, reviews and messages'][$adminRole] ?? '', ENT_QUOTES, 'UTF-8') ?></span></dd>
+                    <dt>Last sign-in</dt><dd id="displayLastLogin" class="tabular">—</dd>
                 </dl>
                 <h3 class="form-section-title">Update profile</h3>
                 <form id="updateProfileForm" novalidate>

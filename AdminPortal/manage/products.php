@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Products';
+$pageActions = '<button class="btn btn-primary" id="addProductBtn" type="button" data-cap="products.write"><i class="fas fa-plus"></i> Add product</button>';
 $useGrid = true;
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../../core/security.php';
@@ -28,9 +29,6 @@ $csrfToken = csrf_token();
             <span class="grid-count" id="productCount" aria-live="polite">Loading…</span>
             <button type="button" class="btn btn-secondary" id="productsExport"><i class="fas fa-file-csv"></i> Export CSV</button>
             <button type="button" class="btn btn-secondary btn-square" id="productsReset" data-bs-toggle="tooltip" data-bs-title="Reset columns" aria-label="Reset columns"><i class="fas fa-table-columns"></i></button>
-            <button class="btn btn-primary" id="addProductBtn" type="button">
-                <i class="fas fa-plus"></i> Add product
-            </button>
         </div>
     </div>
     <div id="productsTable" aria-label="Products"></div>
