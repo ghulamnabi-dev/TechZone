@@ -1,10 +1,10 @@
 /* Dashboard: KPIs, sales area chart, category donut, recent orders, top sellers, low stock. */
 var TOKENS = {
-    accent: '#7c6cf6', line: 'rgba(255,255,255,.08)', ink: '#e7eaf3', ink2: '#a7afc4', ink3: '#6f7891',
+    accent: '#ffd400', line: 'rgba(255,255,255,.08)', ink: '#e7eaf3', ink2: '#a7afc4', ink3: '#6f7891',
     surface: '#171d2f', surface2: '#1e2538', gray: '#4a5168'
 };
-// sequential tint ramp of the accent (light → deep); the last slice is always neutral gray
-var DONUT_RAMP = ['#c9c2fd', '#b0a6fb', '#968af8', '#7c6cf6', '#6758dc', '#5546bd', '#43379a'];
+// volt yellow -> amber -> slate tints; the last slice is always neutral gray
+var DONUT_RAMP = ['#ffd400', '#f5b800', '#e09a0a', '#b97a14', '#a7afc4', '#7f889e', '#5d6578'];
 
 window.addEventListener('load', loadDashboard);
 
@@ -130,8 +130,8 @@ function createSalesChart(monthlySales) {
     var canvas = document.getElementById('salesChart');
     var ctx = canvas.getContext('2d');
     var grad = ctx.createLinearGradient(0, 0, 0, canvas.parentNode.clientHeight || 290);
-    grad.addColorStop(0, 'rgba(124,108,246,.32)');
-    grad.addColorStop(1, 'rgba(124,108,246,0)');
+    grad.addColorStop(0, 'rgba(255,212,0,.22)');
+    grad.addColorStop(1, 'rgba(255,212,0,0)');
 
     new Chart(ctx, {
         type: 'line',

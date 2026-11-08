@@ -83,21 +83,16 @@ $pageTitle = 'Reset Password';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="auth-container">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-5">
-                <div class="card auth-card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-lock me-2"></i>Set new password</h2>
-                    </div>
-                    <div class="card-body">
+<div class="auth">
+    <div class="auth__panel">
+        <h1>Set a new password</h1>
+        <p class="auth__lead">Choose a password with at least 8 characters.</p>
                         <?php if ($error): ?>
                             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
                         <?php endif; ?>
                         <?php if ($message): ?>
                             <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
-                            <div class="text-center mt-3"><a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="fw-bold auth-link">Back to login</a></div>
+                            <div class="text-center mt-3"><a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Back to login</a></div>
                         <?php endif; ?>
 
                         <?php if ($showForm && isset($resetRecord) && $resetRecord): ?>
@@ -105,25 +100,20 @@ require_once __DIR__ . '/../includes/header.php';
                             <?= csrf_field() ?>
                             <input type="hidden" name="token" value="<?php echo htmlspecialchars($token, ENT_QUOTES, 'UTF-8'); ?>">
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-lock me-2"></i>New password</label>
+                                <label class="form-label">New password</label>
                                 <input type="password" name="password" class="form-control" minlength="8" maxlength="72" placeholder="At least 8 characters" required>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-lock me-2"></i>Confirm password</label>
+                                <label class="form-label">Confirm password</label>
                                 <input type="password" name="password_confirm" class="form-control" minlength="8" maxlength="72" placeholder="Confirm new password" required>
                             </div>
-                            <button type="submit" class="btn btn-dark w-100 btn-lg contact-submit-btn">Update password</button>
+                            <button type="submit" class="btn btn-ink w-100">Update password</button>
                         </form>
                         <?php endif; ?>
 
                         <?php if ($error && !$showForm): ?>
-                            <div class="text-center mt-3"><a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="fw-bold auth-link">Back to login</a></div>
+                            <div class="text-center mt-3"><a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Back to login</a></div>
                         <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
-
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

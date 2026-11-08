@@ -18,42 +18,31 @@ if ($requestedRedirect === 'checkout') {
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="auth-container">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-5">
-                <div class="card auth-card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-sign-in-alt me-2"></i>Login</h2>
-                        <p class="mb-0 mt-2" style="opacity: 0.9;">Welcome back! Please login to your account</p>
-                    </div>
-                    <div class="card-body">
+<div class="auth">
+    <div class="auth__panel">
+        <h1>Sign in</h1>
+        <p class="auth__lead">Use the email and password for your TechZone account.</p>
                     <div id="errorMessage" class="alert alert-danger d-none"></div>
                     <div id="successMessage" class="alert alert-success d-none"></div>
                     
                         <form id="loginForm" novalidate>
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-envelope me-2"></i>Email Address</label>
+                                <label class="form-label">Email</label>
                                 <input type="text" class="form-control" id="email" name="email" placeholder="Enter your email">
                             </div>
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-lock me-2"></i>Password</label>
+                                <label class="form-label">Password</label>
                                 <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password">
                             </div>
-                            <button type="submit" class="btn btn-dark w-100 btn-lg contact-submit-btn"><i class="fas fa-sign-in-alt me-2"></i>Login</button>
+                            <button type="submit" class="btn btn-ink w-100">Sign in</button>
                         </form>
                         
-                        <div class="text-center mt-4">
-                            <p class="mb-0">Don't have an account? <a href="<?php echo htmlspecialchars(site_url('auth/signup.php'), ENT_QUOTES, 'UTF-8'); ?>" class="fw-bold auth-link">Sign up here</a></p>
-                            <p class="mb-0 mt-2"><a href="<?php echo htmlspecialchars(site_url('auth/forgot_password.php'), ENT_QUOTES, 'UTF-8'); ?>" class="auth-link">Forgot password?</a></p>
+                        <div class="auth__foot">
+                            <p class="mb-0">New to TechZone? <a href="<?php echo htmlspecialchars(site_url('auth/signup.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Create one</a></p>
+                            <p class="mb-0 mt-2"><a href="<?php echo htmlspecialchars(site_url('auth/forgot_password.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Forgot password?</a></p>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
-
 <script src="<?php echo htmlspecialchars(marketing_script_url('form-validation.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 <script>
 // Show notification if redirected from signup

@@ -76,16 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
-<div class="auth-container">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-5">
-                <div class="card auth-card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-key me-2"></i>Forgot Password</h2>
-                        <p class="mb-0 mt-2" style="opacity: 0.9;">Enter your email, full name, and phone so we can verify your account.</p>
-                    </div>
-                    <div class="card-body">
+<div class="auth">
+    <div class="auth__panel">
+        <h1>Reset your password</h1>
+        <p class="auth__lead">Enter the email, full name and phone number on your account so we can verify it.</p>
                         <?php if ($error): ?>
                             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
                         <?php endif; ?>
@@ -97,29 +91,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <form method="post" novalidate>
                             <?= csrf_field() ?>
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-envelope me-2"></i>Email</label>
+                                <label class="form-label">Email</label>
                                 <input type="email" name="email" class="form-control" placeholder="Your email" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-user me-2"></i>Full name</label>
+                                <label class="form-label">Full name</label>
                                 <input type="text" name="name" class="form-control" placeholder="Name as registered" value="<?php echo htmlspecialchars($_POST['name'] ?? ''); ?>" required>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-phone me-2"></i>Phone</label>
+                                <label class="form-label">Phone</label>
                                 <input type="text" name="phone" class="form-control" placeholder="e.g. 03xx-xxxxxxx" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>" required>
                             </div>
-                            <button type="submit" class="btn btn-dark w-100 btn-lg contact-submit-btn"><i class="fas fa-check me-2"></i>Verify & get reset link</button>
+                            <button type="submit" class="btn btn-ink w-100">Verify & get reset link</button>
                         </form>
                         <?php endif; ?>
 
-                        <div class="text-center mt-4">
-                            <a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="fw-bold auth-link">Back to login</a>
+                        <div class="auth__foot">
+                            <a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Back to login</a>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
-
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

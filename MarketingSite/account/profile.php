@@ -114,134 +114,117 @@ if ($error === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['chan
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="container mt-5">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="profile-header text-center text-white">
-                    <div class="profile-avatar mx-auto mb-3">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <h3 class="mb-1"><?php echo htmlspecialchars($customer['name']); ?></h3>
-                    <p class="mb-0" style="opacity: 0.9;"><i class="fas fa-envelope me-2"></i><?php echo htmlspecialchars($customer['email']); ?></p>
-                </div>
-            </div>
-        </div>
+<div class="container page">
+    <div class="page-title">
+        <h1>Your account</h1>
+        <span class="page-title__count"><?php echo htmlspecialchars($customer['email']); ?></span>
     </div>
     
     <?php if ($error): ?>
         <div class="alert alert-danger alert-dismissible fade show">
-            <i class="fas fa-exclamation-circle me-2"></i><?php echo htmlspecialchars($error); ?>
+            <?php echo htmlspecialchars($error); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
     
     <?php if ($success): ?>
         <div class="alert alert-success alert-dismissible fade show">
-            <i class="fas fa-check-circle me-2"></i><?php echo htmlspecialchars($success); ?>
+            <?php echo htmlspecialchars($success); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
     
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-user-edit me-2"></i>Profile Information</h5>
-                </div>
-                <div class="card-body">
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <section class="panel mb-4">
+                <h2 class="panel__title">Profile</h2>
+                <div>
                     <form method="POST">
                         <?= csrf_field() ?>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Full Name *</label>
-                                <input type="text" class="form-control" name="name" value="<?php echo htmlspecialchars($customer['name']); ?>" required>
+                                <label class="form-label" for="pf_name">Full name</label>
+                                <input type="text" class="form-control" id="pf_name" name="name" value="<?php echo htmlspecialchars($customer['name']); ?>" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Email *</label>
-                                <input type="email" class="form-control" name="email" value="<?php echo htmlspecialchars($customer['email']); ?>" required>
+                                <label class="form-label" for="pf_email">Email</label>
+                                <input type="email" class="form-control" id="pf_email" name="email" value="<?php echo htmlspecialchars($customer['email']); ?>" required>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Phone</label>
-                                <input type="tel" class="form-control" name="phone" value="<?php echo htmlspecialchars($customer['phone'] ?? ''); ?>">
+                                <label class="form-label" for="pf_phone">Phone</label>
+                                <input type="tel" class="form-control" id="pf_phone" name="phone" value="<?php echo htmlspecialchars($customer['phone'] ?? ''); ?>">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">City</label>
-                                <input type="text" class="form-control" name="city" value="<?php echo htmlspecialchars($customer['city'] ?? ''); ?>">
+                                <label class="form-label" for="pf_city">City</label>
+                                <input type="text" class="form-control" id="pf_city" name="city" value="<?php echo htmlspecialchars($customer['city'] ?? ''); ?>">
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Address</label>
-                            <textarea class="form-control" name="address" rows="3"><?php echo htmlspecialchars($customer['address'] ?? ''); ?></textarea>
+                            <label class="form-label" for="pf_address">Address</label>
+                            <textarea class="form-control" id="pf_address" name="address" rows="3"><?php echo htmlspecialchars($customer['address'] ?? ''); ?></textarea>
                         </div>
-                        <button type="submit" name="update_profile" class="btn btn-primary">Update Profile</button>
+                        <button type="submit" name="update_profile" class="btn btn-ink">Save changes</button>
                     </form>
                 </div>
-            </div>
+            </section>
             
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-key me-2"></i>Change Password</h5>
-                </div>
-                <div class="card-body">
+            <section class="panel">
+                <h2 class="panel__title">Change password</h2>
+                <div>
                     <form method="POST">
                         <?= csrf_field() ?>
                         <div class="mb-3">
-                            <label class="form-label">Current Password</label>
-                            <input type="password" class="form-control" name="current_password" required autocomplete="current-password">
+                            <label class="form-label" for="pf_current_password">Current password</label>
+                            <input type="password" class="form-control" id="pf_current_password" name="current_password" required autocomplete="current-password">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">New Password</label>
-                            <input type="password" class="form-control" name="new_password" required minlength="8" maxlength="72" autocomplete="new-password">
-                            <small class="text-muted">Minimum 8 characters</small>
+                            <label class="form-label" for="pf_new_password">New password</label>
+                            <input type="password" class="form-control" id="pf_new_password" name="new_password" required minlength="8" maxlength="72" autocomplete="new-password">
+                            <p class="form-hint">At least 8 characters</p>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Confirm New Password</label>
-                            <input type="password" class="form-control" name="confirm_password" required minlength="8" maxlength="72" autocomplete="new-password">
+                            <label class="form-label" for="pf_confirm_password">Confirm new password</label>
+                            <input type="password" class="form-control" id="pf_confirm_password" name="confirm_password" required minlength="8" maxlength="72" autocomplete="new-password">
                         </div>
-                        <button type="submit" name="change_password" class="btn btn-primary">Change Password</button>
+                        <button type="submit" name="change_password" class="btn btn-ink">Change password</button>
                     </form>
                 </div>
-            </div>
+            </section>
         </div>
         
-        <div class="col-md-4">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Account Information</h5>
-                </div>
-                <div class="card-body">
+        <div class="col-lg-4">
+            <section class="panel mb-4">
+                <h2 class="panel__title">Account</h2>
+                <div>
                     <div class="mb-3">
-                        <small class="text-muted d-block mb-1">Member Since</small>
-                        <p class="mb-0"><strong><i class="fas fa-calendar me-2"></i><?php echo date('F Y', strtotime($customer['created_at'])); ?></strong></p>
+                        <small class="text-muted d-block mb-1">Member since</small>
+                        <p class="mb-0"><strong><?php echo date('F Y', strtotime($customer['created_at'])); ?></strong></p>
                     </div>
                     <hr>
                     <div class="d-grid gap-2">
-                        <a href="<?php echo htmlspecialchars(site_url('account/orders.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-primary"><i class="fas fa-shopping-bag me-2"></i>View Order History</a>
-                        <a href="<?php echo htmlspecialchars(site_url('shop/cart.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary"><i class="fas fa-shopping-cart me-2"></i>View Cart</a>
+                        <a href="<?php echo htmlspecialchars(site_url('account/orders.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-line">Order history</a>
+                        <a href="<?php echo htmlspecialchars(site_url('shop/cart.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-line">Cart</a>
                     </div>
                 </div>
-            </div>
+            </section>
             
             <?php if (!empty($customer['phone']) || !empty($customer['city']) || !empty($customer['address'])): ?>
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Contact Details</h5>
-                </div>
-                <div class="card-body">
+            <section class="panel">
+                <h2 class="panel__title">Delivery address</h2>
+                <div>
                     <?php if (!empty($customer['phone'])): ?>
-                        <p class="mb-2"><i class="fas fa-phone me-2 text-muted"></i><?php echo htmlspecialchars($customer['phone']); ?></p>
+                        <p class="mb-2"><?php echo htmlspecialchars($customer['phone']); ?></p>
                     <?php endif; ?>
                     <?php if (!empty($customer['city'])): ?>
-                        <p class="mb-2"><i class="fas fa-city me-2 text-muted"></i><?php echo htmlspecialchars($customer['city']); ?></p>
+                        <p class="mb-2"><?php echo htmlspecialchars($customer['city']); ?></p>
                     <?php endif; ?>
                     <?php if (!empty($customer['address'])): ?>
-                        <p class="mb-0"><i class="fas fa-home me-2 text-muted"></i><?php echo nl2br(htmlspecialchars($customer['address'])); ?></p>
+                        <p class="mb-0"><?php echo nl2br(htmlspecialchars($customer['address'])); ?></p>
                     <?php endif; ?>
                 </div>
-            </div>
+            </section>
             <?php endif; ?>
         </div>
     </div>

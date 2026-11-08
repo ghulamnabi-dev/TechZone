@@ -30,15 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrfOk) {
 }
 ?>
 
-<!-- Page Hero -->
-<div class="inner-page-hero">
-    <div class="container">
-        <h1 class="inner-page-hero-title"><i class="fas fa-envelope me-3"></i>Contact Us</h1>
-        <p class="inner-page-hero-sub">We'd love to hear from you. Send us a message and we'll respond as soon as possible.</p>
+<div class="container page">
+    <div class="page-intro">
+        <h1>Contact</h1>
+        <p class="lead-text">Questions about a part, a build or an order? Send us a message and we will reply within one working day. For order questions, include your order number.</p>
     </div>
-</div>
-
-<div class="container my-5">
 
     <?php if ($message): ?>
         <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
@@ -47,81 +43,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrfOk) {
         <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
 
-    <div class="row g-4 justify-content-center">
-
-        <!-- Contact Info sidebar -->
-        <div class="col-lg-4 col-md-5">
-            <div class="contact-info-panel h-100">
-                <h5 class="contact-info-heading">Get in touch</h5>
-
-                <div class="contact-info-item">
-                    <div class="contact-info-icon"><i class="fas fa-phone"></i></div>
-                    <div>
-                        <div class="contact-info-label">Phone</div>
-                        <div class="contact-info-value">+92 301 1427871</div>
+    <div class="row g-4 g-lg-5">
+        <div class="col-lg-7">
+            <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
+            <form method="POST" id="contactForm" novalidate>
+                <?= csrf_field() ?>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label for="contactName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="contactName" name="name" autocomplete="name">
+                    </div>
+                    <div class="col-sm-6">
+                        <label for="contactEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="contactEmail" name="email" autocomplete="email">
+                    </div>
+                    <div class="col-12">
+                        <label for="contactSubject" class="form-label">Subject</label>
+                        <input type="text" class="form-control" id="contactSubject" name="subject" autocomplete="off" placeholder="For example: order #1042, or RTX 4060 availability">
+                    </div>
+                    <div class="col-12">
+                        <label for="contactMessage" class="form-label">Message</label>
+                        <textarea class="form-control" id="contactMessage" name="message" rows="6" autocomplete="off"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-ink contact-send" id="submitBtn">Send message</button>
                     </div>
                 </div>
-
-                <div class="contact-info-item">
-                    <div class="contact-info-icon"><i class="fas fa-envelope"></i></div>
-                    <div>
-                        <div class="contact-info-label">Email</div>
-                        <div class="contact-info-value">info@techzone.pk</div>
-                    </div>
-                </div>
-
-                <div class="contact-info-item">
-                    <div class="contact-info-icon"><i class="fas fa-map-marker-alt"></i></div>
-                    <div>
-                        <div class="contact-info-label">Address</div>
-                        <div class="contact-info-value">Lahore, Pakistan</div>
-                    </div>
-                </div>
-
-                <div class="contact-info-item">
-                    <div class="contact-info-icon"><i class="fas fa-clock"></i></div>
-                    <div>
-                        <div class="contact-info-label">Business Hours</div>
-                        <div class="contact-info-value">Mon–Sat, 10am – 8pm</div>
-                    </div>
-                </div>
-            </div>
+            </form>
         </div>
 
-        <!-- Form -->
-        <div class="col-lg-7 col-md-7">
-            <div class="contact-form-card">
-                <h5 class="contact-form-heading">Send a Message</h5>
-                <div id="errorMessage" class="alert alert-danger d-none"></div>
-                <form method="POST" id="contactForm" novalidate>
-                    <?= csrf_field() ?>
-                    <div class="row g-3">
-                        <div class="col-sm-6">
-                            <label for="contactName" class="form-label">Your Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="contactName" name="name" autocomplete="name" placeholder="John Doe">
-                        </div>
-                        <div class="col-sm-6">
-                            <label for="contactEmail" class="form-label">Your Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" id="contactEmail" name="email" autocomplete="email" placeholder="you@example.com">
-                        </div>
-                        <div class="col-12">
-                            <label for="contactSubject" class="form-label">Subject <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="contactSubject" name="subject" autocomplete="off" placeholder="How can we help?">
-                        </div>
-                        <div class="col-12">
-                            <label for="contactMessage" class="form-label">Message <span class="text-danger">*</span></label>
-                            <textarea class="form-control" id="contactMessage" name="message" rows="5" autocomplete="off" placeholder="Tell us more…"></textarea>
-                        </div>
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-dark w-100 contact-submit-btn" id="submitBtn">
-                                <i class="fas fa-paper-plane me-2"></i>Send Message
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
+        <div class="col-lg-5">
+            <aside class="info-box">
+                <h2 class="info-box__title">TechZone, Lahore</h2>
+                <dl class="info-list">
+                    <div><dt>Address</dt><dd>Hafeez Centre, Gulberg III, Lahore</dd></div>
+                    <div><dt>Phone</dt><dd><a href="tel:+923011427871">+92 301 1427871</a></dd></div>
+                    <div><dt>Email</dt><dd><a href="mailto:info@techzone.pk">info@techzone.pk</a></dd></div>
+                    <div><dt>Hours</dt><dd>Monday to Saturday, 10am to 8pm<br>Closed on Sunday</dd></div>
+                </dl>
+                <p class="muted mb-0">Order pickup is available during shop hours once we confirm your order is ready.</p>
+            </aside>
         </div>
-
     </div>
 </div>
 
@@ -240,7 +202,7 @@ document.getElementById('contactForm').addEventListener('submit', function(e) {
     
     // If all validations pass, submit via AJAX
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+    submitBtn.textContent = 'Sending…';
     
     const formData = new FormData();
     formData.append('name', name);
@@ -266,12 +228,12 @@ document.getElementById('contactForm').addEventListener('submit', function(e) {
             FormValidator.showGeneralError('errorMessage', data.message);
         }
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send Message';
+        submitBtn.textContent = 'Send message';
     })
     .catch(error => {
         FormValidator.showGeneralError('errorMessage', 'Failed to send message. Please try again.');
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send Message';
+        submitBtn.textContent = 'Send message';
     });
 });
 </script>

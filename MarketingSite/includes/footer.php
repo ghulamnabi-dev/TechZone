@@ -2,52 +2,53 @@
 if (!function_exists('site_url')) {
     require_once __DIR__ . '/../config/paths.php';
 }
+$tzFooterCats = $GLOBALS['tz_categories'] ?? [];
+$tzF = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
 </main>
 
-<footer class="bg-dark text-white">
-    <div class="container py-5">
-        <div class="row gy-4">
-            <div class="col-md-4 col-lg-3 text-center text-md-start">
-                <h5 class="mb-2"><i class="fas fa-store me-2"></i>TechZone.pk</h5>
-                <p class="mb-3 footer-text">
-                    Premium computer accessories, delivered across Pakistan with local support you can trust.
-                </p>
+<footer class="site-footer">
+    <div class="container">
+        <div class="row gy-5 site-footer__cols">
+            <div class="col-6 col-lg-3">
+                <h2 class="site-footer__title">Shop by category</h2>
+                <ul class="site-footer__list">
+                    <?php foreach ($tzFooterCats as $c): ?>
+                        <li><a href="<?php echo $tzF(site_url('shop/products.php?category=' . (int) $c['id'])); ?>"><?php echo $tzF($c['name']); ?></a></li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
-            <div class="col-6 col-md-4 col-lg-3">
-                <h6 class="footer-title">Quick Links</h6>
-                <a href="<?php echo htmlspecialchars(site_url('index.php'), ENT_QUOTES, 'UTF-8'); ?>" class="footer-link">Home</a>
-                <a href="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" class="footer-link">Products</a>
-                <a href="<?php echo htmlspecialchars(site_url('about.php'), ENT_QUOTES, 'UTF-8'); ?>" class="footer-link">About Us</a>
-                <a href="<?php echo htmlspecialchars(site_url('contact.php'), ENT_QUOTES, 'UTF-8'); ?>" class="footer-link">Contact</a>
+            <div class="col-6 col-lg-3">
+                <h2 class="site-footer__title">Help</h2>
+                <ul class="site-footer__list">
+                    <li><a href="<?php echo $tzF(site_url('about.php#how-to-order')); ?>">How to order</a></li>
+                    <li><a href="<?php echo $tzF(site_url('about.php#shipping')); ?>">Shipping</a></li>
+                    <li><a href="<?php echo $tzF(site_url('about.php#returns')); ?>">Returns</a></li>
+                    <li><a href="<?php echo $tzF(site_url('about.php#warranty')); ?>">Warranty</a></li>
+                </ul>
             </div>
-            <div class="col-6 col-md-4 col-lg-3">
-                <h6 class="footer-title">Customer Care</h6>
-                <a href="#" class="footer-link">How to Order</a>
-                <a href="#" class="footer-link">Shipping & Delivery</a>
-                <a href="#" class="footer-link">Returns & Warranty</a>
-                <a href="#" class="footer-link">FAQs</a>
+            <div class="col-6 col-lg-3">
+                <h2 class="site-footer__title">Company</h2>
+                <ul class="site-footer__list">
+                    <li><a href="<?php echo $tzF(site_url('about.php')); ?>">About</a></li>
+                    <li><a href="<?php echo $tzF(site_url('contact.php')); ?>">Contact</a></li>
+                </ul>
             </div>
-            <div class="col-md-4 col-lg-3 text-center text-md-start">
-                <h6 class="footer-title">Contact</h6>
-                <p class="footer-text mb-1">
-                    <i class="fas fa-phone me-2"></i>+92 301 1427871
-                </p>
-                <p class="footer-text mb-3">
-                    <i class="fas fa-envelope me-2"></i>info@techzone.pk
-                </p>
-                <div class="social-links">
-                    <a href="#" title="Facebook"><i class="fab fa-facebook-f"></i></a>
-                    <a href="#" title="Instagram"><i class="fab fa-instagram"></i></a>
-                    <a href="#" title="Twitter"><i class="fab fa-twitter"></i></a>
-                </div>
+            <div class="col-6 col-lg-3">
+                <h2 class="site-footer__title">Contact</h2>
+                <ul class="site-footer__list site-footer__contact">
+                    <li><a href="tel:+923011427871">+92 301 1427871</a></li>
+                    <li><a href="mailto:info@techzone.pk">info@techzone.pk</a></li>
+                    <li>Hafeez Centre, Gulberg III, Lahore</li>
+                </ul>
             </div>
         </div>
-        <hr style="border-color: rgba(255, 255, 255, 0.1); margin: 1.75rem 0;">
-        <div class="row">
-            <div class="col-12 text-center">
-                <p class="mb-0 footer-text-small">© <?php echo date('Y'); ?> TechZone.pk. All rights reserved.</p>
-            </div>
+        <div class="site-footer__bottom">
+            <p>&copy; <?php echo date('Y'); ?> TechZone.pk</p>
+            <ul class="pay-badges" aria-label="Payment methods">
+                <li>Cash on delivery</li>
+                <li>JazzCash</li>
+            </ul>
         </div>
     </div>
 </footer>

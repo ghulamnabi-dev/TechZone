@@ -97,289 +97,148 @@ $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Get categories for filter
 $stmt = $conn->query("SELECT * FROM categories ORDER BY name");
 $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Presentation data: per-category counts, promotions (sale tags), review averages
+$categoryCounts = storefront_category_counts($conn);
+$allCount = array_sum($categoryCounts);
+$promotions = storefront_active_promotions($conn);
+$reviewStats = storefront_review_stats($conn);
+$selectedCategory = null;
+foreach ($categories as $cat) {
+    if ((int) $cat['id'] === $category_id) {
+        $selectedCategory = $cat;
+    }
+}
+$h = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+$pageHeading = $selectedCategory ? $selectedCategory['name'] : ($search !== '' ? 'Results for "' . $search . '"' : 'All products');
 ?>
 
-<div class="container mt-5">
-    <div class="section-header mb-4">
-        <h2>Our Products</h2>
-        <p>Browse our complete catalog</p>
+<div class="container page">
+    <nav aria-label="Breadcrumb">
+        <ol class="crumbs">
+            <li><a href="<?php echo $h(site_url('index.php')); ?>">Home</a></li>
+            <li><a href="<?php echo $h(site_url('shop/products.php')); ?>"<?php echo $selectedCategory ? '' : ' aria-current="page"'; ?>>Products</a></li>
+            <?php if ($selectedCategory): ?>
+                <li aria-current="page"><?php echo $h($selectedCategory['name']); ?></li>
+            <?php endif; ?>
+        </ol>
+    </nav>
+
+    <div class="page-title">
+        <h1><?php echo $h($pageHeading); ?></h1>
+        <span class="page-title__count"><?php echo (int) $totalProducts; ?> <?php echo (int) $totalProducts === 1 ? 'product' : 'products'; ?></span>
     </div>
-    
-    <!-- Search and Filter -->
-    <div class="mb-4">
-        <form method="GET" action="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" id="productSearchForm" class="search-form-wrapper">
-            <div class="input-group input-group-lg shadow-sm flex-nowrap">
-                <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-secondary"></i></span>
-                <input type="text" class="form-control border-start-0 border-end-0" name="search" id="searchInput" placeholder="Search products..." value="<?php echo htmlspecialchars($search); ?>" style="border-left: none; border-right: none;">
-                
-                <!-- Desktop Category Selector -->
-                <select name="category" id="categorySelect" class="form-select border-start-0 border-end-0 d-none d-md-block" style="border-left: none; border-right: none; max-width: 200px; font-size: 0.9rem; padding: 0.5rem 0.75rem;">
-                    <option value="0">All Categories</option>
-                    <?php foreach ($categories as $cat): ?>
-                        <option value="<?php echo $cat['id']; ?>" <?php echo ($category_id == $cat['id']) ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($cat['name']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                
-                <button class="btn btn-primary border-start-0" type="submit" style="border-left: none;"><span class="d-none d-sm-inline">Search</span><span class="d-sm-none"><i class="fas fa-search"></i></span></button>
-                <?php if (!empty($search) || $category_id > 0): ?>
-                    <a href="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary border-start-0" style="border-left: none;" title="Clear filters"><i class="fas fa-times"></i></a>
+
+    <div class="shop-layout">
+        <aside class="offcanvas-lg offcanvas-start shop-filters" tabindex="-1" id="shopFilters" aria-labelledby="shopFiltersLabel">
+            <div class="offcanvas-header">
+                <h2 class="offcanvas-title" id="shopFiltersLabel">Filters</h2>
+                <button type="button" class="icon-btn" data-bs-dismiss="offcanvas" data-bs-target="#shopFilters" aria-label="Close filters"><?php echo tz_icon('close', 22); ?></button>
+            </div>
+            <div class="offcanvas-body">
+                <form method="GET" action="<?php echo $h(site_url('shop/products.php')); ?>" id="productSearchForm" class="filters">
+                    <?php if ($search !== ''): ?>
+                        <input type="hidden" name="search" value="<?php echo $h($search); ?>">
+                    <?php endif; ?>
+                    <?php if ($sort !== 'popular'): ?>
+                        <input type="hidden" name="sort" value="<?php echo $h($sort); ?>">
+                    <?php endif; ?>
+                    <input type="hidden" name="per_page" value="<?php echo (int) $perPage; ?>">
+                    <fieldset class="filters__group">
+                        <legend>Category</legend>
+                        <label class="radio-row">
+                            <input type="radio" name="category" value="0" <?php echo $category_id === 0 ? 'checked' : ''; ?> onchange="this.form.submit()">
+                            <span>All products</span><span class="radio-row__count"><?php echo (int) $allCount; ?></span>
+                        </label>
+                        <?php foreach ($categories as $cat): ?>
+                        <label class="radio-row">
+                            <input type="radio" name="category" value="<?php echo (int) $cat['id']; ?>" <?php echo $category_id === (int) $cat['id'] ? 'checked' : ''; ?> onchange="this.form.submit()">
+                            <span><?php echo $h($cat['name']); ?></span><span class="radio-row__count"><?php echo (int) ($categoryCounts[(int) $cat['id']] ?? 0); ?></span>
+                        </label>
+                        <?php endforeach; ?>
+                    </fieldset>
+                    <?php if ($search !== ''): ?>
+                    <div class="filters__group">
+                        <p class="filters__legend">Search</p>
+                        <p class="filters__active">"<?php echo $h($search); ?>" <a href="<?php echo $h(site_url('shop/products.php' . ($category_id ? '?category=' . $category_id : ''))); ?>">Clear</a></p>
+                    </div>
+                    <?php endif; ?>
+                    <button type="submit" class="btn btn-ink w-100 d-lg-none">Show results</button>
+                </form>
+            </div>
+        </aside>
+
+        <div class="shop-main">
+            <div class="shop-toolbar">
+                <button class="btn btn-line btn-sm-tz d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#shopFilters" aria-controls="shopFilters"><?php echo tz_icon('filter'); ?>Filters</button>
+                <p class="shop-toolbar__info">
+                    <?php if (count($products) > 0): ?>
+                        Showing <?php echo $offset + 1; ?>&ndash;<?php echo min($offset + count($products), $totalProducts); ?> of <?php echo (int) $totalProducts; ?>
+                    <?php endif; ?>
+                </p>
+                <div class="shop-toolbar__controls">
+                    <label for="sortSelect" class="visually-hidden">Sort by</label>
+                    <select id="sortSelect" class="form-select form-select-tz" onchange="changeSort(this.value)">
+                        <option value="popular" <?php echo $sort === 'popular' ? 'selected' : ''; ?>>Sort: Relevance</option>
+                        <option value="price_asc" <?php echo $sort === 'price_asc' ? 'selected' : ''; ?>>Price: low to high</option>
+                        <option value="price_desc" <?php echo $sort === 'price_desc' ? 'selected' : ''; ?>>Price: high to low</option>
+                        <option value="newest" <?php echo $sort === 'newest' ? 'selected' : ''; ?>>Newest</option>
+                    </select>
+                    <label for="perPageSelect" class="visually-hidden">Items per page</label>
+                    <select id="perPageSelect" class="form-select form-select-tz d-none d-sm-block" onchange="changePerPage(this.value)">
+                        <?php foreach ([6, 12, 24, 48] as $n): ?>
+                            <option value="<?php echo $n; ?>" <?php echo $perPage == $n ? 'selected' : ''; ?>><?php echo $n; ?> per page</option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+
+            <?php if (count($products) > 0): ?>
+                <div class="pgrid pgrid--3" id="productList">
+                    <?php foreach ($products as $product) {
+                        echo render_product_card($product, $promotions, $reviewStats[(int) $product['id']] ?? null);
+                    } ?>
+                </div>
+
+                <?php if ($totalPages > 1): ?>
+                    <nav aria-label="Pages" class="pager">
+                        <ul class="pagination">
+                            <?php if ($page > 1): ?>
+                                <li class="page-item"><a class="page-link" href="<?php echo $h(buildPaginationUrl($page - 1, $search, $category_id, $perPage, $sort)); ?>">Previous</a></li>
+                            <?php else: ?>
+                                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                            <?php endif; ?>
+                            <?php
+                            $startPage = max(1, $page - 2);
+                            $endPage = min($totalPages, $page + 2);
+                            if ($startPage > 1): ?>
+                                <li class="page-item"><a class="page-link" href="<?php echo $h(buildPaginationUrl(1, $search, $category_id, $perPage, $sort)); ?>">1</a></li>
+                                <?php if ($startPage > 2): ?><li class="page-item disabled"><span class="page-link">&hellip;</span></li><?php endif; ?>
+                            <?php endif; ?>
+                            <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                                <li class="page-item <?php echo ($i == $page) ? 'active' : ''; ?>"><a class="page-link" href="<?php echo $h(buildPaginationUrl($i, $search, $category_id, $perPage, $sort)); ?>"<?php echo $i == $page ? ' aria-current="page"' : ''; ?>><?php echo $i; ?></a></li>
+                            <?php endfor; ?>
+                            <?php if ($endPage < $totalPages): ?>
+                                <?php if ($endPage < $totalPages - 1): ?><li class="page-item disabled"><span class="page-link">&hellip;</span></li><?php endif; ?>
+                                <li class="page-item"><a class="page-link" href="<?php echo $h(buildPaginationUrl($totalPages, $search, $category_id, $perPage, $sort)); ?>"><?php echo $totalPages; ?></a></li>
+                            <?php endif; ?>
+                            <?php if ($page < $totalPages): ?>
+                                <li class="page-item"><a class="page-link" href="<?php echo $h(buildPaginationUrl($page + 1, $search, $category_id, $perPage, $sort)); ?>">Next</a></li>
+                            <?php else: ?>
+                                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                            <?php endif; ?>
+                        </ul>
+                    </nav>
                 <?php endif; ?>
-            </div>
-            <!-- Mobile Category Selector (separate for mobile view) -->
-            <div class="d-md-none mt-2">
-                <select id="categorySelectMobile" class="form-select" onchange="document.getElementById('categorySelect').value = this.value; document.getElementById('productSearchForm').submit();">
-                    <option value="0">All Categories</option>
-                    <?php foreach ($categories as $cat): ?>
-                        <option value="<?php echo $cat['id']; ?>" <?php echo ($category_id == $cat['id']) ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($cat['name']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <input type="hidden" name="per_page" value="<?php echo $perPage; ?>">
-            <script>
-            // Ensure category is preserved when searching, and search is preserved when changing category
-            document.addEventListener('DOMContentLoaded', function() {
-                const form = document.getElementById('productSearchForm');
-                const categorySelect = document.getElementById('categorySelect');
-                const categorySelectMobile = document.getElementById('categorySelectMobile');
-                const searchInput = document.getElementById('searchInput');
-                
-                if (form && categorySelect) {
-                    // When desktop category changes, submit form (preserving search)
-                    categorySelect.addEventListener('change', function() {
-                        // Sync mobile select if it exists
-                        if (categorySelectMobile) {
-                            categorySelectMobile.value = this.value;
-                        }
-                        form.submit();
-                    });
-                    
-                    // Sync mobile and desktop selects (mobile has no name, so it won't submit)
-                    if (categorySelectMobile) {
-                        // Mobile select already updates desktop select in onchange, just sync on load
-                        categorySelectMobile.value = categorySelect.value;
-                    }
-                }
-            });
-            </script>
-            <?php if (!empty($search) || $category_id > 0): ?>
-                <div class="mt-2">
-                    <?php if (!empty($search)): ?>
-                        <span class="badge bg-primary me-2"><i class="fas fa-search me-1"></i>Search: "<?php echo htmlspecialchars($search); ?>"</span>
-                    <?php endif; ?>
-                    <?php if ($category_id > 0): ?>
-                        <?php 
-                        $selectedCategory = null;
-                        foreach ($categories as $cat) {
-                            if ($cat['id'] == $category_id) {
-                                $selectedCategory = $cat;
-                                break;
-                            }
-                        }
-                        ?>
-                        <span class="badge bg-info"><i class="fas fa-filter me-1"></i>Category: <?php echo htmlspecialchars($selectedCategory['name']); ?></span>
-                    <?php endif; ?>
-                    <span class="badge bg-secondary ms-2"><?php echo $totalProducts; ?> product(s) found</span>
+            <?php else: ?>
+                <div class="empty">
+                    <h2>No products found</h2>
+                    <p>Try another category or a shorter search term.</p>
+                    <a href="<?php echo $h(site_url('shop/products.php')); ?>" class="btn btn-ink">View all products</a>
                 </div>
             <?php endif; ?>
-        </form>
+        </div>
     </div>
-    
-    <!-- Items per page selector and pagination info -->
-    <?php if (count($products) > 0): ?>
-        <div class="row align-items-center mb-3">
-            <div class="col-md-6">
-                <div class="d-flex align-items-center">
-                    <label for="perPageSelect" class="me-2 mb-0 text-muted">Items per page:</label>
-                    <select id="perPageSelect" class="form-select form-select-sm" style="width: auto;" onchange="changePerPage(this.value)">
-                        <option value="6" <?php echo $perPage == 6 ? 'selected' : ''; ?>>6</option>
-                        <option value="12" <?php echo $perPage == 12 ? 'selected' : ''; ?>>12</option>
-                        <option value="24" <?php echo $perPage == 24 ? 'selected' : ''; ?>>24</option>
-                        <option value="48" <?php echo $perPage == 48 ? 'selected' : ''; ?>>48</option>
-                    </select>
-                </div>
-            </div>
-            <div class="col-md-6 text-md-end">
-                <p class="text-muted mb-1">
-                    Showing <strong><?php echo $offset + 1; ?></strong> to <strong><?php echo min($offset + count($products), $totalProducts); ?></strong> 
-                    of <strong><?php echo $totalProducts; ?></strong> products
-                </p>
-                <div>
-                    <select class="form-select form-select-sm" style="width: auto; display: inline-block;" onchange="changeSort(this.value)">
-                        <option value="popular" <?php echo $sort === 'popular' ? 'selected' : ''; ?>>Most Popular</option>
-                        <option value="price_asc" <?php echo $sort === 'price_asc' ? 'selected' : ''; ?>>Price: Low to High</option>
-                        <option value="price_desc" <?php echo $sort === 'price_desc' ? 'selected' : ''; ?>>Price: High to Low</option>
-                        <option value="newest" <?php echo $sort === 'newest' ? 'selected' : ''; ?>>Newest First</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
-    
-    <!-- Products Grid -->
-    <?php if (count($products) > 0): ?>
-        <div class="row" id="productList">
-            <?php foreach ($products as $product): ?>
-                <div class="col-12 col-sm-6 col-md-4 mb-4">
-                    <div class="card product-card-enhanced h-100 d-flex flex-column">
-                        <div class="product-image-wrapper">
-                            <img
-                                src="<?php echo htmlspecialchars(getProductImagePath($product['imagelink'])); ?>"
-                                class="product-image"
-                                alt="<?php echo htmlspecialchars($product['name']); ?>"
-                            >
-                            <div class="product-overlay">
-                                <div class="btn-group-overlay">
-                                    <a href="<?php echo htmlspecialchars(site_url('shop/product-details.php?id=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-light btn-sm">
-                                        <i class="fas fa-eye"></i> Details
-                                    </a>
-                                    <?php if ($product['inventory'] > 0): ?>
-                                        <?php echo cart_add_form((int)$product['id'], 'btn btn-primary btn-sm', '<i class="fas fa-cart-plus"></i> Add'); ?>
-                                    <?php else: ?>
-                                        <button class="btn btn-secondary btn-sm" disabled>
-                                            <i class="fas fa-times-circle"></i> Out
-                                        </button>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            <?php if ($product['inventory'] <= 0): ?>
-                                <span class="badge bg-danger stock-corner position-absolute top-0 end-0 m-2">
-                                    <i class="fas fa-exclamation-circle me-1"></i>Out of Stock
-                                </span>
-                            <?php endif; ?>
-                        </div>
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title mb-1">
-                                <a href="<?php echo htmlspecialchars(site_url('shop/product-details.php?id=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="text-decoration-none text-dark">
-                                    <?php echo htmlspecialchars($product['name']); ?>
-                                </a>
-                            </h5>
-                            <p class="card-text text-muted mb-1"><?php echo htmlspecialchars($product['category_name']); ?></p>
-                            <p class="card-text fw-bold mb-2 price-tag"><?php echo format_pkr($product['price']); ?></p>
-                            <?php if ($product['inventory'] <= 0): ?>
-                                <small class="text-danger mb-2"><i class="fas fa-exclamation-circle me-1"></i>Currently unavailable</small>
-                            <?php elseif ($product['inventory'] <= 5): ?>
-                                <small class="stock-low mb-2"><i class="fas fa-fire me-1"></i>Only <?php echo (int) $product['inventory']; ?> left</small>
-                            <?php else: ?>
-                                <small class="text-success mb-2"><i class="fas fa-check-circle me-1"></i>In stock</small>
-                            <?php endif; ?>
-                            <div class="mt-auto d-flex justify-content-between pt-2 d-none d-md-flex">
-                                <a href="<?php echo htmlspecialchars(site_url('shop/product-details.php?id=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-primary btn-sm">
-                                    <i class="fas fa-eye"></i> View
-                                </a>
-                                <?php if ($product['inventory'] > 0): ?>
-                                    <?php echo cart_add_form((int)$product['id'], 'btn btn-success btn-sm', '<i class="fas fa-cart-plus"></i> Add to Cart'); ?>
-                                <?php else: ?>
-                                    <button class="btn btn-secondary btn-sm" disabled>Out of Stock</button>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-        
-        <!-- Pagination -->
-        <?php if ($totalPages > 1): ?>
-            <nav aria-label="Page navigation">
-                <ul class="pagination justify-content-center flex-wrap">
-                    <!-- First Page -->
-                    <?php if ($page > 1): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="<?php echo buildPaginationUrl(1, $search, $category_id, $perPage, $sort); ?>" aria-label="First">
-                                <i class="fas fa-angle-double-left"></i>
-                            </a>
-                        </li>
-                    <?php else: ?>
-                        <li class="page-item disabled">
-                            <span class="page-link"><i class="fas fa-angle-double-left"></i></span>
-                        </li>
-                    <?php endif; ?>
-                    
-                    <!-- Previous Page -->
-                    <?php if ($page > 1): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="<?php echo buildPaginationUrl($page - 1, $search, $category_id, $perPage, $sort); ?>" aria-label="Previous">
-                                <i class="fas fa-angle-left"></i> Previous
-                            </a>
-                        </li>
-                    <?php else: ?>
-                        <li class="page-item disabled">
-                            <span class="page-link"><i class="fas fa-angle-left"></i> Previous</span>
-                        </li>
-                    <?php endif; ?>
-                    
-                    <!-- Page Numbers -->
-                    <?php
-                    $startPage = max(1, $page - 2);
-                    $endPage = min($totalPages, $page + 2);
-                    
-                    if ($startPage > 1): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="<?php echo buildPaginationUrl(1, $search, $category_id, $perPage, $sort); ?>">1</a>
-                        </li>
-                        <?php if ($startPage > 2): ?>
-                            <li class="page-item disabled">
-                                <span class="page-link">...</span>
-                            </li>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                    
-                    <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
-                        <li class="page-item <?php echo ($i == $page) ? 'active' : ''; ?>">
-                            <a class="page-link" href="<?php echo buildPaginationUrl($i, $search, $category_id, $perPage, $sort); ?>"><?php echo $i; ?></a>
-                        </li>
-                    <?php endfor; ?>
-                    
-                    <?php if ($endPage < $totalPages): ?>
-                        <?php if ($endPage < $totalPages - 1): ?>
-                            <li class="page-item disabled">
-                                <span class="page-link">...</span>
-                            </li>
-                        <?php endif; ?>
-                        <li class="page-item">
-                            <a class="page-link" href="<?php echo buildPaginationUrl($totalPages, $search, $category_id, $perPage, $sort); ?>"><?php echo $totalPages; ?></a>
-                        </li>
-                    <?php endif; ?>
-                    
-                    <!-- Next Page -->
-                    <?php if ($page < $totalPages): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="<?php echo buildPaginationUrl($page + 1, $search, $category_id, $perPage, $sort); ?>" aria-label="Next">
-                                Next <i class="fas fa-angle-right"></i>
-                            </a>
-                        </li>
-                    <?php else: ?>
-                        <li class="page-item disabled">
-                            <span class="page-link">Next <i class="fas fa-angle-right"></i></span>
-                        </li>
-                    <?php endif; ?>
-                    
-                    <!-- Last Page -->
-                    <?php if ($page < $totalPages): ?>
-                        <li class="page-item">
-                            <a class="page-link" href="<?php echo buildPaginationUrl($totalPages, $search, $category_id, $perPage, $sort); ?>" aria-label="Last">
-                                <i class="fas fa-angle-double-right"></i>
-                            </a>
-                        </li>
-                    <?php else: ?>
-                        <li class="page-item disabled">
-                            <span class="page-link"><i class="fas fa-angle-double-right"></i></span>
-                        </li>
-                    <?php endif; ?>
-                </ul>
-            </nav>
-        <?php endif; ?>
-    <?php else: ?>
-        <div class="alert alert-info text-center">
-            <h4>No products found</h4>
-            <p>Try adjusting your search or filter criteria.</p>
-            <a href="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary">View All Products</a>
-        </div>
-    <?php endif; ?>
 </div>
 
 <script>

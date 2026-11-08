@@ -118,207 +118,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="checkout-progress-bar">
-    <div class="container">
-        <div class="checkout-steps">
-            <div class="checkout-step completed">
-                <div class="checkout-step-icon"><i class="fas fa-shopping-cart"></i></div>
-                <div class="checkout-step-label">Cart</div>
-            </div>
-            <div class="checkout-step-line completed"></div>
-            <div class="checkout-step active">
-                <div class="checkout-step-icon"><i class="fas fa-truck"></i></div>
-                <div class="checkout-step-label">Details</div>
-            </div>
-            <div class="checkout-step-line"></div>
-            <div class="checkout-step">
-                <div class="checkout-step-icon"><i class="fas fa-check"></i></div>
-                <div class="checkout-step-label">Confirm</div>
-            </div>
-        </div>
-    </div>
-</div>
+<?php $h = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); ?>
+<div class="container page">
+    <nav aria-label="Checkout steps">
+        <ol class="crumbs crumbs--steps">
+            <li><a href="<?php echo $h(site_url('shop/cart.php')); ?>">Cart</a></li>
+            <li aria-current="step"><strong>Delivery and payment</strong></li>
+            <li>Confirmation</li>
+        </ol>
+    </nav>
+    <div class="page-title"><h1>Checkout</h1></div>
 
-<div class="container mt-4">
-    <div class="section-header mb-4">
-        <h2>Checkout</h2>
-        <p>Complete your order</p>
-    </div>
-    
     <?php if ($error): ?>
-        <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+        <div class="alert alert-danger" role="alert"><?php echo $h($error); ?></div>
     <?php endif; ?>
-    
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title mb-4">Shipping Information</h5>
-                    <form method="POST" id="checkoutForm">
-                        <?php echo csrf_field(); ?>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Full Name *</label>
-                                <input type="text" class="form-control" name="customer_name" value="<?php echo htmlspecialchars($customer['name']); ?>" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Email *</label>
-                                <input type="email" class="form-control" name="customer_email" value="<?php echo htmlspecialchars($customer['email']); ?>" required>
-                            </div>
+
+    <div class="row g-4 g-lg-5">
+        <div class="col-lg-7">
+            <form method="POST" id="checkoutForm" class="form-stack">
+                <?php echo csrf_field(); ?>
+                <fieldset class="form-section">
+                    <legend>Delivery details</legend>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="co_name">Full name</label>
+                            <input type="text" class="form-control" id="co_name" name="customer_name" autocomplete="name" value="<?php echo $h($customer['name']); ?>" required>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Phone *</label>
-                                <input type="tel" class="form-control" name="customer_phone" value="<?php echo htmlspecialchars($customer['phone'] ?? ''); ?>" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">City *</label>
-                                <input type="text" class="form-control" name="city" value="<?php echo htmlspecialchars($customer['city'] ?? ''); ?>" required>
-                            </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="co_email">Email</label>
+                            <input type="email" class="form-control" id="co_email" name="customer_email" autocomplete="email" value="<?php echo $h($customer['email']); ?>" required>
                         </div>
-                        <div class="mb-4">
-                            <label class="form-label">Address *</label>
-                            <textarea class="form-control" name="address" rows="3" required><?php echo htmlspecialchars($customer['address'] ?? ''); ?></textarea>
+                        <div class="col-md-6">
+                            <label class="form-label" for="co_phone">Phone</label>
+                            <input type="tel" class="form-control" id="co_phone" name="customer_phone" autocomplete="tel" value="<?php echo $h($customer['phone'] ?? ''); ?>" required>
                         </div>
-                        
-                        <hr class="my-4">
-                        
-                        <h5 class="mb-3">Payment Method</h5>
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
-                                <label class="payment-method-card card p-3" for="payment_cod">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="payment_method" id="payment_cod" value="cash_on_delivery" checked onchange="toggleJazzCash()">
-                                        <label class="form-check-label w-100" for="payment_cod">
-                                            <div class="d-flex align-items-center">
-                                                <i class="fas fa-money-bill-wave fa-2x text-success me-3"></i>
-                                                <div>
-                                                    <strong>Cash on Delivery</strong>
-                                                    <p class="text-muted mb-0 small">Pay when you receive</p>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </label>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="payment-method-card card p-3" for="payment_jazzcash">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="payment_method" id="payment_jazzcash" value="jazzcash" onchange="toggleJazzCash()">
-                                        <label class="form-check-label w-100" for="payment_jazzcash">
-                                            <div class="d-flex align-items-center">
-                                                <div class="bg-warning rounded p-2 me-3" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;">
-                                                    <strong style="color: #fff; font-size: 0.9rem;">JC</strong>
-                                                </div>
-                                                <div>
-                                                    <strong>JazzCash Wallet</strong>
-                                                    <p class="text-muted mb-0 small">Pay via JazzCash</p>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </label>
-                            </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="co_city">City</label>
+                            <input type="text" class="form-control" id="co_city" name="city" autocomplete="address-level2" value="<?php echo $h($customer['city'] ?? ''); ?>" required>
                         </div>
-                        
-                        <div id="jazzcash_fields" class="mb-4" style="display: none;">
-                            <div class="card bg-light">
-                                <div class="card-body">
-                                    <label class="form-label fw-bold">JazzCash Account Number *</label>
-                                    <input type="text" class="form-control" name="jazzcash_number" id="jazzcash_number" placeholder="03XX-XXXXXXX" pattern="[0-9]{4}-[0-9]{7}" maxlength="12">
-                                    <small class="text-muted">Format: 03XX-XXXXXXX</small>
-                                </div>
-                            </div>
+                        <div class="col-12">
+                            <label class="form-label" for="co_address">Address</label>
+                            <textarea class="form-control" id="co_address" name="address" rows="3" autocomplete="street-address" required><?php echo $h($customer['address'] ?? ''); ?></textarea>
                         </div>
-                        
-                        <hr class="my-4">
-                        
-                        <h5 class="mb-3">Order Summary</h5>
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th class="border-0">Product</th>
-                                        <th class="border-0 text-center" style="width: 80px;">Qty</th>
-                                        <th class="border-0 text-end" style="width: 120px;">Price</th>
-                                        <th class="border-0 text-end" style="width: 120px;">Subtotal</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($cart as $item): ?>
-                                        <tr>
-                                            <td class="border-0">
-                                                <strong><?php echo htmlspecialchars($item['name']); ?></strong>
-                                            </td>
-                                            <td class="border-0 text-center">
-                                                <span class="badge bg-secondary"><?php echo $item['quantity']; ?></span>
-                                            </td>
-                                            <td class="border-0 text-end text-muted">
-                                                <?php echo format_pkr($item['price']); ?>
-                                            </td>
-                                            <td class="border-0 text-end">
-                                                <strong><?php echo format_pkr($item['price'] * $item['quantity']); ?></strong>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                                <tfoot class="border-top">
-                                    <tr>
-                                        <td colspan="3" class="text-end pt-3"><strong>Subtotal:</strong></td>
-                                        <td class="text-end pt-3"><strong><?php echo format_pkr($subtotal); ?></strong></td>
-                                    </tr>
-                                    <?php if ($discount > 0): ?>
-                                    <tr>
-                                        <td colspan="3" class="text-end text-success"><strong>Discount (<?php echo htmlspecialchars($applied_promo_code); ?>):</strong></td>
-                                        <td class="text-end text-success"><strong>- <?php echo format_pkr($discount); ?></strong></td>
-                                    </tr>
-                                    <?php endif; ?>
-                                    <tr>
-                                        <td colspan="3" class="text-end"><strong>Shipping:</strong></td>
-                                        <td class="text-end"><strong><?php echo format_pkr($shipping); ?></strong></td>
-                                    </tr>
-                                    <tr style="background-color: #878787ff; border-top: 2px solid #4d4f52ff;">
-                                        <td colspan="3" class="text-end py-3">
-                                            <strong class="fs-5 text-dark">Total:</strong>
-                                        </td>
-                                        <td class="text-end py-3">
-                                            <strong class="fs-6 text-primary"><?php echo format_pkr($total); ?></strong>
-                                        </td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary w-100 mt-4">Place Order</button>
-                    </form>
-                </div>
-            </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="form-section">
+                    <legend>Payment</legend>
+                    <div class="pay-options">
+                        <label class="payment-method-card pay-option" for="payment_cod">
+                            <input class="form-check-input" type="radio" name="payment_method" id="payment_cod" value="cash_on_delivery" checked onchange="toggleJazzCash()">
+                            <span class="pay-option__text"><strong>Cash on delivery</strong><span>Pay the courier when your order arrives</span></span>
+                        </label>
+                        <label class="payment-method-card pay-option" for="payment_jazzcash">
+                            <input class="form-check-input" type="radio" name="payment_method" id="payment_jazzcash" value="jazzcash" onchange="toggleJazzCash()">
+                            <span class="pay-option__text"><strong>JazzCash</strong><span>Pay from your JazzCash mobile account</span></span>
+                        </label>
+                    </div>
+                    <div id="jazzcash_fields" class="mt-3" style="display: none;">
+                        <label class="form-label" for="jazzcash_number">JazzCash account number</label>
+                        <input type="text" class="form-control" name="jazzcash_number" id="jazzcash_number" placeholder="03XX-XXXXXXX" pattern="[0-9]{4}-[0-9]{7}" maxlength="12" inputmode="numeric">
+                        <p class="form-hint">Format: 03XX-XXXXXXX</p>
+                    </div>
+                </fieldset>
+
+                <button type="submit" class="btn btn-ink w-100">Place order</button>
+                <p class="form-hint text-center mt-2">You will see your order number on the next page.</p>
+            </form>
         </div>
-        
-        <div class="col-md-4">
-            <div class="card sticky-top" style="top: 20px;">
-                <div class="card-body">
-                    <h5 class="card-title">Order Summary</h5>
-                    <hr>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>Items (<?php echo array_sum(array_column($cart, 'quantity')); ?>):</span>
-                        <span><?php echo format_pkr($subtotal); ?></span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span>Shipping:</span>
-                        <span><?php echo format_pkr($shipping); ?></span>
-                    </div>
-                    <hr>
-                    <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded">
-                        <strong class="fs-5">Total:</strong>
-                        <strong class="fs-4 text-primary"><?php echo format_pkr($total); ?></strong>
-                    </div>
-                    <?php if ($subtotal < 5000): ?>
-                        <div class="alert alert-info py-2 px-3 mb-0">
-                            <small><i class="fas fa-info-circle"></i> Add <?php echo format_pkr(5000 - $subtotal); ?> more for free shipping!</small>
-                        </div>
+
+        <div class="col-lg-5">
+            <div class="summary summary--sticky">
+                <h2 class="summary__title">Order summary</h2>
+                <ul class="summary__items">
+                    <?php foreach ($cart as $item): ?>
+                        <li>
+                            <span class="summary__item-name"><?php echo $h($item['name']); ?>
+                                <?php if (!empty($item['size']) || !empty($item['color'])): ?>
+                                    <small><?php echo $h(trim(($item['size'] ?? '') . ' ' . ($item['color'] ?? ''))); ?></small>
+                                <?php endif; ?>
+                                <small>Qty <?php echo (int) $item['quantity']; ?> &times; <?php echo format_pkr($item['price']); ?></small>
+                            </span>
+                            <span class="summary__item-price"><?php echo format_pkr($item['price'] * $item['quantity']); ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <dl class="summary__rows">
+                    <div><dt>Subtotal (<?php echo array_sum(array_column($cart, 'quantity')); ?> items)</dt><dd><?php echo format_pkr($subtotal); ?></dd></div>
+                    <?php if ($discount > 0): ?>
+                        <div class="is-discount"><dt>Discount (<?php echo $h($applied_promo_code); ?>)</dt><dd>&minus;<?php echo format_pkr($discount); ?></dd></div>
                     <?php endif; ?>
-                </div>
+                    <div><dt>Shipping</dt><dd><?php echo $shipping > 0 ? format_pkr($shipping) : 'Free'; ?></dd></div>
+                    <div class="summary__total"><dt>Total</dt><dd><?php echo format_pkr($total); ?></dd></div>
+                </dl>
+                <?php if ($subtotal < 5000): ?>
+                    <p class="summary__note">Add <?php echo format_pkr(5000 - $subtotal); ?> more for free shipping.</p>
+                <?php endif; ?>
             </div>
         </div>
     </div>

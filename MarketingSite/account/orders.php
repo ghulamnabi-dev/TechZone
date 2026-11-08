@@ -16,56 +16,45 @@ $stmt->execute([$customer_id]);
 $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
-<div class="container mt-5">
-    <div class="section-header mb-4">
-        <h2>My Orders</h2>
-        <p>View and track your order history</p>
+<?php $h = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); ?>
+<div class="container page">
+    <div class="page-title">
+        <h1>Orders</h1>
+        <?php if (count($orders) > 0): ?><span class="page-title__count"><?php echo count($orders); ?> <?php echo count($orders) === 1 ? 'order' : 'orders'; ?></span><?php endif; ?>
     </div>
-    
+
     <?php if (count($orders) > 0): ?>
-        <div class="table-responsive">
-            <table class="table table-hover">
+        <div class="table-wrap">
+            <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Order ID</th>
-                        <th>Date</th>
-                        <th>Status</th>
-                        <th>Total</th>
-                        <th>Actions</th>
+                        <th scope="col">Order</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="num">Total</th>
+                        <th scope="col" class="hide-sm"><span class="visually-hidden">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($orders as $order): ?>
-                        <?php
-                        $statusColors = [
-                            'Pending' => 'warning',
-                            'Processing' => 'info',
-                            'Shipped' => 'primary',
-                            'Delivered' => 'success'
-                        ];
-                        $statusColor = $statusColors[$order['status']] ?? 'secondary';
-                        ?>
+                    <?php foreach ($orders as $order):
+                        $statusKey = strtolower((string) $order['status']);
+                    ?>
                         <tr>
-                            <td><strong>#<?php echo $order['id']; ?></strong></td>
-                            <td><?php echo date('F j, Y', strtotime($order['order_date'])); ?></td>
-                            <td><span class="badge bg-<?php echo $statusColor; ?>"><?php echo $order['status']; ?></span></td>
-                            <td><strong><?php echo format_pkr($order['total']); ?></strong></td>
-                            <td>
-                                <a href="<?php echo htmlspecialchars(site_url('account/order-details.php?id=' . (int)$order['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-primary">View Details</a>
-                            </td>
+                            <td><a class="strong-link" href="<?php echo $h(site_url('account/order-details.php?id=' . (int) $order['id'])); ?>">#<?php echo (int) $order['id']; ?></a></td>
+                            <td class="nowrap"><?php echo date('j M Y', strtotime($order['order_date'])); ?></td>
+                            <td><span class="status status--<?php echo $h($statusKey); ?>"><span class="status__dot" aria-hidden="true"></span><?php echo $h($order['status']); ?></span></td>
+                            <td class="num price"><?php echo format_pkr($order['total']); ?></td>
+                            <td class="num hide-sm"><a class="text-link" href="<?php echo $h(site_url('account/order-details.php?id=' . (int) $order['id'])); ?>">View details</a></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
     <?php else: ?>
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <i class="fas fa-shopping-bag"></i>
-            </div>
-            <h4>No orders yet</h4>
-            <p>You haven't placed any orders yet. Browse our products and start shopping!</p>
-            <a href="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary btn-lg"><i class="fas fa-store me-2"></i>Start Shopping</a>
+        <div class="empty">
+            <h2>No orders yet</h2>
+            <p>Orders you place will appear here with their delivery status.</p>
+            <a href="<?php echo $h(site_url('shop/products.php')); ?>" class="btn btn-ink">Shop all products</a>
         </div>
     <?php endif; ?>
 </div>

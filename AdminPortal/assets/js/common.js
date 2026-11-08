@@ -57,7 +57,7 @@ function escapeHtml(value) {
 
 /* ---------- status pills: one mapping for the whole admin ---------- */
 var STATUS_TONE = {
-    pending: 'warn', processing: 'info', shipped: 'accent', delivered: 'ok', cancelled: 'danger',
+    pending: 'pending', processing: 'info', shipped: 'accent', delivered: 'ok', cancelled: 'danger',
     active: 'ok', inactive: 'neutral', approved: 'ok', rejected: 'danger',
     'new': 'info', read: 'neutral', replied: 'accent', archived: 'neutral',
     live: 'ok', scheduled: 'neutral', ended: 'neutral'

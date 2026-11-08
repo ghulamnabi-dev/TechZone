@@ -10,68 +10,57 @@ $pageTitle = 'Sign Up';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="auth-container">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-                <div class="card auth-card">
-                    <div class="card-header">
-                        <h2><i class="fas fa-user-plus me-2"></i>Create Account</h2>
-                        <p class="mb-0 mt-2" style="opacity: 0.9;">Join TechZone.pk and start shopping today!</p>
-                    </div>
-                    <div class="card-body">
+<div class="auth">
+    <div class="auth__panel">
+        <h1>Create an account</h1>
+        <p class="auth__lead">Track orders, reorder parts and review what you bought.</p>
                     <div id="errorMessage" class="alert alert-danger d-none"></div>
                     <div id="successMessage" class="alert alert-success d-none"></div>
                     
                         <form id="signupForm" novalidate>
                             <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label"><i class="fas fa-user me-2"></i>Full Name *</label>
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Full name</label>
                                     <input type="text" class="form-control" id="name" name="name" placeholder="Enter your full name">
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label"><i class="fas fa-envelope me-2"></i>Email Address *</label>
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Email</label>
                                     <input type="text" class="form-control" id="email" name="email" placeholder="Enter your email">
                                 </div>
                             </div>
                             <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label"><i class="fas fa-lock me-2"></i>Password *</label>
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Password</label>
                                     <input type="password" class="form-control" id="password" name="password" placeholder="Create a password">
-                                    <small class="text-muted">Minimum 8 characters</small>
+                                    <p class="form-hint">At least 8 characters</p>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label"><i class="fas fa-lock me-2"></i>Confirm Password *</label>
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Confirm password</label>
                                     <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password">
                                 </div>
                             </div>
                             <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label"><i class="fas fa-phone me-2"></i>Phone</label>
+                                <div class="col-12 mb-3">
+                                    <label class="form-label">Phone</label>
                                     <input type="text" class="form-control" id="phone" name="phone" placeholder="03xx-xxxxxxx" maxlength="12">
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-city me-2"></i>City</label>
+                                <label class="form-label">City</label>
                                 <input type="text" class="form-control" id="city" name="city" placeholder="Enter your city">
                             </div>
                             <div class="mb-3">
-                                <label class="form-label"><i class="fas fa-map-marker-alt me-2"></i>Address</label>
+                                <label class="form-label">Address</label>
                                 <textarea class="form-control" id="address" name="address" rows="2" placeholder="Enter your address"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-dark w-100 btn-lg contact-submit-btn"><i class="fas fa-user-plus me-2"></i>Create Account</button>
+                            <button type="submit" class="btn btn-ink w-100">Create account</button>
                         </form>
                         
-                        <div class="text-center mt-4">
-                            <p class="mb-0">Already have an account? <a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="fw-bold auth-link">Login here</a></p>
+                        <div class="auth__foot">
+                            <p class="mb-0">Already have an account? <a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Sign in</a></p>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
-
 <script src="<?php echo htmlspecialchars(marketing_script_url('form-validation.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 <script>
 // Clear validation state on input (remove red border when user types)

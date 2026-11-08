@@ -50,257 +50,132 @@ if (count($order_items) > 0) {
 }
 ?>
 
-<div class="container mt-5">
-    <div class="row mb-4">
-        <div class="col-12">
-            <h2>Order #<?php echo $order['id']; ?></h2>
-            <p class="text-muted">Placed on <?php echo date('F j, Y g:i A', strtotime($order['order_date'])); ?></p>
-        </div>
+<?php
+$h = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+$orderDate = new DateTime($order['order_date']);
+$estimatedDelivery = clone $orderDate;
+if ($order['status'] == 'Pending' || $order['status'] == 'Processing') {
+    $estimatedDelivery->modify('+10 days');
+} elseif ($order['status'] == 'Shipped') {
+    $estimatedDelivery->modify('+5 days');
+} else {
+    $estimatedDelivery = null; // Already delivered
+}
+$statusSteps = ['Pending' => 1, 'Processing' => 2, 'Shipped' => 3, 'Delivered' => 4];
+$completedSteps = $statusSteps[$order['status']] ?? 1;
+$paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'JazzCash'];
+?>
+<div class="container page">
+    <nav aria-label="Breadcrumb">
+        <ol class="crumbs">
+            <li><a href="<?php echo $h(site_url('account/orders.php')); ?>">Orders</a></li>
+            <li aria-current="page">#<?php echo (int) $order['id']; ?></li>
+        </ol>
+    </nav>
+    <div class="page-title">
+        <h1>Order #<?php echo (int) $order['id']; ?></h1>
+        <span class="status status--<?php echo $h(strtolower((string) $order['status'])); ?>"><span class="status__dot" aria-hidden="true"></span><?php echo $h($order['status']); ?></span>
     </div>
-    
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5>Order Items</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Product</th>
-                                <th>Quantity</th>
-                                <th>Price</th>
-                                <th>Subtotal</th>
-                            </tr>
-                        </thead>
-                                <tbody>
-                                    <?php foreach ($order_items as $item): ?>
-                                        <tr>
-                                            <td>
-                                                <div class="d-flex align-items-center">
-                                                    <?php if (!empty($item['imagelink'])): ?>
-                                                        <img src="<?php echo htmlspecialchars(getProductImagePath($item['imagelink'])); ?>" 
-                                                             alt="<?php echo htmlspecialchars($item['product_name']); ?>" 
-                                                             class="me-3" 
-                                                             style="width: 60px; height: 60px; object-fit: cover; border-radius: 5px;">
-                                                    <?php endif; ?>
-                                                    <div>
-                                                        <strong><?php echo htmlspecialchars($item['product_name']); ?></strong>
-                                                        <br>
-                                                        <small class="text-muted">Product ID: #<?php echo $item['product_id']; ?></small>
-                                                        <?php if (!empty($item['size']) || !empty($item['color'])): ?>
-                                                            <div class="mt-1">
-                                                                <?php if (!empty($item['size'])): ?>
-                                                                    <span class="badge bg-secondary me-1">Size: <?php echo htmlspecialchars($item['size']); ?></span>
-                                                                <?php endif; ?>
-                                                                <?php if (!empty($item['color'])): ?>
-                                                                    <span class="badge bg-info">Color: <?php echo htmlspecialchars($item['color']); ?></span>
-                                                                <?php endif; ?>
-                                                            </div>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td class="text-center">
-                                                <span class="badge bg-secondary"><?php echo $item['quantity']; ?></span>
-                                            </td>
-                                            <td><?php echo format_pkr($item['price']); ?></td>
-                                            <td><strong><?php echo format_pkr($item['subtotal']); ?></strong></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                                <td><strong><?php echo format_pkr($order['total']); ?></strong></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
-            
-            <!-- Review Products Section -->
-            <div class="card mt-4">
-                <div class="card-header text-white brand-band">
-                    <h5 class="mb-0"><i class="fas fa-star me-2"></i>Review Our Products</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted small">Help other customers by sharing your experience.</p>
-                    
-                    <div class="row">
+    <p class="muted mb-4">Placed on <?php echo date('j F Y, g:i A', strtotime($order['order_date'])); ?></p>
+
+    <div class="row g-4 g-lg-5">
+        <div class="col-lg-8">
+            <ol class="progress-steps" aria-label="Order progress">
+                <?php foreach (['Order placed', 'Processing', 'Shipped', 'Delivered'] as $n => $label): ?>
+                    <li class="<?php echo $completedSteps >= $n + 1 ? 'is-done' : ''; ?>"><?php echo $label; ?></li>
+                <?php endforeach; ?>
+            </ol>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Product</th>
+                            <th scope="col" class="num">Qty</th>
+                            <th scope="col" class="num hide-sm">Price</th>
+                            <th scope="col" class="num">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         <?php foreach ($order_items as $item): ?>
-                            <?php 
-                            $is_reviewed = in_array($item['product_id'], $reviewed_products);
-                            ?>
-                            <div class="col-md-6 mb-2">
-                                <div class="border rounded p-2 <?php echo $is_reviewed ? 'bg-light' : ''; ?>">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div class="flex-grow-1">
-                                            <h6 class="mb-0 small"><?php echo htmlspecialchars($item['product_name']); ?></h6>
-                                            <?php if ($is_reviewed): ?>
-                                                <span class="badge bg-success small"><i class="fas fa-check me-1"></i>Reviewed</span>
+                            <tr>
+                                <td>
+                                    <div class="item-cell">
+                                        <?php if (!empty($item['imagelink'])): ?>
+                                            <span class="item-cell__img"><img src="<?php echo $h(getProductImagePath($item['imagelink'])); ?>" alt="" width="56" height="56" loading="lazy"></span>
+                                        <?php endif; ?>
+                                        <span>
+                                            <a class="strong-link" href="<?php echo $h(site_url('shop/product-details.php?id=' . (int) $item['product_id'])); ?>"><?php echo $h($item['product_name']); ?></a>
+                                            <?php if (!empty($item['size']) || !empty($item['color'])): ?>
+                                                <small class="d-block muted"><?php echo !empty($item['size']) ? 'Size: ' . $h($item['size']) : ''; ?><?php echo !empty($item['size']) && !empty($item['color']) ? ', ' : ''; ?><?php echo !empty($item['color']) ? 'Colour: ' . $h($item['color']) : ''; ?></small>
                                             <?php endif; ?>
-                                        </div>
-                                        <button type="button" class="btn btn-sm btn-primary" 
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#reviewModal"
-                                                onclick="openReviewModal(<?php echo (int) $item['product_id']; ?>, <?php echo htmlspecialchars(json_encode((string) $item['product_name'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, <?php echo $is_reviewed ? 'true' : 'false'; ?>)">
-                                            <i class="fas fa-star me-1"></i><?php echo $is_reviewed ? 'Update' : 'Review'; ?>
-                                        </button>
+                                        </span>
                                     </div>
-                                </div>
-                            </div>
+                                </td>
+                                <td class="num"><?php echo (int) $item['quantity']; ?></td>
+                                <td class="num hide-sm"><?php echo format_pkr($item['price']); ?></td>
+                                <td class="num price"><?php echo format_pkr($item['subtotal']); ?></td>
+                            </tr>
                         <?php endforeach; ?>
-                    </div>
-                </div>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th scope="row" colspan="3" class="num">Total</th>
+                            <td class="num price"><?php echo format_pkr($order['total']); ?></td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
-        </div>
-        
-                <div class="col-md-4">
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5>Order Status & Tracking</h5>
-                        </div>
-                        <div class="card-body">
-                            <?php
-                            $statusColors = [
-                                'Pending' => 'warning',
-                                'Processing' => 'info',
-                                'Shipped' => 'secondary',
-                                'Delivered' => 'success'
-                            ];
-                            $statusColor = $statusColors[$order['status']] ?? 'secondary';
-                            
-                            // Calculate estimated delivery date
-                            $orderDate = new DateTime($order['order_date']);
-                            $estimatedDelivery = clone $orderDate;
-                            
-                            if ($order['status'] == 'Pending' || $order['status'] == 'Processing') {
-                                $estimatedDelivery->modify('+10 days');
-                            } elseif ($order['status'] == 'Shipped') {
-                                $estimatedDelivery->modify('+5 days');
-                            } else {
-                                $estimatedDelivery = null; // Already delivered
-                            }
-                            
-                            // Determine which timeline steps are completed
-                            $statusSteps = [
-                                'Pending' => 1,      // Only "Order Placed" completed
-                                'Processing' => 2,   // "Order Placed" and "Processing" completed
-                                'Shipped' => 3,      // Up to "Shipped" completed
-                                'Delivered' => 4     // All steps completed
-                            ];
-                            $completedSteps = $statusSteps[$order['status']] ?? 1;
-                            ?>
-                            
-                            <div class="mb-4 text-center">
-                                <span class="badge bg-<?php echo $statusColor; ?> fs-6 p-3"><?php echo $order['status']; ?></span>
-                                <p class="text-muted small mt-2 mb-0">Order placed on <?php echo date('M j, Y', strtotime($order['order_date'])); ?></p>
-                            </div>
-                            
-                            <!-- Order Timeline -->
-                            <div class="order-timeline-horizontal mb-4" style="display: flex !important; flex-direction: row !important; align-items: flex-start !important;">
-                                <div class="timeline-step <?php echo $completedSteps >= 1 ? 'active' : ''; ?>">
-                                    <div class="timeline-marker" style="<?php echo $completedSteps >= 1 ? 'background-color: #764ba2 !important; border-color: #764ba2 !important; color: white !important;' : 'background-color: #fff; border: 3px solid #dee2e6; color: #6c757d;'; ?> width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
-                                        <i class="fas fa-shopping-cart"></i>
-                                    </div>
-                                    <div class="timeline-content">
-                                        <div class="timeline-title"></div>
-                                    </div>
-                                </div>
-                                <div class="timeline-line" style="flex: 1 1 auto; height: 4px; background-color: <?php echo $completedSteps >= 2 ? '#764ba2' : '#dee2e6'; ?>; margin: 0 10px; margin-top: 18px; min-width: 40px;"></div>
-                                <div class="timeline-step <?php echo $completedSteps >= 2 ? 'active' : ''; ?>">
-                                    <div class="timeline-marker" style="<?php echo $completedSteps >= 2 ? 'background-color: #764ba2 !important; border-color: #764ba2 !important; color: white !important;' : 'background-color: #fff; border: 3px solid #dee2e6; color: #6c757d;'; ?> width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
-                                        <i class="fas fa-cog"></i>
-                                    </div>
-                                    <div class="timeline-content">
-                                        <div class="timeline-title"></div>
-                                    </div>
-                                </div>
-                                <div class="timeline-line" style="flex: 1 1 auto; height: 4px; background-color: <?php echo $completedSteps >= 3 ? '#764ba2' : '#dee2e6'; ?>; margin: 0 10px; margin-top: 18px; min-width: 40px;"></div>
-                                <div class="timeline-step <?php echo $completedSteps >= 3 ? 'active' : ''; ?>">
-                                    <div class="timeline-marker" style="<?php echo $completedSteps >= 3 ? 'background-color: #764ba2 !important; border-color: #764ba2 !important; color: white !important;' : 'background-color: #fff; border: 3px solid #dee2e6; color: #6c757d;'; ?> width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
-                                        <i class="fas fa-truck"></i>
-                                    </div>
-                                    <div class="timeline-content">
-                                        <div class="timeline-title"></div>
-                                    </div>
-                                </div>
-                                <div class="timeline-line" style="flex: 1 1 auto; height: 4px; background-color: <?php echo $completedSteps >= 4 ? '#764ba2' : '#dee2e6'; ?>; margin: 0 10px; margin-top: 18px; min-width: 40px;"></div>
-                                <div class="timeline-step <?php echo $completedSteps >= 4 ? 'active' : ''; ?>">
-                                    <div class="timeline-marker" style="<?php echo $completedSteps >= 4 ? 'background-color: #764ba2 !important; border-color: #764ba2 !important; color: white !important;' : 'background-color: #fff; border: 3px solid #dee2e6; color: #6c757d;'; ?> width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
-                                        <i class="fas fa-check-circle"></i>
-                                    </div>
-                                    <div class="timeline-content">
-                                        <div class="timeline-title"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <?php if ($estimatedDelivery): ?>
-                            <div class="alert mb-0" style="background: rgba(118,75,162,0.1); border-color: #764ba2; color: #4a2a7a;">
-                                <i class="fas fa-calendar-alt me-2"></i>
-                                <strong>Estimated Delivery:</strong><br>
-                                <span><?php echo $estimatedDelivery->format('F j, Y'); ?></span>
-                            </div>
-                            <?php elseif ($order['status'] == 'Delivered'): ?>
-                            <div class="alert alert-success mb-0">
-                                <i class="fas fa-check-circle me-2"></i>
-                                <strong>Delivered on:</strong><br>
-                                <span><?php echo date('F j, Y', strtotime($order['order_date'] . ' +7 days')); ?></span>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-            
-            <?php if (isset($order['payment_method'])): ?>
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5>Payment Method</h5>
-                </div>
-                <div class="card-body">
-                    <?php
-                    $paymentMethods = [
-                        'cash_on_delivery' => ['Cash on Delivery', 'fas fa-money-bill-wave', 'success'],
-                        'jazzcash' => ['JazzCash Wallet', 'fas fa-wallet', 'warning']
-                    ];
-                    $method = $paymentMethods[$order['payment_method']] ?? ['Other', 'fas fa-credit-card', 'secondary'];
+
+            <section class="panel mt-4">
+                <h2 class="panel__title">Review what you bought</h2>
+                <p class="muted">Reviews appear on the product page after a quick check.</p>
+                <ul class="review-targets">
+                    <?php foreach ($order_items as $item):
+                        $is_reviewed = in_array($item['product_id'], $reviewed_products);
                     ?>
-                    <p class="mb-0">
-                        <i class="<?php echo $method[1]; ?> text-<?php echo $method[2]; ?> me-2"></i>
-                        <strong><?php echo $method[0]; ?></strong>
-                    </p>
-                </div>
-            </div>
-            <?php endif; ?>
-            
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5>Shipping Information</h5>
-                </div>
-                <div class="card-body">
-                    <p><strong>Name:</strong> <?php echo htmlspecialchars($order['customer_name']); ?></p>
-                    <p><strong>Email:</strong> <?php echo htmlspecialchars($order['customer_email']); ?></p>
-                    <p><strong>Phone:</strong> <?php echo htmlspecialchars($order['customer_phone']); ?></p>
-                    <p><strong>City:</strong> <?php echo htmlspecialchars($order['city']); ?></p>
-                    <?php if (!empty($customer_address)): ?>
-                        <p><strong>Address:</strong> <?php echo nl2br(htmlspecialchars($customer_address)); ?></p>
+                        <li>
+                            <span><?php echo $h($item['product_name']); ?><?php if ($is_reviewed): ?> <small class="muted">Reviewed</small><?php endif; ?></span>
+                            <button type="button" class="btn btn-line btn-sm-tz"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#reviewModal"
+                                    onclick="openReviewModal(<?php echo (int) $item['product_id']; ?>, <?php echo htmlspecialchars(json_encode((string) $item['product_name'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, <?php echo $is_reviewed ? 'true' : 'false'; ?>)">
+                                <?php echo $is_reviewed ? 'Update review' : 'Write a review'; ?>
+                            </button>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </section>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="summary">
+                <h2 class="summary__title">Delivery</h2>
+                <?php if ($estimatedDelivery): ?>
+                    <p class="summary__big">Expected by <?php echo $estimatedDelivery->format('j F Y'); ?></p>
+                <?php elseif ($order['status'] == 'Delivered'): ?>
+                    <p class="summary__big">Delivered</p>
+                <?php endif; ?>
+                <dl class="summary__rows summary__rows--stack">
+                    <?php if (isset($order['payment_method'])): ?>
+                        <div><dt>Payment</dt><dd><?php echo $h($paymentMethods[$order['payment_method']] ?? 'Other'); ?></dd></div>
                     <?php endif; ?>
-                </div>
-            </div>
-            
-            <div class="card">
-                <div class="card-body">
-                    <a href="<?php echo htmlspecialchars(site_url('account/orders.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary w-100 mb-2">Back to Orders</a>
-                    <form method="POST" action="<?php echo htmlspecialchars(site_url('shop/cart.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                        <?= csrf_field() ?>
-                        <?php foreach ($order_items as $item): ?>
-                            <input type="hidden" name="reorder[<?php echo (int) $item['product_id']; ?>]" value="<?php echo (int) $item['quantity']; ?>">
-                        <?php endforeach; ?>
-                        <button type="submit" name="reorder_submit" value="1" class="btn btn-primary w-100">Reorder Items</button>
-                    </form>
-                </div>
+                    <div><dt>Name</dt><dd><?php echo $h($order['customer_name']); ?></dd></div>
+                    <div><dt>Email</dt><dd><?php echo $h($order['customer_email']); ?></dd></div>
+                    <div><dt>Phone</dt><dd><?php echo $h($order['customer_phone']); ?></dd></div>
+                    <div><dt>City</dt><dd><?php echo $h($order['city']); ?></dd></div>
+                    <?php if (!empty($customer_address)): ?>
+                        <div><dt>Address</dt><dd><?php echo nl2br($h($customer_address)); ?></dd></div>
+                    <?php endif; ?>
+                </dl>
+                <form method="POST" action="<?php echo $h(site_url('shop/cart.php')); ?>">
+                    <?= csrf_field() ?>
+                    <?php foreach ($order_items as $item): ?>
+                        <input type="hidden" name="reorder[<?php echo (int) $item['product_id']; ?>]" value="<?php echo (int) $item['quantity']; ?>">
+                    <?php endforeach; ?>
+                    <button type="submit" name="reorder_submit" value="1" class="btn btn-ink w-100">Reorder these items</button>
+                </form>
+                <a href="<?php echo $h(site_url('account/orders.php')); ?>" class="btn btn-line w-100 mt-2">Back to orders</a>
             </div>
         </div>
     </div>
@@ -325,7 +200,7 @@ if (count($order_items) > 0) {
                             <input type="hidden" id="review_rating" name="rating" required>
                             <div class="star-rating">
                                 <?php for ($i = 1; $i <= 5; $i++): ?>
-                                    <i class="fas fa-star star-icon" data-rating="<?php echo $i; ?>" style="font-size: 2rem; color: #ddd; cursor: pointer; margin-right: 0.25rem;"></i>
+                                    <i class="fas fa-star star-icon" data-rating="<?php echo $i; ?>" style="font-size: 2rem; color: #d7dae0; cursor: pointer; margin-right: 0.25rem;"></i>
                                 <?php endfor; ?>
                             </div>
                             <small class="text-muted d-block mt-1">Click on a star to rate</small>
@@ -338,8 +213,8 @@ if (count($order_items) > 0) {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Submit Review</button>
+                    <button type="button" class="btn btn-line" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-ink">Submit review</button>
                 </div>
             </form>
         </div>
@@ -358,7 +233,7 @@ function openReviewModal(productId, productName, isReviewed) {
     
     // Reset stars
     document.querySelectorAll('.star-icon').forEach(star => {
-        star.style.color = '#ddd';
+        star.style.color = '#d7dae0';
     });
     
     // Update modal title
@@ -375,9 +250,9 @@ document.querySelectorAll('.star-icon').forEach(star => {
         // Update star colors
         document.querySelectorAll('.star-icon').forEach((s, index) => {
             if (index < rating) {
-                s.style.color = '#ffc107';
+                s.style.color = '#15181e';
             } else {
-                s.style.color = '#ddd';
+                s.style.color = '#d7dae0';
             }
         });
     });
@@ -386,7 +261,7 @@ document.querySelectorAll('.star-icon').forEach(star => {
         const rating = parseInt(this.getAttribute('data-rating'));
         document.querySelectorAll('.star-icon').forEach((s, index) => {
             if (index < rating) {
-                s.style.color = '#ffc107';
+                s.style.color = '#15181e';
             }
         });
     });
@@ -395,9 +270,9 @@ document.querySelectorAll('.star-icon').forEach(star => {
 document.querySelector('.star-rating').addEventListener('mouseleave', function() {
     document.querySelectorAll('.star-icon').forEach((s, index) => {
         if (index < currentRating) {
-            s.style.color = '#ffc107';
+            s.style.color = '#15181e';
         } else {
-            s.style.color = '#ddd';
+            s.style.color = '#d7dae0';
         }
     });
 });
@@ -448,11 +323,11 @@ function showThankYouMessage() {
                 <div class="modal-content">
                     <div class="modal-body text-center p-5">
                         <div class="mb-4">
-                            <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                            
                         </div>
-                        <h4 class="mb-3">Thank You!</h4>
-                        <p class="text-muted mb-4">Your review has been submitted successfully. We appreciate your feedback and it helps other customers make better decisions.</p>
-                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="location.reload()">Close</button>
+                        <h2 class="h4 mb-3">Thanks for your review</h2>
+                        <p class="text-muted mb-4">It will appear on the product page once it has been checked.</p>
+                        <button type="button" class="btn btn-ink" data-bs-dismiss="modal" onclick="location.reload()">Close</button>
                     </div>
                 </div>
             </div>

@@ -338,173 +338,121 @@ $final_total = $total - $discount + $shipping;
 if ($final_total < 0) $final_total = 0;
 ?>
 
-<div class="container mt-5 mb-5">
-    <h2 class="mb-4">Shopping Cart</h2>
-    
+<?php $h = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); ?>
+<div class="container page">
+    <div class="page-title">
+        <h1>Cart</h1>
+        <?php if (count($cart) > 0): ?><span class="page-title__count"><?php echo array_sum(array_column($cart, 'quantity')); ?> items</span><?php endif; ?>
+    </div>
+
     <?php if (isset($_SESSION['cart_error'])): ?>
         <div class="alert alert-warning alert-dismissible fade show" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i><?php echo htmlspecialchars($_SESSION['cart_error']); ?>
+            <?php echo $h($_SESSION['cart_error']); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
         <?php unset($_SESSION['cart_error']); ?>
     <?php endif; ?>
-    
+
     <?php if (count($cart) > 0): ?>
-        <div class="row">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-body">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Product</th>
-                                    <th>Price</th>
-                                    <th>Quantity</th>
-                                    <th>Subtotal</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($cart as $cart_key => $item): ?>
-                                    <tr>
-                                        <td>
-                                            <div class="d-flex align-items-center">
-                                                <img src="<?php echo htmlspecialchars(getProductImagePath($item['imagelink'])); ?>" 
-                                                     alt="<?php echo htmlspecialchars($item['name']); ?>" 
-                                                     style="width: 80px; height: 80px; object-fit: cover; margin-right: 15px; border-radius: 5px;">
-                                                <div>
-                                                    <strong><?php echo htmlspecialchars($item['name']); ?></strong>
-                                                    <?php if (!empty($item['size']) || !empty($item['color'])): ?>
-                                                        <div class="mt-1">
-                                                            <?php if (!empty($item['size'])): ?>
-                                                                <span class="badge bg-secondary me-1">Size: <?php echo htmlspecialchars($item['size']); ?></span>
-                                                            <?php endif; ?>
-                                                            <?php if (!empty($item['color'])): ?>
-                                                                <span class="badge bg-info">Color: <?php echo htmlspecialchars($item['color']); ?></span>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                    <?php endif; ?>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td class="text-nowrap"><?php echo format_pkr($item['price']); ?></td>
-                                        <td>
-                                            <?php 
-                                            $availableInventory = isset($item['inventory']) ? (int)$item['inventory'] : 0;
-                                            $maxQuantity = max(1, $availableInventory);
-                                            ?>
-                                            <input type="number" 
-                                                   class="form-control form-control-sm quantity-input" 
-                                                   style="width: 80px; display: inline-block;" 
-                                                   value="<?php echo $item['quantity']; ?>" 
-                                                   min="1" 
-                                                   max="<?php echo $maxQuantity; ?>"
-                                                   data-cart-key="<?php echo htmlspecialchars((string) $cart_key, ENT_QUOTES, 'UTF-8'); ?>"
-                                                   data-inventory="<?php echo $availableInventory; ?>"
-                                                   data-product-name="<?php echo htmlspecialchars($item['name']); ?>"
-                                                   onchange="updateQuantity(this.dataset.cartKey, this.value)">
-                                            <?php if ($availableInventory > 0): ?>
-                                                <small class="text-muted d-block mt-1">Max: <?php echo $availableInventory; ?></small>
-                                            <?php else: ?>
-                                                <small class="text-danger d-block mt-1">Out of stock</small>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td><strong><?php echo format_pkr($item['price'] * $item['quantity']); ?></strong></td>
-                                        <td>
-                                            <button type="button" class="btn btn-sm btn-danger" data-cart-key="<?php echo htmlspecialchars((string) $cart_key, ENT_QUOTES, 'UTF-8'); ?>" onclick="confirmRemoveItem(this.dataset.cartKey)">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Order Summary</h5>
-                        <hr>
-                        
-                        <!-- Promo Code Section -->
-                        <div class="mb-3">
-                            <?php if (!isset($_SESSION['applied_promo_code'])): ?>
-                                <div class="input-group">
-                                    <input type="text" 
-                                           class="form-control" 
-                                           id="promoCodeInput" 
-                                           placeholder="Enter promo code">
-                                    <button class="btn btn-primary" type="button" onclick="applyPromoCode()">
-                                        Apply
-                                    </button>
-                                </div>
-                                <small class="text-muted">Have a promo code? Enter it above</small>
-                            <?php else: ?>
-                                <div class="alert alert-success p-2 mb-2">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <strong><i class="fas fa-tag me-1"></i><?php echo htmlspecialchars($_SESSION['applied_promo_code']); ?></strong>
-                                            <?php if (isset($_SESSION['applied_promo_data']['title'])): ?>
-                                                <br><small><?php echo htmlspecialchars($_SESSION['applied_promo_data']['title']); ?></small>
-                                            <?php endif; ?>
-                                        </div>
-                                        <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="removePromoCode()" title="Remove">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </div>
-                                </div>
+        <div class="row g-4 g-lg-5">
+            <div class="col-lg-8">
+                <ul class="cart-lines">
+                    <?php foreach ($cart as $cart_key => $item):
+                        $availableInventory = isset($item['inventory']) ? (int) $item['inventory'] : 0;
+                        $maxQuantity = max(1, $availableInventory);
+                    ?>
+                    <li class="cart-line">
+                        <a class="cart-line__img" href="<?php echo $h(site_url('shop/product-details.php?id=' . (int) $item['id'])); ?>">
+                            <img src="<?php echo $h(getProductImagePath($item['imagelink'])); ?>" alt="" width="96" height="96" loading="lazy">
+                        </a>
+                        <div class="cart-line__info">
+                            <a class="cart-line__name" href="<?php echo $h(site_url('shop/product-details.php?id=' . (int) $item['id'])); ?>"><?php echo $h($item['name']); ?></a>
+                            <?php if (!empty($item['size']) || !empty($item['color'])): ?>
+                                <p class="cart-line__opts">
+                                    <?php if (!empty($item['size'])): ?>Size: <?php echo $h($item['size']); ?><?php endif; ?>
+                                    <?php if (!empty($item['size']) && !empty($item['color'])): ?><br><?php endif; ?>
+                                    <?php if (!empty($item['color'])): ?>Colour: <?php echo $h($item['color']); ?><?php endif; ?>
+                                </p>
                             <?php endif; ?>
-                            <div id="promoCodeMessage" class="mt-2"></div>
+                            <p class="cart-line__unit"><?php echo format_pkr($item['price']); ?> each</p>
+                            <?php if ($availableInventory <= 0): ?>
+                                <p class="stock stock--out"><span class="stock__dot" aria-hidden="true"></span>Out of stock</p>
+                            <?php elseif ($availableInventory <= 5): ?>
+                                <p class="stock stock--low"><span class="stock__dot" aria-hidden="true"></span>Only <?php echo $availableInventory; ?> left</p>
+                            <?php endif; ?>
                         </div>
-                        <hr>
-                        
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Subtotal:</span>
-                            <span><?php echo format_pkr($total); ?></span>
+                        <div class="cart-line__qty">
+                            <label class="visually-hidden" for="qty-<?php echo $h(md5((string) $cart_key)); ?>">Quantity for <?php echo $h($item['name']); ?></label>
+                            <input type="number" id="qty-<?php echo $h(md5((string) $cart_key)); ?>"
+                                   class="form-control quantity-input"
+                                   value="<?php echo (int) $item['quantity']; ?>"
+                                   min="1"
+                                   max="<?php echo $maxQuantity; ?>"
+                                   data-cart-key="<?php echo $h((string) $cart_key); ?>"
+                                   data-inventory="<?php echo $availableInventory; ?>"
+                                   data-product-name="<?php echo $h($item['name']); ?>"
+                                   onchange="updateQuantity(this.dataset.cartKey, this.value)">
+                            <button type="button" class="link-btn" data-cart-key="<?php echo $h((string) $cart_key); ?>" onclick="confirmRemoveItem(this.dataset.cartKey)">Remove</button>
                         </div>
-                        <?php if ($discount > 0): ?>
-                            <div class="d-flex justify-content-between mb-2 text-success">
-                                <span>Discount (<?php echo htmlspecialchars($_SESSION['applied_promo_code']); ?>):</span>
-                                <span>- <?php echo format_pkr($discount); ?></span>
+                        <p class="cart-line__total"><?php echo format_pkr($item['price'] * $item['quantity']); ?></p>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
+                <a href="<?php echo $h(site_url('shop/products.php')); ?>" class="text-link mt-3 d-inline-block">Continue shopping</a>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="summary">
+                    <h2 class="summary__title">Order summary</h2>
+
+                    <div class="summary__promo">
+                        <?php if (!isset($_SESSION['applied_promo_code'])): ?>
+                            <label for="promoCodeInput" class="form-label">Promo code</label>
+                            <div class="input-row">
+                                <input type="text" class="form-control" id="promoCodeInput" placeholder="e.g. TECH10" autocomplete="off">
+                                <button class="btn btn-line" type="button" onclick="applyPromoCode()">Apply</button>
+                            </div>
+                        <?php else: ?>
+                            <div class="applied-code">
+                                <div>
+                                    <span class="code-pill"><?php echo $h($_SESSION['applied_promo_code']); ?></span>
+                                    <?php if (isset($_SESSION['applied_promo_data']['title'])): ?>
+                                        <span class="applied-code__title"><?php echo $h($_SESSION['applied_promo_data']['title']); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                                <button type="button" class="link-btn" onclick="removePromoCode()">Remove</button>
                             </div>
                         <?php endif; ?>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Shipping:</span>
-                            <span><?php echo format_pkr($shipping); ?></span>
-                        </div>
-                        <hr>
-                        <div class="d-flex justify-content-between mb-3">
-                            <strong>Total:</strong>
-                            <strong class="fs-5 text-primary text-nowrap"><?php echo format_pkr($final_total); ?></strong>
-                        </div>
-                        <?php if (isset($_SESSION['customer_id'])): ?>
-                            <a href="<?php echo htmlspecialchars(site_url('shop/checkout.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary w-100 checkout-button">Proceed to Checkout</a>
-                        <?php else: ?>
-                            <a href="<?php echo htmlspecialchars(site_url('auth/login.php?redirect=checkout'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary w-100"><i class="fas fa-sign-in-alt me-2"></i>Login to Checkout</a>
-                            <p class="text-muted text-center mt-2 mb-0" style="font-size:0.8rem;">You'll be brought back to your cart after login.</p>
-                        <?php endif; ?>
-                        <a href="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary w-100 mt-2">Continue Shopping</a>
-                        <!-- Trust badges -->
-                        <div class="cart-trust-badges">
-                            <div class="cart-trust-item"><i class="fas fa-lock"></i> Secure Checkout</div>
-                            <div class="cart-trust-item"><i class="fas fa-undo"></i> Easy Returns</div>
-                            <div class="cart-trust-item"><i class="fas fa-shipping-fast"></i> Fast Delivery</div>
-                        </div>
+                        <div id="promoCodeMessage" class="mt-2"></div>
                     </div>
+
+                    <dl class="summary__rows">
+                        <div><dt>Subtotal</dt><dd><?php echo format_pkr($total); ?></dd></div>
+                        <?php if ($discount > 0): ?>
+                            <div class="is-discount"><dt>Discount (<?php echo $h($_SESSION['applied_promo_code']); ?>)</dt><dd>&minus;<?php echo format_pkr($discount); ?></dd></div>
+                        <?php endif; ?>
+                        <div><dt>Shipping</dt><dd><?php echo $shipping > 0 ? format_pkr($shipping) : 'Free'; ?></dd></div>
+                        <div class="summary__total"><dt>Total</dt><dd><?php echo format_pkr($final_total); ?></dd></div>
+                    </dl>
+
+                    <?php if (isset($_SESSION['customer_id'])): ?>
+                        <a href="<?php echo $h(site_url('shop/checkout.php')); ?>" class="btn btn-ink w-100 checkout-button">Proceed to Checkout</a>
+                    <?php else: ?>
+                        <a href="<?php echo $h(site_url('auth/login.php?redirect=checkout')); ?>" class="btn btn-ink w-100">Login to Checkout</a>
+                        <p class="summary__note">You will come back to your cart after signing in.</p>
+                    <?php endif; ?>
+                    <ul class="summary__facts">
+                        <li><?php echo tz_icon('cash'); ?>Cash on delivery or JazzCash</li>
+                        <li><?php echo tz_icon('rotate'); ?>7-day returns</li>
+                    </ul>
                 </div>
             </div>
         </div>
     <?php else: ?>
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <i class="fas fa-shopping-cart"></i>
-            </div>
-            <h4>Your cart is empty</h4>
-            <p>Looks like you haven't added any items to your cart yet. Start shopping to fill it up!</p>
-            <a href="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary btn-lg"><i class="fas fa-shopping-bag me-2"></i>Start Shopping</a>
+        <div class="empty">
+            <h2>Your cart is empty</h2>
+            <p>Browse the catalogue and add parts to your cart. Nothing is reserved until you place the order.</p>
+            <a href="<?php echo $h(site_url('shop/products.php')); ?>" class="btn btn-ink">Shop all products</a>
         </div>
     <?php endif; ?>
 </div>
@@ -625,13 +573,10 @@ function showConfirm(message, callback) {
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
         <div class="confirm-dialog">
-            <div class="confirm-message">
-                <i class="fas fa-exclamation-triangle text-warning me-2" style="font-size: 1.5rem;"></i>
-                ${message}
-            </div>
+            <div class="confirm-message">${message}</div>
             <div class="confirm-buttons">
-                <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
-                <button class="btn btn-danger" id="confirm-ok">Remove</button>
+                <button class="btn btn-line" id="confirm-cancel">Cancel</button>
+                <button class="btn btn-ink" id="confirm-ok">Remove</button>
             </div>
         </div>
     `;
@@ -689,7 +634,7 @@ function postCartAction(fields) {
 }
 
 function confirmRemoveItem(cartKey) {
-    showConfirm('Are you sure you want to remove this item from your cart?', function(confirmed) {
+    showConfirm('Remove this item from your cart?', function(confirmed) {
         if (confirmed) {
             postCartAction({ remove: cartKey });
         }
@@ -697,65 +642,5 @@ function confirmRemoveItem(cartKey) {
 }
 </script>
 
-<style>
-.confirm-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.confirm-overlay.show {
-    opacity: 1;
-}
-
-.confirm-dialog {
-    background: white;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    max-width: 400px;
-    width: 90%;
-    animation: slideDown 0.3s ease;
-}
-
-@keyframes slideDown {
-    from {
-        transform: translateY(-20px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-.confirm-message {
-    font-size: 16px;
-    margin-bottom: 20px;
-    color: #333;
-    display: flex;
-    align-items: center;
-}
-
-.confirm-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
-
-.confirm-buttons button {
-    padding: 8px 20px;
-    min-width: 80px;
-}
-</style>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

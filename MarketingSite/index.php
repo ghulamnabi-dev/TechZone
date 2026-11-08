@@ -4,94 +4,211 @@ require_once 'includes/header.php';
 require_once 'config/database.php';
 require_once __DIR__ . '/../core/inventory.php';
 
-// Get featured products (limit to 6) - only active products if column exists
-$query = "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id";
-if (hasIsActiveColumn($conn)) {
-    $query .= " WHERE p.is_active = 1";
-}
-$query .= " ORDER BY p.sold DESC LIMIT 6";
-$stmt = $conn->query($query);
-$featuredProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$activeWhere = hasIsActiveColumn($conn) ? " WHERE p.is_active = 1" : "";
+$baseSelect = "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id";
 
-// Get categories
-$stmt = $conn->query("SELECT * FROM categories ORDER BY name");
-$categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Pick up to $limit products with distinct image files (skip repeats, then top up from the rest)
+$pickDistinct = static function (array $rows, int $limit, array $exclude = []): array {
+    $picked = [];
+    $used = [];
+    foreach ($rows as $r) {
+        $img = (string) ($r['imagelink'] ?? '');
+        if ($img === '' || isset($used[$img]) || in_array((int) $r['id'], $exclude, true)) {
+            continue;
+        }
+        $used[$img] = true;
+        $picked[] = $r;
+        if (count($picked) >= $limit) {
+            return $picked;
+        }
+    }
+    $ids = array_merge($exclude, array_map(static fn($r) => (int) $r['id'], $picked));
+    foreach ($rows as $r) {
+        if (count($picked) >= $limit) {
+            break;
+        }
+        if (!in_array((int) $r['id'], $ids, true)) {
+            $picked[] = $r;
+        }
+    }
+    return $picked;
+};
+
+// Featured: best sellers, 8 distinct images
+$bySold = $conn->query($baseSelect . $activeWhere . " ORDER BY p.sold DESC, p.id")->fetchAll(PDO::FETCH_ASSOC);
+$featuredProducts = $pickDistinct($bySold, 8);
+
+// New arrivals: most recently added, 4 distinct images
+$byNewest = $conn->query($baseSelect . $activeWhere . " ORDER BY p.created_at DESC, p.id DESC")->fetchAll(PDO::FETCH_ASSOC);
+$newProducts = $pickDistinct($byNewest, 4);
+
+// Category tile cutouts: preferred product per category if in stock, else cheapest in-stock product with an image
+$tilePreferred = ['Hardware' => 'RTX 4060', 'Peripherals' => 'Razer', 'Monitors' => 'Samsung Odyssey',
+                  'Networking' => 'Archer', 'Storage' => '980 PRO', 'Furniture' => 'FlexiSpot'];
+$tileProduct = static function (array $c) use ($bySold, $tilePreferred) {
+    $pool = array_filter($bySold, static fn($p) => (int) $p['category_id'] === (int) $c['id'] && (int) $p['inventory'] > 0 && !empty($p['imagelink']));
+    $needle = $tilePreferred[$c['label']] ?? '';
+    foreach ($pool as $p) {
+        if ($needle !== '' && stripos($p['name'], $needle) !== false) {
+            return $p;
+        }
+    }
+    usort($pool, static fn($x, $y) => [(float) $x['price'], (int) $x['id']] <=> [(float) $y['price'], (int) $y['id']]);
+    return $pool ? reset($pool) : null;
+};
+
+// Hero product: Samsung Odyssey monitor, else the RTX 4060, else the top seller
+$heroProduct = null;
+foreach (['Samsung Odyssey%', '%RTX 4060%'] as $pattern) {
+    $stmt = $conn->prepare($baseSelect . ($activeWhere ? $activeWhere . " AND" : " WHERE") . " p.name LIKE ? ORDER BY p.id LIMIT 1");
+    $stmt->execute([$pattern]);
+    if ($heroProduct = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        break;
+    }
+}
+if (!$heroProduct && $featuredProducts) {
+    $heroProduct = $featuredProducts[0];
+}
+
+$categories = $GLOBALS['tz_categories'] ?? [];
+$navCategories = storefront_nav_categories($categories);
+$promotions = storefront_active_promotions($conn);
+$reviewStats = storefront_review_stats($conn);
+
+$buildPcId = 0;
+foreach ($categories as $c) {
+    if (strcasecmp($c['name'], 'Computer Hardware') === 0) {
+        $buildPcId = (int) $c['id'];
+    }
+}
+$h = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+$catUrl = static fn(array $c) => site_url('shop/products.php?category=' . (int) $c['id']);
+$heroLinks = array_values(array_filter($navCategories, static fn($c) => in_array($c['label'], ['Monitors', 'Peripherals', 'Networking'], true)));
+$heroSale = $heroProduct ? promo_price_for_product($heroProduct, $promotions) : null;
 ?>
 
-<!-- Hero Banner -->
-<section class="hero-banner">
-    <div class="hero-banner-overlay">
-        <div class="container">
-            <div class="hero-banner-content">
-                <p class="hero-eyebrow">Premium PC Accessories &middot; Pakistan</p>
-                <h1>Everything you need for your next PC upgrade</h1>
-                <p class="hero-sub">From gaming peripherals to high-performance components — all in one place.</p>
-                <div class="d-flex gap-3 flex-wrap">
-                    <a href="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-light btn-lg hero-cta-primary">
-                        <i class="fas fa-shopping-cart me-2"></i>Shop Now
-                    </a>
-                    <a href="<?php echo htmlspecialchars(site_url('about.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-light btn-lg">Learn More</a>
+<section class="hero">
+    <div class="container">
+        <div class="row g-4 g-lg-5 align-items-center">
+            <div class="col-lg-6">
+                <h1 class="hero__title">Parts, peripherals and complete builds,<br class="d-none d-xl-inline"> in stock in Lahore.</h1>
+                <p class="hero__lead">Genuine components with official warranty, delivered across Pakistan. Pay cash on delivery or with JazzCash.</p>
+                <div class="hero__actions">
+                    <a href="<?php echo $h(site_url('shop/products.php')); ?>" class="btn btn-ink btn-lg-tz">Shop all products</a>
+                    <a href="<?php echo $h(site_url('shop/products.php' . ($buildPcId ? '?category=' . $buildPcId : ''))); ?>" class="btn btn-line btn-lg-tz">Build a PC</a>
                 </div>
+                <?php if ($heroLinks): ?>
+                <p class="hero__links">Popular:
+                    <?php foreach ($heroLinks as $c): ?>
+                        <a href="<?php echo $h($catUrl($c)); ?>"><?php echo $h($c['label']); ?></a>
+                    <?php endforeach; ?>
+                </p>
+                <?php endif; ?>
+            </div>
+            <div class="col-lg-6">
+                <?php if ($heroProduct): ?>
+                <a class="hero__panel" href="<?php echo $h(site_url('shop/product-details.php?id=' . (int) $heroProduct['id'])); ?>">
+                    <img src="<?php echo $h(getProductImagePath($heroProduct['imagelink'])); ?>" alt="<?php echo $h($heroProduct['name']); ?>" width="863" height="533" fetchpriority="high">
+                    <span class="hero__caption">
+                        <?php echo price_tag($heroSale ? $heroSale['price'] : (float) $heroProduct['price'], 'lg'); ?>
+                        <span class="hero__name"><?php echo $h($heroProduct['name']); ?></span>
+                        <?php if ($heroSale): ?>
+                            <span class="hero__note">Was <?php echo format_pkr($heroSale['was']); ?>, <?php echo $h($heroSale['label']); ?> with code <?php echo $h($heroSale['code']); ?></span>
+                        <?php endif; ?>
+                    </span>
+                </a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Promotions and Special Offers Section -->
-<?php
-// Get active promotions
-$stmt = $conn->prepare("SELECT * FROM promotions WHERE is_active = 1 AND (start_date IS NULL OR start_date <= CURDATE()) AND (end_date IS NULL OR end_date >= CURDATE()) ORDER BY display_order ASC, created_at DESC LIMIT 3");
-try {
-    $stmt->execute();
-    $promotions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    // Table might not exist yet
-    $promotions = [];
-}
-?>
+<div class="container">
+    <ul class="trust-line">
+        <li><?php echo tz_icon('truck'); ?>Cash on delivery nationwide</li>
+        <li><?php echo tz_icon('rotate'); ?>7-day returns</li>
+        <li><?php echo tz_icon('shield'); ?>Official warranty</li>
+        <li><?php echo tz_icon('pin'); ?>Pickup in Lahore</li>
+    </ul>
+</div>
+
+<section class="section" aria-labelledby="featured-title">
+    <div class="container">
+        <div class="section-head">
+            <h2 id="featured-title">Featured</h2>
+            <a class="text-link" href="<?php echo $h(site_url('shop/products.php')); ?>">View all</a>
+        </div>
+        <div class="pgrid pgrid--4">
+            <?php foreach ($featuredProducts as $product) {
+                echo render_product_card($product, $promotions, $reviewStats[(int) $product['id']] ?? null);
+            } ?>
+        </div>
+    </div>
+</section>
+
+<?php if ($navCategories): ?>
+<section class="section section--alt" aria-labelledby="cats-title">
+    <div class="container">
+        <div class="section-head">
+            <h2 id="cats-title">Shop by category</h2>
+            <a class="text-link" href="<?php echo $h(site_url('shop/products.php')); ?>">View all</a>
+        </div>
+        <ul class="cat-tiles">
+            <?php foreach ($navCategories as $c): ?>
+            <li>
+                <a class="cat-tile" href="<?php echo $h($catUrl($c)); ?>">
+                    <span class="cat-tile__img">
+                        <?php $tp = $tileProduct($c); if ($tp): ?>
+                            <img src="<?php echo $h(getProductImagePath($tp['imagelink'])); ?>" alt="" width="460" height="340" loading="lazy" decoding="async">
+                        <?php endif; ?>
+                    </span>
+                    <span class="cat-tile__name"><?php echo $h($c['name']); ?></span>
+                </a>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+</section>
+<?php endif; ?>
+
+<section class="section" aria-labelledby="new-title">
+    <div class="container">
+        <div class="section-head">
+            <h2 id="new-title">New arrivals</h2>
+            <a class="text-link" href="<?php echo $h(site_url('shop/products.php?sort=newest')); ?>">View all</a>
+        </div>
+        <div class="pgrid pgrid--4">
+            <?php foreach ($newProducts as $product) {
+                echo render_product_card($product, $promotions, $reviewStats[(int) $product['id']] ?? null);
+            } ?>
+        </div>
+    </div>
+</section>
 
 <?php if (count($promotions) > 0): ?>
-<section class="promotions-section home-section">
+<section class="section section--alt" aria-labelledby="offers-title">
     <div class="container">
-        <div class="section-header section-header--promo">
-            <h2>Special Offers & Promotions</h2>
-            <p>Don't miss out on these amazing deals</p>
+        <div class="section-head">
+            <h2 id="offers-title">Current offers</h2>
         </div>
-        <div class="row g-4 justify-content-center">
-            <?php foreach ($promotions as $promo): ?>
-            <div class="col-md-6 col-lg-4">
-                <div class="promo-card">
-                    <div class="promo-card__image-wrap">
-                        <?php if (!empty($promo['image_url'])): ?>
-                            <img src="<?php echo htmlspecialchars(getPromotionImagePath($promo['image_url'])); ?>" class="promo-card__img" alt="<?php echo htmlspecialchars($promo['title']); ?>">
-                        <?php else: ?>
-                            <div class="promo-card__placeholder">
-                                <i class="fas fa-tag"></i>
-                            </div>
+        <div class="row g-4">
+            <?php foreach (array_slice($promotions, 0, 2) as $promo): ?>
+            <div class="col-md-6">
+                <div class="offer">
+                    <div class="offer__text">
+                        <h3 class="offer__title"><?php echo $h($promo['title']); ?></h3>
+                        <?php if (!empty($promo['description'])): ?>
+                            <p class="offer__desc"><?php echo $h($promo['description']); ?></p>
                         <?php endif; ?>
-                        <?php if ($promo['discount_percentage'] > 0 || $promo['discount_amount'] > 0): ?>
-                            <span class="promo-card__badge">
-                                <?php if ($promo['discount_percentage'] > 0): ?>
-                                    <?php echo number_format($promo['discount_percentage'], 0); ?>% OFF
-                                <?php else: ?>
-                                    <?php echo format_pkr($promo['discount_amount']); ?> OFF
-                                <?php endif; ?>
-                            </span>
+                        <?php if (!empty($promo['end_date'])): ?>
+                            <p class="offer__meta">Ends <?php echo $h(date('j F Y', strtotime($promo['end_date']))); ?></p>
                         <?php endif; ?>
                     </div>
-                    <div class="promo-card__body">
-                        <h3 class="promo-card__title"><?php echo htmlspecialchars($promo['title']); ?></h3>
-                        <?php if (!empty($promo['description'])): ?>
-                            <p class="promo-card__desc"><?php echo htmlspecialchars($promo['description']); ?></p>
-                        <?php endif; ?>
+                    <div class="offer__actions">
                         <?php if (!empty($promo['promo_code'])): ?>
-                            <p class="promo-card__code">Code: <strong><?php echo htmlspecialchars($promo['promo_code']); ?></strong></p>
+                            <span class="code-pill" title="Enter this code in your cart"><?php echo $h($promo['promo_code']); ?></span>
                         <?php endif; ?>
-                        <?php if (!empty($promo['link_url'])): ?>
-                            <a href="<?php echo htmlspecialchars($promo['link_url']); ?>" class="promo-card__btn">View Offer</a>
-                        <?php else: ?>
-                            <a href="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" class="promo-card__btn">Shop Now</a>
-                        <?php endif; ?>
+                        <a href="<?php echo $h(!empty($promo['link_url']) ? $promo['link_url'] : site_url('shop/products.php')); ?>" class="btn btn-ink">Shop the offer</a>
                     </div>
                 </div>
             </div>
@@ -101,200 +218,6 @@ try {
 </section>
 <?php endif; ?>
 
-<div class="container home-section">
-    <div class="section-header">
-        <h2>Featured Products</h2>
-        <p>Our most popular items</p>
-    </div>
-    <!-- Quick category filters (link to full products page) -->
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div class="category-pills">
-            <a href="<?php echo htmlspecialchars(site_url('shop/products.php'), ENT_QUOTES, 'UTF-8'); ?>" class="category-pill">All</a>
-            <?php foreach (array_slice($categories, 0, 4) as $cat): ?>
-                <a href="<?php echo htmlspecialchars(site_url('shop/products.php?category=' . (int)$cat['id']), ENT_QUOTES, 'UTF-8'); ?>" class="category-pill">
-                    <?php echo htmlspecialchars($cat['name']); ?>
-                </a>
-            <?php endforeach; ?>
-        </div>
-        <div>
-            <select class="form-select form-select-sm" style="width: auto;" onchange="if(this.value) window.location.href=this.value;">
-                <option value="">Sort products…</option>
-                <option value="<?php echo htmlspecialchars(site_url('shop/products.php?sort=popular'), ENT_QUOTES, 'UTF-8'); ?>">Most Popular</option>
-                <option value="<?php echo htmlspecialchars(site_url('shop/products.php?sort=price_asc'), ENT_QUOTES, 'UTF-8'); ?>">Price: Low to High</option>
-                <option value="<?php echo htmlspecialchars(site_url('shop/products.php?sort=price_desc'), ENT_QUOTES, 'UTF-8'); ?>">Price: High to Low</option>
-                <option value="<?php echo htmlspecialchars(site_url('shop/products.php?sort=newest'), ENT_QUOTES, 'UTF-8'); ?>">Newest First</option>
-            </select>
-        </div>
-    </div>
-    <div class="row">
-        <?php foreach ($featuredProducts as $product): ?>
-        <div class="col-md-4 mb-4">
-            <div class="card product-card-enhanced h-100">
-                <div class="product-image-wrapper">
-                    <img
-                        src="<?php echo htmlspecialchars(getProductImagePath($product['imagelink'])); ?>"
-                        class="product-image"
-                        alt="<?php echo htmlspecialchars($product['name']); ?>"
-                    >
-                    <div class="product-overlay">
-                        <div class="btn-group-overlay">
-                            <a href="<?php echo htmlspecialchars(site_url('shop/product-details.php?id=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-light btn-sm">
-                                <i class="fas fa-eye"></i> Details
-                            </a>
-                            <?php if ($product['inventory'] > 0): ?>
-                                <?php echo cart_add_form((int)$product['id'], 'btn btn-primary btn-sm', '<i class="fas fa-cart-plus"></i> Add'); ?>
-                            <?php else: ?>
-                                <button class="btn btn-secondary btn-sm" disabled>
-                                    <i class="fas fa-times-circle"></i> Out
-                                </button>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    <?php if ($product['inventory'] <= 0): ?>
-                        <span class="badge bg-danger stock-corner position-absolute top-0 end-0 m-2">
-                            <i class="fas fa-exclamation-circle me-1"></i>Out of Stock
-                        </span>
-                    <?php endif; ?>
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title mb-1">
-                        <a href="<?php echo htmlspecialchars(site_url('shop/product-details.php?id=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="text-decoration-none text-dark">
-                            <?php echo htmlspecialchars($product['name']); ?>
-                        </a>
-                    </h5>
-                    <p class="card-text text-muted mb-1"><?php echo htmlspecialchars($product['category_name']); ?></p>
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <p class="card-text fw-bold mb-0 price-tag"><?php echo format_pkr($product['price']); ?></p>
-                        <?php $promoBadge = promo_badge_for_product($product, $promotions ?? []); ?>
-                        <?php if ($promoBadge): ?>
-                            <span class="badge badge-discount"><?php echo htmlspecialchars($promoBadge, ENT_QUOTES, 'UTF-8'); ?></span>
-                        <?php endif; ?>
-                    </div>
-                    <p class="mb-2">
-                        <span class="rating">
-                            <i class="fas fa-star"></i>
-                            <i class="fas fa-star"></i>
-                            <i class="fas fa-star"></i>
-                            <i class="fas fa-star"></i>
-                            <i class="far fa-star"></i>
-                            <span class="count">(<?php echo max(1, (int)$product['sold']); ?>)</span>
-                        </span>
-                    </p>
-                    <?php if ($product['inventory'] <= 0): ?>
-                        <small class="text-danger mb-2"><i class="fas fa-exclamation-circle me-1"></i>Currently unavailable</small>
-                    <?php elseif ($product['inventory'] <= 5): ?>
-                        <small class="stock-low mb-2"><i class="fas fa-fire me-1"></i>Only <?php echo (int) $product['inventory']; ?> left</small>
-                    <?php else: ?>
-                        <small class="text-success mb-2"><i class="fas fa-check-circle me-1"></i>In stock</small>
-                    <?php endif; ?>
-                    <div class="mt-auto d-flex justify-content-between pt-2">
-                        <a href="<?php echo htmlspecialchars(site_url('shop/product-details.php?id=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-eye"></i> View
-                        </a>
-                        <?php if ($product['inventory'] > 0): ?>
-                            <?php echo cart_add_form((int)$product['id'], 'btn btn-success btn-sm', '<i class="fas fa-cart-plus"></i> Add to Cart'); ?>
-                        <?php else: ?>
-                            <button class="btn btn-secondary btn-sm" disabled>Out of Stock</button>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-</div>
-
-<div class="container home-section home-section--end">
-    <div class="section-header">
-        <h2>Explore Our Collection</h2>
-        <p>Browse our product categories</p>
-    </div>
-    <?php
-    $fallbackGradients = ['#667eea,#764ba2', '#764ba2,#f093fb', '#f093fb,#4facfe', '#4facfe,#43e97b'];
-    ?>
-    <div class="row g-3">
-        <?php foreach ($categories as $index => $category): ?>
-        <?php
-            $catName = $category['name'];
-            $imgPath = !empty($category['image'])
-                ? admin_portal_asset_url('uploads/' . rawurlencode($category['image']))
-                : null;
-            $grad = $fallbackGradients[$index % count($fallbackGradients)];
-            list($c1, $c2) = explode(',', $grad);
-        ?>
-        <div class="col-md-6">
-            <a href="<?php echo htmlspecialchars(site_url('shop/products.php?category=' . (int)$category['id']), ENT_QUOTES, 'UTF-8'); ?>" class="category-card-link text-decoration-none">
-                <div class="category-card-large d-flex align-items-stretch">
-                    <div class="category-card-overlay flex-grow-1">
-                        <div class="category-card-title">
-                            <span class="category-title-bar"></span>
-                            <div>
-                                <h3 class="mb-1"><?php echo strtoupper(htmlspecialchars($catName)); ?></h3>
-                                <p class="mb-0 category-card-sub">Browse <?php echo htmlspecialchars($catName); ?> products</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="category-card-image">
-                        <?php if ($imgPath): ?>
-                            <img src="<?php echo htmlspecialchars($imgPath); ?>" alt="<?php echo htmlspecialchars($catName); ?>" class="category-bg-img">
-                        <?php else: ?>
-                            <div class="category-image-placeholder" style="background: linear-gradient(135deg, <?php echo $c1; ?> 0%, <?php echo $c2; ?> 100%);"></div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </a>
-        </div>
-        <?php endforeach; ?>
-    </div>
-</div>
-
-<?php
-// Fetch 3 approved reviews with 4+ stars that have a comment
-$reviewStmt = $conn->prepare("
-    SELECT r.customer_name, r.rating, r.comment, p.name AS product_name
-    FROM reviews r
-    JOIN products p ON r.product_id = p.id
-    WHERE r.status = 'Approved' AND r.rating >= 4 AND r.comment != ''
-    ORDER BY r.rating DESC, r.created_at DESC
-    LIMIT 3
-");
-$reviewStmt->execute();
-$testimonials = $reviewStmt->fetchAll(PDO::FETCH_ASSOC);
-?>
-<?php if (count($testimonials) > 0): ?>
-<!-- Testimonials -->
-<div class="testimonials-strip home-band">
-    <div class="container">
-        <div class="section-header">
-            <h2>What Our Customers Say</h2>
-        </div>
-        <div class="row g-4">
-            <?php foreach ($testimonials as $review):
-                // Build initials from customer name
-                $nameParts = explode(' ', trim($review['customer_name']));
-                $initials = strtoupper(substr($nameParts[0], 0, 1) . (isset($nameParts[1]) ? substr($nameParts[1], 0, 1) : ''));
-            ?>
-            <div class="col-md-4">
-                <div class="testimonial-card">
-                    <div class="testimonial-stars">
-                        <?php for ($i = 1; $i <= 5; $i++): ?>
-                            <i class="<?php echo $i <= $review['rating'] ? 'fas' : 'far'; ?> fa-star"></i>
-                        <?php endfor; ?>
-                    </div>
-                    <p class="testimonial-text">"<?php echo htmlspecialchars($review['comment']); ?>"</p>
-                    <div class="testimonial-author">
-                        <div class="testimonial-avatar"><?php echo $initials; ?></div>
-                        <div>
-                            <div class="testimonial-name"><?php echo htmlspecialchars($review['customer_name']); ?></div>
-                            <div class="testimonial-meta"><?php echo htmlspecialchars($review['product_name']); ?></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <?php endforeach; ?>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
+<?php echo render_recently_viewed($conn); ?>
 
 <?php require_once 'includes/footer.php'; ?>
