@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Reviews';
+$useGrid = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -26,14 +27,11 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </section>
 
-<div class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">All reviews <span class="count-chip" id="reviewCount">0</span></h2>
-    </div>
-    <div class="toolbar">
+<div class="panel grid-panel">
+    <div class="toolbar grid-toolbar">
         <label class="search mb-0">
             <i class="fas fa-magnifying-glass"></i>
-            <input type="search" class="form-control" id="reviewSearch" placeholder="Search customer, product or text…" aria-label="Search reviews">
+            <input type="search" class="form-control" id="reviewSearch" placeholder="Search reviews…" aria-label="Search reviews">
         </label>
         <select class="form-select" id="statusFilter" aria-label="Filter by status">
             <option value="">All statuses</option>
@@ -41,26 +39,13 @@ require_once __DIR__ . '/../includes/header.php';
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
         </select>
+        <div class="end">
+            <span class="grid-count" id="reviewCount" aria-live="polite">Loading…</span>
+            <button type="button" class="btn btn-secondary" id="reviewsExport"><i class="fas fa-file-csv"></i> Export CSV</button>
+            <button type="button" class="btn btn-secondary btn-square" id="reviewsReset" data-bs-toggle="tooltip" data-bs-title="Reset columns" aria-label="Reset columns"><i class="fas fa-table-columns"></i></button>
+        </div>
     </div>
-    <div class="table-scroll">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>Customer</th>
-                    <th>Product</th>
-                    <th>Rating</th>
-                    <th>Review</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="reviewsList">
-                <tr class="loading-row"><td colspan="7">Loading…</td></tr>
-            </tbody>
-        </table>
-    </div>
-    <div class="table-foot" id="reviewsPager"></div>
+    <div id="reviewsList" aria-label="Reviews"></div>
 </div>
 
 <!-- Respond Modal -->

@@ -37,12 +37,7 @@ window.onload = function() {
         });
     }
     
-    var searchEl = document.getElementById('productSearch');
-    var catFilterEl = document.getElementById('productCategoryFilter');
-    var statusFilterEl = document.getElementById('productStatusFilter');
-    if (searchEl) searchEl.addEventListener('input', function() { productPage = 1; renderProducts(); });
-    if (catFilterEl) catFilterEl.addEventListener('change', function() { productPage = 1; renderProducts(); });
-    if (statusFilterEl) statusFilterEl.addEventListener('change', function() { productPage = 1; renderProducts(); });
+    initProductsGrid();
 
     document.getElementById('addProductBtn').onclick = function() {
         openAddProductModal();
@@ -53,7 +48,7 @@ window.onload = function() {
         handleProductSubmit();
     };
     
-    document.getElementById('productsTable').onclick = function(e) {
+    document.getElementById('productsTable').addEventListener('click', function(e) {
         if (e.target.closest('[data-edit-product]')) {
             var id = e.target.closest('[data-edit-product]').getAttribute('data-edit-product');
             openEditProductModal(id);
@@ -72,7 +67,7 @@ window.onload = function() {
             var currentStatus = parseInt(btn.getAttribute('data-current-status')) || 0;
             toggleProductStatus(id, currentStatus);
         }
-    };
+    });
     
     // Variations modal handlers
     document.getElementById('addVariationBtn').onclick = function() {
@@ -117,7 +112,7 @@ function populateCategorySelect() {
         filter.innerHTML = '<option value="">All categories</option>';
         categories.slice().sort(function(a, b) { return a.name.localeCompare(b.name); }).forEach(function(c) {
             var o = document.createElement('option');
-            o.value = c.id;
+            o.value = c.name;
             o.text = c.name;
             filter.appendChild(o);
         });
@@ -134,100 +129,114 @@ function populateCategorySelect() {
 }
 
 function loadProducts() {
-    fetch(adminUrl('api/products.php'))
+    return fetch(adminUrl('api/products.php'))
     .then(function(response) {
         return response.json();
     })
     .then(function(data) {
         if (data.success) {
-            products = data.products;
-            renderProducts();
+            products = data.products || [];
+            if (productsGrid) productsGrid.setRows(products);
+        } else if (productsGrid) {
+            productsGrid.setRows([]);
         }
     });
 }
 
-var PRODUCTS_PAGE_SIZE = 25;
-var productPage = 1;
 var PLACEHOLDER_IMG = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+var productsGrid = null;
 
 function isProductActive(p) {
     return p.is_active == 1 || p.is_active === true || p.is_active === '1';
 }
-
-function filteredProducts() {
-    var q = ((document.getElementById('productSearch') || {}).value || '').trim().toLowerCase();
-    var cat = (document.getElementById('productCategoryFilter') || {}).value || '';
-    var status = (document.getElementById('productStatusFilter') || {}).value || '';
-    return products.filter(function(p) {
-        if (cat && String(p.category_id) !== String(cat)) return false;
-        var inv = parseInt(p.inventory, 10) || 0;
-        if (status === 'active' && !isProductActive(p)) return false;
-        if (status === 'inactive' && isProductActive(p)) return false;
-        if (status === 'low' && !(inv > 0 && inv <= 5)) return false;
-        if (status === 'out' && inv > 0) return false;
-        if (q) {
-            var hay = (p.name + ' ' + (p.category_name || '') + ' tz-' + String(p.id).padStart(4, '0') + ' #' + p.id).toLowerCase();
-            if (hay.indexOf(q) === -1) return false;
-        }
-        return true;
-    });
+function productSku(p) { return 'TZ-' + String(p.id).padStart(4, '0'); }
+function productThumbUrl(p) {
+    var imageUrl = p.imagelink || '';
+    // cache-bust on updated_at so replaced images show without busting on every render
+    if (imageUrl) imageUrl += (imageUrl.indexOf('?') > -1 ? '&' : '?') + 'v=' + encodeURIComponent(p.updated_at || '');
+    return imageUrl || PLACEHOLDER_IMG;
 }
 
-function renderProducts() {
-    var tbody = document.getElementById('productsTable');
-    var list = filteredProducts();
-    document.getElementById('productCount').textContent = products.length;
+/** PATCH is_active for one product (existing toggle endpoint). Resolves true/false. */
+function patchProductActive(id, active) {
+    return fetch(adminUrl('api/products.php'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, is_active: active ? 1 : 0 })
+    }).then(function(r) { return r.json(); }).then(function(d) { return !!d.success; });
+}
+/** DELETE one product (existing endpoint). Resolves true/false; refusals (product has orders) count as failed. */
+function deleteProductRequest(id) {
+    return fetch(adminUrl('api/products.php?id=' + encodeURIComponent(id)), { method: 'DELETE', body: new FormData() })
+        .then(function(r) { return r.json(); }).then(function(d) { return !!d.success; });
+}
 
-    var pages = Math.max(1, Math.ceil(list.length / PRODUCTS_PAGE_SIZE));
-    if (productPage > pages) productPage = pages;
-    var pageItems = list.slice((productPage - 1) * PRODUCTS_PAGE_SIZE, productPage * PRODUCTS_PAGE_SIZE);
+function initProductsGrid() {
+    productsGrid = createAdminGrid(document.getElementById('productsTable'), {
+        storageKey: 'tz.grid.products.v2',
+        rowHeight: 60,
+        noun: ['product', 'products'],
+        emptyText: 'No products match these filters.',
+        exportName: 'products',
+        toolbar: { search: '#productSearch', count: '#productCount', exportBtn: '#productsExport', resetBtn: '#productsReset' },
+        selectable: true,
+        columns: [
+            { field: 'name', headerName: 'Product', kind: 'thumb', flex: 1, minWidth: 260, mobileWidth: 170,
+              cellRendererParams: { wrap: true, image: productThumbUrl, sub: function(p) { return 'SKU ' + productSku(p); } },
+              getQuickFilterText: function(p) { return p.data.name + ' ' + productSku(p.data) + ' #' + p.data.id; } },
+            { colId: 'sku', headerName: 'SKU', kind: 'muted', width: 110, hide: true, valueGetter: function(p) { return productSku(p.data); } },
+            { field: 'category_name', headerName: 'Category', kind: 'chip', width: 156,
+              valueGetter: function(p) { return p.data.category_name || 'Uncategorised'; } },
+            { field: 'price', headerName: 'Price', kind: 'money', width: 130 },
+            { field: 'inventory', headerName: 'Inventory', kind: 'stock', width: 104 },
+            { field: 'sold', headerName: 'Sold', kind: 'number', width: 76 },
+            { colId: 'status', headerName: 'Status', kind: 'status', width: 116,
+              valueGetter: function(p) { return isProductActive(p.data) ? 'Active' : 'Inactive'; } }
+        ],
+        rowActions: function(product) {
+            var id = parseInt(product.id, 10);
+            var active = isProductActive(product);
+            return [
+                { icon: 'fa-layer-group', label: 'Variations', attrs: 'data-manage-variations="' + id + '"' },
+                { icon: 'fa-pen', label: 'Edit', attrs: 'data-edit-product="' + id + '"' },
+                { icon: active ? 'fa-eye-slash' : 'fa-eye', label: active ? 'Deactivate' : 'Activate', attrs: 'data-toggle-status="' + id + '" data-current-status="' + (active ? 1 : 0) + '"', tone: active ? '' : 'ok' },
+                { icon: 'fa-trash', label: 'Delete', attrs: 'data-delete-product="' + id + '"', tone: 'danger' }
+            ];
+        },
+        onRowOpen: function(p) { openEditProductModal(p.id); },
+        bulkActions: [
+            { label: 'Activate', icon: 'fa-eye', progress: 'Activating',
+              perRow: function(p) { return isProductActive(p) ? true : patchProductActive(p.id, true); },
+              done: function(ok, failed) { return ok + ' ' + (ok === 1 ? 'product' : 'products') + ' activated' + (failed ? ', ' + failed + ' failed' : ''); } },
+            { label: 'Deactivate', icon: 'fa-eye-slash', progress: 'Deactivating',
+              perRow: function(p) { return !isProductActive(p) ? true : patchProductActive(p.id, false); },
+              done: function(ok, failed) { return ok + ' ' + (ok === 1 ? 'product' : 'products') + ' deactivated' + (failed ? ', ' + failed + ' failed' : ''); } },
+            { label: 'Delete', icon: 'fa-trash', tone: 'danger', progress: 'Deleting',
+              confirm: function(rows) { return 'Delete ' + rows.length + ' ' + (rows.length === 1 ? 'product' : 'products') + '? Products that already have orders are kept.'; },
+              confirmLabel: 'Delete',
+              perRow: function(p) { return deleteProductRequest(p.id); },
+              done: function(ok, failed) {
+                  return ok + ' ' + (ok === 1 ? 'product' : 'products') + ' deleted' + (failed ? ', ' + failed + ' kept (they have orders)' : '');
+              } }
+        ],
+        onBulkDone: function() { loadProducts(); }
+    });
+    productsGrid.bindSelect('#productCategoryFilter', 'category_name', function(v) { return { filterType: 'text', type: 'equals', filter: v }; });
 
-    renderPager(document.getElementById('productsPager'), list.length, productPage, PRODUCTS_PAGE_SIZE, function(pg) {
-        productPage = pg;
-        renderProducts();
-        var panel = tbody.closest('.panel');
-        if (panel && panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: 'start' });
-    }, 'products');
-
-    if (products.length == 0) {
-        tbody.innerHTML = emptyRow(7, 'No products yet. Use "Add product" to create one.');
-        return;
-    }
-    if (list.length == 0) {
-        tbody.innerHTML = emptyRow(7, 'No products match these filters.');
-        return;
-    }
-
-    var html = '';
-    for (var i = 0; i < pageItems.length; i++) {
-        var product = pageItems[i];
-        var active = isProductActive(product);
-        var imageUrl = product.imagelink || '';
-        if (imageUrl) {
-            // cache-bust on updated_at so replaced images show without busting on every render
-            imageUrl += (imageUrl.indexOf('?') > -1 ? '&' : '?') + 'v=' + encodeURIComponent(product.updated_at || '');
-        }
-        var sku = 'TZ-' + String(product.id).padStart(4, '0');
-
-        html += '<tr>';
-        html += '<td><div class="prod-cell">';
-        html += '<img src="' + escapeHtml(imageUrl || PLACEHOLDER_IMG) + '" class="thumb" alt="" loading="lazy" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_IMG + '\'">';
-        html += '<div class="txt"><div class="cell-main">' + escapeHtml(product.name) + '</div><div class="cell-sub">SKU ' + sku + '</div></div>';
-        html += '</div></td>';
-        html += '<td><span class="chip">' + escapeHtml(product.category_name || 'Uncategorised') + '</span></td>';
-        html += '<td class="num">' + formatPKR(product.price) + '</td>';
-        html += '<td>' + stockCell(product.inventory) + '</td>';
-        html += '<td class="num">' + formatNumber(product.sold) + '</td>';
-        html += '<td>' + statusPill(active ? 'active' : 'inactive') + '</td>';
-        html += '<td class="text-end"><div class="actions">';
-        html += iconButton('fa-layer-group', 'Variations', 'data-manage-variations="' + product.id + '"');
-        html += iconButton('fa-pen', 'Edit', 'data-edit-product="' + product.id + '"');
-        html += iconButton(active ? 'fa-eye-slash' : 'fa-eye', active ? 'Deactivate' : 'Activate', 'data-toggle-status="' + product.id + '" data-current-status="' + (active ? 1 : 0) + '"', active ? '' : 'ok');
-        html += iconButton('fa-trash', 'Delete', 'data-delete-product="' + product.id + '"', 'danger');
-        html += '</div></td>';
-        html += '</tr>';
-    }
-    tbody.innerHTML = html;
+    // one select drives two columns: Active/Inactive -> status, stock levels -> inventory
+    var statusSel = document.getElementById('productStatusFilter');
+    statusSel.addEventListener('change', function() {
+        var v = statusSel.value;
+        var api = productsGrid.api;
+        var status = v === 'active' ? { filterType: 'text', type: 'equals', filter: 'Active' }
+            : v === 'inactive' ? { filterType: 'text', type: 'equals', filter: 'Inactive' } : null;
+        var inv = v === 'low' ? { filterType: 'number', operator: 'AND', conditions: [
+                    { filterType: 'number', type: 'greaterThan', filter: 0 },
+                    { filterType: 'number', type: 'lessThanOrEqual', filter: 5 }] }
+            : v === 'out' ? { filterType: 'number', type: 'lessThanOrEqual', filter: 0 } : null;
+        Promise.all([api.setColumnFilterModel('status', status), api.setColumnFilterModel('inventory', inv)])
+            .then(function() { api.onFilterChanged(); });
+    });
 }
 
 function openAddProductModal() {

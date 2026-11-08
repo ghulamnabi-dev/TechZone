@@ -18,6 +18,11 @@ $adminCsrfToken = csrf_token();
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="<?php echo htmlspecialchars(admin_url('assets/css/admin-style.css'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/css/admin-style.css'); ?>">
+<?php if (!empty($useGrid)): ?>
+    <!-- AG Grid Community 36.2.0 (MIT, vendored: assets/vendor/ag-grid/LICENSE.txt) + our wrapper -->
+    <script src="<?php echo htmlspecialchars(admin_url('assets/vendor/ag-grid/ag-grid-community.min.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+    <script src="<?php echo htmlspecialchars(admin_url('assets/js/grid.js'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/js/grid.js'); ?>"></script>
+<?php endif; ?>
 </head>
 <body class="admin-body">
 <?php include __DIR__ . '/url-script.php'; ?>

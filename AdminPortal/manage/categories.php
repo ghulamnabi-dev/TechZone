@@ -1,39 +1,25 @@
 <?php
 $pageTitle = 'Categories';
+$useGrid = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">All categories <span class="count-chip" id="categoryCount">0</span></h2>
-    </div>
-    <div class="toolbar">
+<div class="panel grid-panel">
+    <div class="toolbar grid-toolbar">
         <label class="search mb-0">
             <i class="fas fa-magnifying-glass"></i>
             <input type="search" class="form-control" id="categorySearch" placeholder="Search categories…" aria-label="Search categories">
         </label>
         <div class="end">
+            <span class="grid-count" id="categoryCount" aria-live="polite">Loading…</span>
+            <button type="button" class="btn btn-secondary" id="categoriesExport"><i class="fas fa-file-csv"></i> Export CSV</button>
+            <button type="button" class="btn btn-secondary btn-square" id="categoriesReset" data-bs-toggle="tooltip" data-bs-title="Reset columns" aria-label="Reset columns"><i class="fas fa-table-columns"></i></button>
             <button class="btn btn-primary" id="addCategoryBtn" type="button">
                 <i class="fas fa-plus"></i> Add category
             </button>
         </div>
     </div>
-    <div class="table-scroll">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>Category</th>
-                    <th>Description</th>
-                    <th class="num">Products</th>
-                    <th>Updated</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="categoriesGrid">
-                <tr class="loading-row"><td colspan="5">Loading…</td></tr>
-            </tbody>
-        </table>
-    </div>
+    <div id="categoriesGrid" aria-label="Categories"></div>
 </div>
 
 <!-- Category Modal -->

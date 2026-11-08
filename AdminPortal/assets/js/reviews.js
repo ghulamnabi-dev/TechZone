@@ -1,34 +1,68 @@
 var reviews = [];
+var reviewsGrid = null;
+
+/** PUT a review's status (existing endpoint). Resolves true/false. */
+function putReviewStatus(id, status) {
+    return fetch(adminUrl('api/reviews.php'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: parseInt(id, 10), status: status })
+    }).then(function(r) { return r.json(); }).then(function(d) { return !!d.success; });
+}
 
 window.onload = function() {
+    reviewsGrid = createAdminGrid(document.getElementById('reviewsList'), {
+        storageKey: 'tz.grid.reviews.v1',
+        noun: ['review', 'reviews'],
+        emptyText: 'No reviews match these filters.',
+        exportName: 'reviews',
+        toolbar: { search: '#reviewSearch', count: '#reviewCount', exportBtn: '#reviewsExport', resetBtn: '#reviewsReset' },
+        selectable: true,
+        columns: [
+            { field: 'customer_name', headerName: 'Customer', kind: 'stack', width: 180, mobileWidth: 130 },
+            { field: 'product_name', headerName: 'Product', kind: 'muted', width: 220 },
+            { field: 'rating', headerName: 'Rating', kind: 'stars', width: 120 },
+            { field: 'comment', headerName: 'Review', kind: 'stack', flex: 1, minWidth: 260,
+              cellRendererParams: { sub: function(r) { return r.admin_response ? '↩ ' + r.admin_response : ''; } },
+              getQuickFilterText: function(p) { return (p.data.comment || '') + ' ' + (p.data.admin_response || ''); } },
+            { field: 'created_at', headerName: 'Date', kind: 'date', width: 130, sort: 'desc' },
+            { field: 'status', headerName: 'Status', kind: 'status', width: 128 }
+        ],
+        rowActions: function(r) {
+            var id = parseInt(r.id, 10);
+            var a = [];
+            if (r.status !== 'Approved') a.push({ icon: 'fa-check', label: 'Approve', attrs: 'data-review-action="approve" data-review-id="' + id + '"', tone: 'ok' });
+            if (r.status !== 'Rejected') a.push({ icon: 'fa-ban', label: 'Reject', attrs: 'data-review-action="reject" data-review-id="' + id + '"', tone: 'danger' });
+            a.push({ icon: 'fa-reply', label: r.admin_response ? 'Edit response' : 'Respond', attrs: 'data-review-action="respond" data-review-id="' + id + '"' });
+            a.push({ icon: 'fa-trash', label: 'Delete', attrs: 'data-review-action="delete" data-review-id="' + id + '"', tone: 'danger' });
+            return a;
+        },
+        onRowOpen: function(r) { openRespondModal(r.id); },
+        bulkActions: [
+            { label: 'Approve', icon: 'fa-check', progress: 'Approving',
+              perRow: function(r) { return r.status === 'Approved' ? true : putReviewStatus(r.id, 'Approved'); },
+              done: function(ok, failed) { return ok + ' ' + (ok === 1 ? 'review' : 'reviews') + ' approved' + (failed ? ', ' + failed + ' failed' : ''); } },
+            { label: 'Reject', icon: 'fa-ban', progress: 'Rejecting',
+              perRow: function(r) { return r.status === 'Rejected' ? true : putReviewStatus(r.id, 'Rejected'); },
+              done: function(ok, failed) { return ok + ' ' + (ok === 1 ? 'review' : 'reviews') + ' rejected' + (failed ? ', ' + failed + ' failed' : ''); } }
+        ],
+        onBulkDone: function() { loadReviews(); }
+    });
+    reviewsGrid.bindSelect('#statusFilter', 'status', function(v) { return { filterType: 'text', type: 'equals', filter: v }; });
+
     loadReviews();
-    
-    document.getElementById('statusFilter').onchange = function() {
-        reviewPage = 1;
-        loadReviews();
-    };
-    document.getElementById('reviewSearch').oninput = function() {
-        reviewPage = 1;
-        renderReviews();
-    };
-    
-    document.getElementById('reviewsList').onclick = function(e) {
-        if (e.target.closest('[data-review-action]')) {
-            var action = e.target.closest('[data-review-action]').getAttribute('data-review-action');
-            var id = e.target.closest('[data-review-action]').getAttribute('data-review-id');
-            
-            if (action == 'approve') {
-                updateReviewStatus(id, 'Approved');
-            } else if (action == 'reject') {
-                updateReviewStatus(id, 'Rejected');
-            } else if (action == 'respond') {
-                openRespondModal(id);
-            } else if (action == 'delete') {
-                deleteReview(id);
-            }
-        }
-    };
-    
+
+    document.getElementById('reviewsList').addEventListener('click', function(e) {
+        var b = e.target.closest('[data-review-action]');
+        if (!b) return;
+        var action = b.getAttribute('data-review-action');
+        var id = b.getAttribute('data-review-id');
+        if (action == 'approve') updateReviewStatus(id, 'Approved');
+        else if (action == 'reject') updateReviewStatus(id, 'Rejected');
+        else if (action == 'respond') openRespondModal(id);
+        else if (action == 'delete') deleteReview(id);
+    });
+
     document.getElementById('respondForm').onsubmit = function(e) {
         e.preventDefault();
         handleReviewResponse();
@@ -36,20 +70,13 @@ window.onload = function() {
 };
 
 function loadReviews() {
-    var status = document.getElementById('statusFilter').value;
-    var url = adminUrl('api/reviews.php');
-    if (status) url += '?status=' + encodeURIComponent(status);
-    
-    fetch(url)
-    .then(function(response) {
-        return response.json();
-    })
+    // all statuses once; the status select drives the grid's filter model
+    return fetch(adminUrl('api/reviews.php'))
+    .then(function(response) { return response.json(); })
     .then(function(data) {
-        if (data.success) {
-            reviews = data.reviews;
-            renderReviews();
-            updateStats(data.stats);
-        }
+        reviews = data.success ? (data.reviews || []) : [];
+        reviewsGrid.setRows(reviews);
+        if (data.success) updateStats(data.stats);
     });
 }
 
@@ -61,59 +88,6 @@ function updateStats(stats) {
     var total = parseInt(stats.total_reviews, 10) || 0;
     var avg = stats.avg_rating != null ? Number(stats.avg_rating) : 0;
     document.getElementById('avgRating').textContent = total === 0 ? '—' : avg.toFixed(1);
-}
-
-var REVIEWS_PAGE_SIZE = 25;
-var reviewPage = 1;
-
-function starRating(n) {
-    n = Math.max(0, Math.min(5, parseInt(n, 10) || 0));
-    return '<span class="stars" aria-label="' + n + ' out of 5">' + '★★★★★'.slice(0, n) + '<span class="off">' + '★★★★★'.slice(0, 5 - n) + '</span></span>';
-}
-
-function renderReviews() {
-    var tbody = document.getElementById('reviewsList');
-    var q = (document.getElementById('reviewSearch').value || '').trim().toLowerCase();
-    var list = reviews.filter(function(r) {
-        return !q || (r.customer_name + ' ' + r.product_name + ' ' + (r.comment || '')).toLowerCase().indexOf(q) !== -1;
-    });
-    document.getElementById('reviewCount').textContent = list.length;
-
-    var pages = Math.max(1, Math.ceil(list.length / REVIEWS_PAGE_SIZE));
-    if (reviewPage > pages) reviewPage = pages;
-    var pageItems = list.slice((reviewPage - 1) * REVIEWS_PAGE_SIZE, reviewPage * REVIEWS_PAGE_SIZE);
-    renderPager(document.getElementById('reviewsPager'), list.length, reviewPage, REVIEWS_PAGE_SIZE, function(pg) {
-        reviewPage = pg;
-        renderReviews();
-    }, 'reviews');
-
-    if (list.length == 0) {
-        tbody.innerHTML = emptyRow(7, 'No reviews found.');
-        return;
-    }
-
-    var html = '';
-    for (var i = 0; i < pageItems.length; i++) {
-        var r = pageItems[i];
-        html += '<tr>';
-        html += '<td class="nowrap"><div class="cell-main" style="font-weight:500">' + escapeHtml(r.customer_name) + '</div></td>';
-        html += '<td class="ink-2"><div class="cell-clip" style="max-width:220px" title="' + escapeHtml(r.product_name) + '">' + escapeHtml(r.product_name) + '</div></td>';
-        html += '<td>' + starRating(r.rating) + '</td>';
-        html += '<td style="min-width:260px;max-width:420px"><div>' + escapeHtml(r.comment) + '</div>' +
-            (r.admin_response ? '<div class="cell-sub"><i class="fas fa-reply fa-flip-horizontal me-1"></i>' + escapeHtml(r.admin_response) + '</div>' : '') + '</td>';
-        html += '<td class="nowrap ink-2">' + formatDate(r.created_at) + '</td>';
-        html += '<td>' + statusPill(r.status) + '</td>';
-        html += '<td class="text-end"><div class="actions">';
-        if (r.status == 'Pending') {
-            html += iconButton('fa-check', 'Approve', 'data-review-action="approve" data-review-id="' + r.id + '"', 'ok');
-            html += iconButton('fa-ban', 'Reject', 'data-review-action="reject" data-review-id="' + r.id + '"', 'danger');
-        }
-        html += iconButton('fa-reply', r.admin_response ? 'Edit response' : 'Respond', 'data-review-action="respond" data-review-id="' + r.id + '"');
-        html += iconButton('fa-trash', 'Delete', 'data-review-action="delete" data-review-id="' + r.id + '"', 'danger');
-        html += '</div></td>';
-        html += '</tr>';
-    }
-    tbody.innerHTML = html;
 }
 
 function updateReviewStatus(reviewId, status) {

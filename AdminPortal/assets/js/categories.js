@@ -1,8 +1,32 @@
 var categories = [];
+var categoriesGrid = null;
 
 // Safer DOM-ready hook so events are always attached,
 // even if other scripts touch window.onload
 document.addEventListener('DOMContentLoaded', function () {
+    categoriesGrid = createAdminGrid(document.getElementById('categoriesGrid'), {
+        storageKey: 'tz.grid.categories.v1',
+        noun: ['category', 'categories'],
+        emptyText: 'No categories match these filters.',
+        exportName: 'categories',
+        toolbar: { search: '#categorySearch', count: '#categoryCount', exportBtn: '#categoriesExport', resetBtn: '#categoriesReset' },
+        columns: [
+            { field: 'name', headerName: 'Category', kind: 'thumb', width: 280, mobileWidth: 170,
+              cellRendererParams: { image: function (c) { return getCategoryImageUrl(c.image); }, icon: 'fa-tags', sub: function (c) { return '#' + c.id; } } },
+            { field: 'description', headerName: 'Description', kind: 'muted', flex: 1, minWidth: 240, tooltipField: 'description' },
+            { field: 'product_count', headerName: 'Products', kind: 'number', width: 120 },
+            { colId: 'updated', headerName: 'Updated', kind: 'date', width: 140,
+              valueGetter: function (p) { return p.data.updated_at || p.data.created_at; } }
+        ],
+        rowActions: function (cat) {
+            var id = parseInt(cat.id, 10);
+            return [
+                { icon: 'fa-pen', label: 'Edit', attrs: 'data-edit-category="' + id + '"' },
+                { icon: 'fa-trash', label: 'Delete', attrs: 'data-delete-category="' + id + '"', tone: 'danger' }
+            ];
+        },
+        onRowOpen: function (cat) { openEditCategoryModal(cat.id); }
+    });
     loadCategories();
 
     var addBtn = document.getElementById('addCategoryBtn');
@@ -19,9 +43,6 @@ document.addEventListener('DOMContentLoaded', function () {
             handleCategorySubmit();
         });
     }
-
-    var searchEl = document.getElementById('categorySearch');
-    if (searchEl) searchEl.addEventListener('input', renderCategories);
 
     var grid = document.getElementById('categoriesGrid');
     if (grid) {
@@ -80,10 +101,8 @@ function loadCategories() {
     fetch(adminUrl('api/categories.php'))
     .then(function(response) { return response.json(); })
     .then(function(data) {
-        if (data.success) {
-            categories = data.categories;
-            renderCategories();
-        }
+        categories = data.success ? (data.categories || []) : [];
+        renderCategories();
     });
 }
 
@@ -93,42 +112,7 @@ function getCategoryImageUrl(image) {
 }
 
 function renderCategories() {
-    var tbody = document.getElementById('categoriesGrid');
-    var q = ((document.getElementById('categorySearch') || {}).value || '').trim().toLowerCase();
-    var list = categories.filter(function (c) {
-        return !q || (c.name + ' ' + (c.description || '')).toLowerCase().indexOf(q) !== -1;
-    });
-    var countEl = document.getElementById('categoryCount');
-    if (countEl) countEl.textContent = categories.length;
-
-    if (categories.length == 0) {
-        tbody.innerHTML = emptyRow(5, 'No categories yet. Use "Add category" to create one.');
-        return;
-    }
-    if (list.length == 0) {
-        tbody.innerHTML = emptyRow(5, 'No categories match your search.');
-        return;
-    }
-
-    var html = '';
-    for (var i = 0; i < list.length; i++) {
-        var cat = list[i];
-        var imgUrl = getCategoryImageUrl(cat.image);
-        var imgHtml = imgUrl
-            ? '<img src="' + escapeHtml(imgUrl) + '" class="thumb" alt="" loading="lazy">'
-            : '<span class="thumb thumb-ph"><i class="fas fa-tags"></i></span>';
-        html += '<tr>';
-        html += '<td><div class="prod-cell" style="min-width:200px">' + imgHtml + '<div class="txt"><div class="cell-main">' + escapeHtml(cat.name) + '</div><div class="cell-sub">#' + escapeHtml(cat.id) + '</div></div></div></td>';
-        html += '<td class="ink-2"><div class="cell-clip" style="max-width:420px" title="' + escapeHtml(cat.description || '') + '">' + escapeHtml(cat.description || '—') + '</div></td>';
-        html += '<td class="num">' + formatNumber(cat.product_count || 0) + '</td>';
-        html += '<td class="nowrap ink-2">' + formatDate(cat.updated_at || cat.created_at) + '</td>';
-        html += '<td class="text-end"><div class="actions">';
-        html += iconButton('fa-pen', 'Edit', 'data-edit-category="' + cat.id + '"');
-        html += iconButton('fa-trash', 'Delete', 'data-delete-category="' + cat.id + '"', 'danger');
-        html += '</div></td>';
-        html += '</tr>';
-    }
-    tbody.innerHTML = html;
+    if (categoriesGrid) categoriesGrid.setRows(categories);
 }
 
 function openAddCategoryModal() {

@@ -1,34 +1,32 @@
 <?php
 $pageTitle = 'Promotions';
+$useGrid = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">Promotions &amp; offers <span class="count-chip" id="promotionCount">0</span></h2>
-        <span class="spacer"></span>
-        <button class="btn btn-primary" type="button" onclick="showAddPromotionModal()">
-            <i class="fas fa-plus"></i> Add promotion
-        </button>
+<div class="panel grid-panel">
+    <div class="toolbar grid-toolbar">
+        <label class="search mb-0">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="search" class="form-control" id="promotionSearch" placeholder="Search promotions…" aria-label="Search promotions">
+        </label>
+        <select class="form-select" id="promotionStateFilter" aria-label="Filter by status">
+            <option value="">Any status</option>
+            <option value="Live">Live</option>
+            <option value="Scheduled">Scheduled</option>
+            <option value="Ended">Ended</option>
+            <option value="Inactive">Inactive</option>
+        </select>
+        <div class="end">
+            <span class="grid-count" id="promotionCount" aria-live="polite">Loading…</span>
+            <button type="button" class="btn btn-secondary" id="promotionsExport"><i class="fas fa-file-csv"></i> Export CSV</button>
+            <button type="button" class="btn btn-secondary btn-square" id="promotionsReset" data-bs-toggle="tooltip" data-bs-title="Reset columns" aria-label="Reset columns"><i class="fas fa-table-columns"></i></button>
+            <button class="btn btn-primary" type="button" id="addPromotionBtn" onclick="showAddPromotionModal()">
+                <i class="fas fa-plus"></i> Add promotion
+            </button>
+        </div>
     </div>
-    <div class="table-scroll">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>Promotion</th>
-                    <th>Discount</th>
-                    <th>Code</th>
-                    <th>Runs</th>
-                    <th>Status</th>
-                    <th class="num">Order</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="promotionsList">
-                <tr class="loading-row"><td colspan="7">Loading…</td></tr>
-            </tbody>
-        </table>
-    </div>
+    <div id="promotionsList" aria-label="Promotions"></div>
 </div>
 
 <!-- Add/Edit Promotion Modal -->

@@ -65,6 +65,8 @@
 - **Promotions** — banners and codes with discount, date range, ordering and live/ended status.
 - **Analytics** — top-selling products and revenue by category.
 
+**Admin data grids.** Orders, products, customers, categories, reviews, messages and promotions are AG Grid Community tables themed to the admin's dark tokens: per-column filters and sorting, a quick search, 10/25/50/100 paging, column order/width/sort remembered per browser (with a reset), CSV export of the current view, and bulk actions on checked rows — change order status, activate/deactivate or delete products, approve/reject reviews, mark messages read. Bulk actions call the same CSRF-protected endpoints one row at a time and report progress. On phones the grid scrolls inside its card with the key column and the row actions pinned.
+
 ## Architecture
 
 No framework, by design: the project shows what the plumbing looks like when you write it yourself. A shared `core/` holds everything security-relevant and is included by both front-ends, so a fix lands once.
@@ -191,3 +193,5 @@ There is no unit-test suite yet. [`.github/workflows/ci.yml`](.github/workflows/
 ## License
 
 MIT © Ghulam Nabi
+
+- Admin data grids: [AG Grid Community](https://www.ag-grid.com/) 36.2 (MIT), vendored in `AdminPortal/assets/vendor/ag-grid/` with its licence.

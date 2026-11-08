@@ -8,20 +8,21 @@ function promoImageSrc(url) {
 }
 let editingPromotionId = null;
 
+let promotionsGrid = null;
+
 function loadPromotions() {
-    const container = document.getElementById('promotionsList');
-    container.innerHTML = '<tr class="loading-row"><td colspan="7">Loading…</td></tr>';
+    if (promotionsGrid) promotionsGrid.setLoading(true);
     fetch(adminUrl('api/promotions.php'))
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                promotions = data.promotions;
-                displayPromotions();
-            }
+            promotions = data.success ? (data.promotions || []) : [];
+            displayPromotions();
         })
         .catch(error => {
             console.error('Error:', error);
-            container.innerHTML = emptyRow(7, 'Could not load promotions. Refresh to try again.');
+            promotions = [];
+            displayPromotions();
+            showNotification('Could not load promotions. Refresh to try again.', 'error');
         });
 }
 
@@ -33,43 +34,56 @@ function promoState(promo) {
     if (end && end < today) return 'ended';
     return 'live';
 }
+function promoType(promo) {
+    const pct = Number(promo.discount_percentage) || 0, amt = Number(promo.discount_amount) || 0;
+    return pct > 0 && amt > 0 ? 'Percent + amount' : pct > 0 ? 'Percent' : amt > 0 ? 'Amount' : '—';
+}
+function promoValue(promo) {
+    const pct = Number(promo.discount_percentage) || 0, amt = Number(promo.discount_amount) || 0;
+    return [pct > 0 ? (pct % 1 === 0 ? pct.toFixed(0) : pct) + '% off' : '', amt > 0 ? formatPKR(amt) + ' off' : ''].filter(Boolean).join(' + ') || '—';
+}
+const capitalise = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+function initPromotionsGrid() {
+    promotionsGrid = createAdminGrid(document.getElementById('promotionsList'), {
+        storageKey: 'tz.grid.promotions.v1',
+        noun: ['promotion', 'promotions'],
+        emptyText: 'No promotions match these filters.',
+        exportName: 'promotions',
+        toolbar: { search: '#promotionSearch', count: '#promotionCount', exportBtn: '#promotionsExport', resetBtn: '#promotionsReset' },
+        columns: [
+            { field: 'title', headerName: 'Promotion', kind: 'thumb', flex: 1, minWidth: 230, mobileWidth: 170,
+              cellRendererParams: { image: p => (p.image_url ? promoImageSrc(p.image_url) : null), icon: 'fa-tag', sub: p => p.description || '' } },
+            { field: 'promo_code', headerName: 'Code', kind: 'code', width: 140 },
+            { colId: 'value', headerName: 'Discount', kind: 'stack', width: 150, valueGetter: p => promoValue(p.data),
+              cellRendererParams: { sub: p => promoType(p) },
+              comparator: (a, b, na, nb) => ((Number(na.data.discount_percentage) || 0) * 1e6 + (Number(na.data.discount_amount) || 0)) - ((Number(nb.data.discount_percentage) || 0) * 1e6 + (Number(nb.data.discount_amount) || 0)) },
+            { colId: 'type', headerName: 'Type', kind: 'muted', width: 140, hide: true, valueGetter: p => promoType(p.data) },
+            { field: 'start_date', headerName: 'Starts', kind: 'date', width: 124 },
+            { field: 'end_date', headerName: 'Ends', kind: 'date', width: 124 },
+            { colId: 'state', headerName: 'Status', kind: 'status', width: 128, valueGetter: p => capitalise(promoState(p.data)) },
+            { field: 'display_order', headerName: 'Order', kind: 'number', width: 92 }
+        ],
+        rowActions: promo => {
+            const id = parseInt(promo.id, 10);
+            return [
+                { icon: 'fa-pen', label: 'Edit', attrs: `data-edit-promotion="${id}"` },
+                { icon: 'fa-trash', label: 'Delete', attrs: `data-delete-promotion="${id}"`, tone: 'danger' }
+            ];
+        },
+        onRowOpen: promo => editPromotion(parseInt(promo.id, 10))
+    });
+    promotionsGrid.bindSelect('#promotionStateFilter', 'state', v => ({ filterType: 'text', type: 'equals', filter: v }));
+    document.getElementById('promotionsList').addEventListener('click', e => {
+        const ed = e.target.closest('[data-edit-promotion]');
+        if (ed) { editPromotion(parseInt(ed.getAttribute('data-edit-promotion'), 10)); return; }
+        const del = e.target.closest('[data-delete-promotion]');
+        if (del) deletePromotion(parseInt(del.getAttribute('data-delete-promotion'), 10));
+    });
+}
 
 function displayPromotions() {
-    const container = document.getElementById('promotionsList');
-    const countEl = document.getElementById('promotionCount');
-    if (countEl) countEl.textContent = promotions.length;
-
-    if (promotions.length === 0) {
-        container.innerHTML = emptyRow(7, 'No promotions yet. Use "Add promotion" to create one.');
-        return;
-    }
-
-    container.innerHTML = promotions.map(promo => {
-        const id = parseInt(promo.id, 10);
-        const pct = Number(promo.discount_percentage) || 0;
-        const amt = Number(promo.discount_amount) || 0;
-        const discount = [pct > 0 ? (pct % 1 === 0 ? pct.toFixed(0) : pct) + '% off' : '', amt > 0 ? formatPKR(amt) + ' off' : ''].filter(Boolean).join(' + ') || '—';
-        const img = promo.image_url
-            ? `<img src="${escapeHtml(promoImageSrc(promo.image_url))}" class="thumb" alt="" loading="lazy">`
-            : '<span class="thumb thumb-ph"><i class="fas fa-tag"></i></span>';
-        const runs = (promo.start_date || promo.end_date)
-            ? `${promo.start_date ? formatDate(promo.start_date) : 'Now'} – ${promo.end_date ? formatDate(promo.end_date) : 'open'}`
-            : 'Always';
-        const state = promoState(promo);
-        return `
-            <tr>
-                <td><div class="prod-cell">${img}<div class="txt"><div class="cell-main">${escapeHtml(promo.title)}</div><div class="cell-sub cell-clip" style="max-width:340px">${escapeHtml(promo.description || '')}</div></div></div></td>
-                <td class="nowrap tabular">${escapeHtml(discount)}</td>
-                <td>${promo.promo_code ? `<span class="code-chip">${escapeHtml(promo.promo_code)}</span>` : '<span class="muted">—</span>'}</td>
-                <td class="nowrap ink-2">${runs}</td>
-                <td>${statusPill(state)}</td>
-                <td class="num">${escapeHtml(promo.display_order)}</td>
-                <td class="text-end"><div class="actions">
-                    ${iconButton('fa-pen', 'Edit', `onclick="editPromotion(${id})"`)}
-                    ${iconButton('fa-trash', 'Delete', `onclick="deletePromotion(${id})"`, 'danger')}
-                </div></td>
-            </tr>`;
-    }).join('');
+    promotionsGrid.setRows(promotions);
 }
 
 function showAddPromotionModal() {
@@ -202,5 +216,9 @@ function deletePromotion(id) {
 }
 
 // Load promotions on page load
-loadPromotions();
+// (common.js loads after this script, so wait for the DOM before building the grid)
+document.addEventListener('DOMContentLoaded', function () {
+    initPromotionsGrid();
+    loadPromotions();
+});
 

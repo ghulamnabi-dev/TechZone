@@ -85,40 +85,51 @@ $h = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 $catUrl = static fn(array $c) => site_url('shop/products.php?category=' . (int) $c['id']);
 $heroLinks = array_values(array_filter($navCategories, static fn($c) => in_array($c['label'], ['Monitors', 'Peripherals', 'Networking'], true)));
 $heroSale = $heroProduct ? promo_price_for_product($heroProduct, $promotions) : null;
+// Hero stock strip: active products with inventory on hand
+$inStockCount = (int) $conn->query("SELECT COUNT(*) FROM products p" . ($activeWhere ? $activeWhere . " AND" : " WHERE") . " p.inventory > 0")->fetchColumn();
 ?>
 
 <section class="hero">
     <div class="container">
-        <div class="row g-4 g-lg-5 align-items-center">
-            <div class="col-lg-6">
-                <h1 class="hero__title">Parts, peripherals and complete builds,<br class="d-none d-xl-inline"> in stock in Lahore.</h1>
-                <p class="hero__lead">Genuine components with official warranty, delivered across Pakistan. Pay cash on delivery or with JazzCash.</p>
-                <div class="hero__actions">
-                    <a href="<?php echo $h(site_url('shop/products.php')); ?>" class="btn btn-ink btn-lg-tz">Shop all products</a>
-                    <a href="<?php echo $h(site_url('shop/products.php' . ($buildPcId ? '?category=' . $buildPcId : ''))); ?>" class="btn btn-line btn-lg-tz">Build a PC</a>
+        <div class="hero__grid">
+            <div class="hero__copy">
+                <div class="hero__head">
+                    <h1 class="hero__title">Parts, peripherals and complete builds,<br class="d-none d-xl-inline"> in stock in Lahore.</h1>
+                    <p class="hero__lead">Genuine components with official warranty, delivered across Pakistan. Pay cash on delivery or with JazzCash.</p>
                 </div>
-                <?php if ($heroLinks): ?>
-                <p class="hero__links">Popular:
-                    <?php foreach ($heroLinks as $c): ?>
-                        <a href="<?php echo $h($catUrl($c)); ?>"><?php echo $h($c['label']); ?></a>
-                    <?php endforeach; ?>
-                </p>
-                <?php endif; ?>
-            </div>
-            <div class="col-lg-6">
-                <?php if ($heroProduct): ?>
-                <a class="hero__panel" href="<?php echo $h(site_url('shop/product-details.php?id=' . (int) $heroProduct['id'])); ?>">
-                    <img src="<?php echo $h(getProductImagePath($heroProduct['imagelink'])); ?>" alt="<?php echo $h($heroProduct['name']); ?>" width="863" height="533" fetchpriority="high">
-                    <span class="hero__caption">
-                        <?php echo price_tag($heroSale ? $heroSale['price'] : (float) $heroProduct['price'], 'lg'); ?>
-                        <span class="hero__name"><?php echo $h($heroProduct['name']); ?></span>
-                        <?php if ($heroSale): ?>
-                            <span class="hero__note">Was <?php echo format_pkr($heroSale['was']); ?>, <?php echo $h($heroSale['label']); ?> with code <?php echo $h($heroSale['code']); ?></span>
+                <div class="hero__body">
+                    <div class="hero__actions">
+                        <a href="<?php echo $h(site_url('shop/products.php')); ?>" class="btn btn-ink btn-lg-tz">Shop all products</a>
+                        <a href="<?php echo $h(site_url('shop/products.php' . ($buildPcId ? '?category=' . $buildPcId : ''))); ?>" class="btn btn-line btn-lg-tz">Build a PC</a>
+                    </div>
+                    <?php if ($heroLinks): ?>
+                    <p class="hero__links">Popular:
+                        <?php foreach ($heroLinks as $c): ?>
+                            <a href="<?php echo $h($catUrl($c)); ?>"><?php echo $h($c['label']); ?></a>
+                        <?php endforeach; ?>
+                    </p>
+                    <?php endif; ?>
+                    <ul class="hero__facts">
+                        <?php if ($inStockCount > 0): ?>
+                        <li><?php echo number_format($inStockCount); ?> <?php echo $inStockCount === 1 ? 'product' : 'products'; ?> in stock</li>
                         <?php endif; ?>
-                    </span>
-                </a>
-                <?php endif; ?>
+                        <li>Delivery 2&ndash;4 days in Lahore</li>
+                        <li>Open today 11&nbsp;am &ndash; 10&nbsp;pm</li>
+                    </ul>
+                </div>
             </div>
+            <?php if ($heroProduct): ?>
+            <a class="hero__panel" href="<?php echo $h(site_url('shop/product-details.php?id=' . (int) $heroProduct['id'])); ?>">
+                <img src="<?php echo $h(getProductImagePath($heroProduct['imagelink'])); ?>" alt="<?php echo $h($heroProduct['name']); ?>" width="863" height="533" fetchpriority="high">
+                <?php echo price_tag($heroSale ? $heroSale['price'] : (float) $heroProduct['price'], 'lg', 'hero__tag'); ?>
+                <span class="hero__caption">
+                    <span class="hero__name"><?php echo $h($heroProduct['name']); ?></span>
+                    <?php if ($heroSale): ?>
+                        <span class="hero__note">Was <?php echo format_pkr($heroSale['was']); ?>, <?php echo $h($heroSale['label']); ?> with code <?php echo $h($heroSale['code']); ?></span>
+                    <?php endif; ?>
+                </span>
+            </a>
+            <?php endif; ?>
         </div>
     </div>
 </section>

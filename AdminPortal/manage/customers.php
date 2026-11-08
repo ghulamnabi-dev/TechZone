@@ -1,40 +1,25 @@
 <?php
 $pageTitle = 'Customers';
+$useGrid = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">All customers <span class="count-chip" id="customerCount">0</span></h2>
-    </div>
-    <div class="toolbar">
+<div class="panel grid-panel">
+    <div class="toolbar grid-toolbar">
         <label class="search mb-0">
             <i class="fas fa-magnifying-glass"></i>
-            <input type="search" class="form-control" id="customerSearch" placeholder="Search name, email or phone…" aria-label="Search customers">
+            <input type="search" class="form-control" id="customerSearch" placeholder="Search customers…" aria-label="Search customers">
         </label>
         <select class="form-select" id="cityFilter" aria-label="Filter by city">
             <option value="">All cities</option>
         </select>
+        <div class="end">
+            <span class="grid-count" id="customerCount" aria-live="polite">Loading…</span>
+            <button type="button" class="btn btn-secondary" id="customersExport"><i class="fas fa-file-csv"></i> Export CSV</button>
+            <button type="button" class="btn btn-secondary btn-square" id="customersReset" data-bs-toggle="tooltip" data-bs-title="Reset columns" aria-label="Reset columns"><i class="fas fa-table-columns"></i></button>
+        </div>
     </div>
-    <div class="table-scroll">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>Customer</th>
-                    <th>Phone</th>
-                    <th>City</th>
-                    <th>Joined</th>
-                    <th class="num">Orders</th>
-                    <th class="num">Total spent</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="customersTable">
-                <tr class="loading-row"><td colspan="7">Loading…</td></tr>
-            </tbody>
-        </table>
-    </div>
-    <div class="table-foot" id="customersPager"></div>
+    <div id="customersTable" aria-label="Customers"></div>
 </div>
 
 <!-- Customer Details Modal -->

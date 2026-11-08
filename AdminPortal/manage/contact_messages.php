@@ -1,13 +1,15 @@
 <?php
 $pageTitle = 'Messages';
+$useGrid = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">Contact messages <span class="count-chip" id="messageCount">0</span></h2>
-    </div>
-    <div class="toolbar">
+<div class="panel grid-panel">
+    <div class="toolbar grid-toolbar">
+        <label class="search mb-0">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="search" class="form-control" id="messageSearch" placeholder="Search messages…" aria-label="Search messages">
+        </label>
         <div class="seg" role="group" aria-label="Filter by status">
             <button type="button" class="filter-btn active" data-status="">All</button>
             <button type="button" class="filter-btn" data-status="new">New</button>
@@ -15,11 +17,13 @@ require_once __DIR__ . '/../includes/header.php';
             <button type="button" class="filter-btn" data-status="replied">Replied</button>
             <button type="button" class="filter-btn" data-status="archived">Archived</button>
         </div>
+        <div class="end">
+            <span class="grid-count" id="messageCount" aria-live="polite">Loading…</span>
+            <button type="button" class="btn btn-secondary" id="messagesExport"><i class="fas fa-file-csv"></i> Export CSV</button>
+            <button type="button" class="btn btn-secondary btn-square" id="messagesReset" data-bs-toggle="tooltip" data-bs-title="Reset columns" aria-label="Reset columns"><i class="fas fa-table-columns"></i></button>
+        </div>
     </div>
-    <div id="messagesContainer">
-        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading…</span></div></div>
-    </div>
-    <div class="table-foot" id="pagination"></div>
+    <div id="messagesContainer" aria-label="Messages"></div>
 </div>
 
 <!-- Message Detail Modal -->
