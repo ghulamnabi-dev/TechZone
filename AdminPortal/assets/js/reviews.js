@@ -4,7 +4,12 @@ window.onload = function() {
     loadReviews();
     
     document.getElementById('statusFilter').onchange = function() {
+        reviewPage = 1;
         loadReviews();
+    };
+    document.getElementById('reviewSearch').oninput = function() {
+        reviewPage = 1;
+        renderReviews();
     };
     
     document.getElementById('reviewsList').onclick = function(e) {
@@ -49,63 +54,66 @@ function loadReviews() {
 }
 
 function updateStats(stats) {
-    document.getElementById('totalReviews').innerHTML = stats.total_reviews || 0;
-    document.getElementById('pendingReviews').innerHTML = stats.pending_reviews || 0;
-    document.getElementById('approvedReviews').innerHTML = stats.approved_reviews || 0;
+    stats = stats || {};
+    document.getElementById('totalReviews').textContent = formatNumber(stats.total_reviews || 0);
+    document.getElementById('pendingReviews').textContent = formatNumber(stats.pending_reviews || 0);
+    document.getElementById('approvedReviews').textContent = formatNumber(stats.approved_reviews || 0);
     var total = parseInt(stats.total_reviews, 10) || 0;
     var avg = stats.avg_rating != null ? Number(stats.avg_rating) : 0;
-    document.getElementById('avgRating').innerHTML = total === 0 ? '—' : avg.toFixed(1);
+    document.getElementById('avgRating').textContent = total === 0 ? '—' : avg.toFixed(1);
+}
+
+var REVIEWS_PAGE_SIZE = 25;
+var reviewPage = 1;
+
+function starRating(n) {
+    n = Math.max(0, Math.min(5, parseInt(n, 10) || 0));
+    return '<span class="stars" aria-label="' + n + ' out of 5">' + '★★★★★'.slice(0, n) + '<span class="off">' + '★★★★★'.slice(0, 5 - n) + '</span></span>';
 }
 
 function renderReviews() {
-    var container = document.getElementById('reviewsList');
-    
-    if (reviews.length == 0) {
-        container.innerHTML = '<div class="col-12"><div class="alert alert-info">No reviews found.</div></div>';
+    var tbody = document.getElementById('reviewsList');
+    var q = (document.getElementById('reviewSearch').value || '').trim().toLowerCase();
+    var list = reviews.filter(function(r) {
+        return !q || (r.customer_name + ' ' + r.product_name + ' ' + (r.comment || '')).toLowerCase().indexOf(q) !== -1;
+    });
+    document.getElementById('reviewCount').textContent = list.length;
+
+    var pages = Math.max(1, Math.ceil(list.length / REVIEWS_PAGE_SIZE));
+    if (reviewPage > pages) reviewPage = pages;
+    var pageItems = list.slice((reviewPage - 1) * REVIEWS_PAGE_SIZE, reviewPage * REVIEWS_PAGE_SIZE);
+    renderPager(document.getElementById('reviewsPager'), list.length, reviewPage, REVIEWS_PAGE_SIZE, function(pg) {
+        reviewPage = pg;
+        renderReviews();
+    }, 'reviews');
+
+    if (list.length == 0) {
+        tbody.innerHTML = emptyRow(7, 'No reviews found.');
         return;
     }
-    
+
     var html = '';
-    for (var i = 0; i < reviews.length; i++) {
-        var review = reviews[i];
-        var statusBadge = 'warning';
-        if (review.status == 'Approved') statusBadge = 'success';
-        else if (review.status == 'Rejected') statusBadge = 'danger';
-        
-        var stars = '';
-        for (var j = 0; j < review.rating; j++) {
-            stars += '★';
+    for (var i = 0; i < pageItems.length; i++) {
+        var r = pageItems[i];
+        html += '<tr>';
+        html += '<td class="nowrap"><div class="cell-main" style="font-weight:500">' + escapeHtml(r.customer_name) + '</div></td>';
+        html += '<td class="ink-2"><div class="cell-clip" style="max-width:220px" title="' + escapeHtml(r.product_name) + '">' + escapeHtml(r.product_name) + '</div></td>';
+        html += '<td>' + starRating(r.rating) + '</td>';
+        html += '<td style="min-width:260px;max-width:420px"><div>' + escapeHtml(r.comment) + '</div>' +
+            (r.admin_response ? '<div class="cell-sub"><i class="fas fa-reply fa-flip-horizontal me-1"></i>' + escapeHtml(r.admin_response) + '</div>' : '') + '</td>';
+        html += '<td class="nowrap ink-2">' + formatDate(r.created_at) + '</td>';
+        html += '<td>' + statusPill(r.status) + '</td>';
+        html += '<td class="text-end"><div class="actions">';
+        if (r.status == 'Pending') {
+            html += iconButton('fa-check', 'Approve', 'data-review-action="approve" data-review-id="' + r.id + '"', 'ok');
+            html += iconButton('fa-ban', 'Reject', 'data-review-action="reject" data-review-id="' + r.id + '"', 'danger');
         }
-        for (var j = review.rating; j < 5; j++) {
-            stars += '☆';
-        }
-        
-        html += '<div class="col-md-6 mb-4">';
-        html += '<div class="card h-100">';
-        html += '<div class="card-body">';
-        html += '<h6>' + review.customer_name + ' <span class="badge bg-' + statusBadge + '">' + review.status + '</span></h6>';
-        html += '<small>' + review.product_name + '</small><br>';
-        html += '<div class="mb-2"><span style="color:#ffc107;font-size:1.2rem;">' + stars + '</span> ' + review.rating + '/5</div>';
-        html += '<p>' + review.comment + '</p>';
-        html += '<small>Posted on ' + formatDate(review.created_at) + '</small>';
-        
-        if (review.admin_response) {
-            html += '<div class="mt-3 p-2 bg-light rounded">';
-            html += '<small><strong>Admin Response:</strong></small>';
-            html += '<p class="mb-0 small">' + review.admin_response + '</p>';
-            html += '</div>';
-        }
-        
-        html += '<div class="mt-3">';
-        if (review.status == 'Pending') {
-            html += '<button class="btn btn-sm btn-success me-2" data-review-action="approve" data-review-id="' + review.id + '">Approve</button>';
-            html += '<button class="btn btn-sm btn-danger me-2" data-review-action="reject" data-review-id="' + review.id + '">Reject</button>';
-        }
-        html += '<button class="btn btn-sm btn-primary me-2" data-review-action="respond" data-review-id="' + review.id + '">Respond</button>';
-        html += '<button class="btn btn-sm btn-danger" data-review-action="delete" data-review-id="' + review.id + '">Delete</button>';
-        html += '</div></div></div></div>';
+        html += iconButton('fa-reply', r.admin_response ? 'Edit response' : 'Respond', 'data-review-action="respond" data-review-id="' + r.id + '"');
+        html += iconButton('fa-trash', 'Delete', 'data-review-action="delete" data-review-id="' + r.id + '"', 'danger');
+        html += '</div></td>';
+        html += '</tr>';
     }
-    container.innerHTML = html;
+    tbody.innerHTML = html;
 }
 
 function updateReviewStatus(reviewId, status) {
@@ -139,9 +147,9 @@ function openRespondModal(reviewId) {
         if (reviews[i].id == reviewId) {
             var review = reviews[i];
             document.getElementById('reviewId').value = reviewId;
-            document.getElementById('modalCustomerName').innerHTML = review.customer_name;
-            document.getElementById('modalProductName').innerHTML = review.product_name;
-            document.getElementById('modalReviewText').innerHTML = review.comment;
+            document.getElementById('modalCustomerName').textContent = review.customer_name;
+            document.getElementById('modalProductName').textContent = review.product_name;
+            document.getElementById('modalReviewText').textContent = review.comment;
             document.getElementById('adminResponse').value = review.admin_response || '';
             
             var modal = new bootstrap.Modal(document.getElementById('respondModal'));

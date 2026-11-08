@@ -51,8 +51,8 @@ try {
 ?>
 
 <?php if (count($promotions) > 0): ?>
-<section class="promotions-section">
-    <div class="container py-5">
+<section class="promotions-section home-section">
+    <div class="container">
         <div class="section-header section-header--promo">
             <h2>Special Offers & Promotions</h2>
             <p>Don't miss out on these amazing deals</p>
@@ -74,7 +74,7 @@ try {
                                 <?php if ($promo['discount_percentage'] > 0): ?>
                                     <?php echo number_format($promo['discount_percentage'], 0); ?>% OFF
                                 <?php else: ?>
-                                    Rs. <?php echo number_format($promo['discount_amount'], 2); ?> OFF
+                                    <?php echo format_pkr($promo['discount_amount']); ?> OFF
                                 <?php endif; ?>
                             </span>
                         <?php endif; ?>
@@ -101,7 +101,7 @@ try {
 </section>
 <?php endif; ?>
 
-<div class="container mt-5">
+<div class="container home-section">
     <div class="section-header">
         <h2>Featured Products</h2>
         <p>Our most popular items</p>
@@ -142,9 +142,7 @@ try {
                                 <i class="fas fa-eye"></i> Details
                             </a>
                             <?php if ($product['inventory'] > 0): ?>
-                                <a href="<?php echo htmlspecialchars(site_url('shop/cart.php?add=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary btn-sm">
-                                    <i class="fas fa-cart-plus"></i> Add
-                                </a>
+                                <?php echo cart_add_form((int)$product['id'], 'btn btn-primary btn-sm', '<i class="fas fa-cart-plus"></i> Add'); ?>
                             <?php else: ?>
                                 <button class="btn btn-secondary btn-sm" disabled>
                                     <i class="fas fa-times-circle"></i> Out
@@ -152,12 +150,8 @@ try {
                             <?php endif; ?>
                         </div>
                     </div>
-                    <?php if ($product['inventory'] > 0): ?>
-                        <span class="badge bg-success position-absolute top-0 end-0 m-2">
-                            <i class="fas fa-check-circle me-1"></i>In Stock
-                        </span>
-                    <?php else: ?>
-                        <span class="badge bg-danger position-absolute top-0 end-0 m-2">
+                    <?php if ($product['inventory'] <= 0): ?>
+                        <span class="badge bg-danger stock-corner position-absolute top-0 end-0 m-2">
                             <i class="fas fa-exclamation-circle me-1"></i>Out of Stock
                         </span>
                     <?php endif; ?>
@@ -170,9 +164,10 @@ try {
                     </h5>
                     <p class="card-text text-muted mb-1"><?php echo htmlspecialchars($product['category_name']); ?></p>
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <p class="card-text fw-bold mb-0">Rs. <?php echo number_format($product['price'], 2); ?></p>
-                        <?php if ($product['sold'] > 10): ?>
-                            <span class="badge badge-discount">Hot Deal</span>
+                        <p class="card-text fw-bold mb-0 price-tag"><?php echo format_pkr($product['price']); ?></p>
+                        <?php $promoBadge = promo_badge_for_product($product, $promotions ?? []); ?>
+                        <?php if ($promoBadge): ?>
+                            <span class="badge badge-discount"><?php echo htmlspecialchars($promoBadge, ENT_QUOTES, 'UTF-8'); ?></span>
                         <?php endif; ?>
                     </div>
                     <p class="mb-2">
@@ -188,18 +183,16 @@ try {
                     <?php if ($product['inventory'] <= 0): ?>
                         <small class="text-danger mb-2"><i class="fas fa-exclamation-circle me-1"></i>Currently unavailable</small>
                     <?php elseif ($product['inventory'] <= 5): ?>
-                        <small class="stock-low mb-2"><i class="fas fa-fire me-1"></i>Only <?php echo $product['inventory']; ?> left in stock!</small>
+                        <small class="stock-low mb-2"><i class="fas fa-fire me-1"></i>Only <?php echo (int) $product['inventory']; ?> left</small>
                     <?php else: ?>
-                        <small class="text-success mb-2"><i class="fas fa-check-circle me-1"></i>In Stock</small>
+                        <small class="text-success mb-2"><i class="fas fa-check-circle me-1"></i>In stock</small>
                     <?php endif; ?>
                     <div class="mt-auto d-flex justify-content-between pt-2">
                         <a href="<?php echo htmlspecialchars(site_url('shop/product-details.php?id=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-eye"></i> View
                         </a>
                         <?php if ($product['inventory'] > 0): ?>
-                            <a href="<?php echo htmlspecialchars(site_url('shop/cart.php?add=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-success btn-sm">
-                                <i class="fas fa-cart-plus"></i> Add to Cart
-                            </a>
+                            <?php echo cart_add_form((int)$product['id'], 'btn btn-success btn-sm', '<i class="fas fa-cart-plus"></i> Add to Cart'); ?>
                         <?php else: ?>
                             <button class="btn btn-secondary btn-sm" disabled>Out of Stock</button>
                         <?php endif; ?>
@@ -211,7 +204,7 @@ try {
     </div>
 </div>
 
-<div class="container mt-5 mb-5">
+<div class="container home-section home-section--end">
     <div class="section-header">
         <h2>Explore Our Collection</h2>
         <p>Browse our product categories</p>
@@ -229,7 +222,7 @@ try {
             $grad = $fallbackGradients[$index % count($fallbackGradients)];
             list($c1, $c2) = explode(',', $grad);
         ?>
-        <div class="col-md-6 mb-4">
+        <div class="col-md-6">
             <a href="<?php echo htmlspecialchars(site_url('shop/products.php?category=' . (int)$category['id']), ENT_QUOTES, 'UTF-8'); ?>" class="category-card-link text-decoration-none">
                 <div class="category-card-large d-flex align-items-stretch">
                     <div class="category-card-overlay flex-grow-1">
@@ -270,7 +263,7 @@ $testimonials = $reviewStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <?php if (count($testimonials) > 0): ?>
 <!-- Testimonials -->
-<div class="testimonials-strip">
+<div class="testimonials-strip home-band">
     <div class="container">
         <div class="section-header">
             <h2>What Our Customers Say</h2>

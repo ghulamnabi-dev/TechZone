@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
 // Redirect if already logged in
 if (isset($_SESSION['customer_id'])) {
@@ -38,7 +38,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label"><i class="fas fa-lock me-2"></i>Password *</label>
                                     <input type="password" class="form-control" id="password" name="password" placeholder="Create a password">
-                                    <small class="text-muted">Minimum 6 characters</small>
+                                    <small class="text-muted">Minimum 8 characters</small>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label"><i class="fas fa-lock me-2"></i>Confirm Password *</label>
@@ -164,7 +164,7 @@ document.getElementById('signupForm').addEventListener('submit', function(e) {
     }
     
     // Validate password
-    const passwordValidation = FormValidator.validatePassword(password, 6);
+    const passwordValidation = FormValidator.validatePassword(password, 8);
     if (!passwordValidation.valid) {
         document.getElementById('password').classList.add('is-invalid');
         isValid = false;

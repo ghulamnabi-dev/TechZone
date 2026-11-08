@@ -1,4 +1,4 @@
-    </div><!-- /.admin-page-content -->
+    </main><!-- /.admin-page-content -->
 </div><!-- /.admin-content -->
 <?php
 if (!function_exists('admin_url')) {

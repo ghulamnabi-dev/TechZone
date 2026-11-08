@@ -166,7 +166,7 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
             
             <h3 class="text-primary mb-2">
-                <span id="displayPrice">Rs. <?php echo number_format($basePrice, 2); ?></span>
+                <span id="displayPrice"><?php echo format_pkr($basePrice); ?></span>
                 <?php if ($hasVariations): ?>
                     <small class="text-muted d-block" style="font-size: 0.6em;">Base price</small>
                 <?php endif; ?>
@@ -184,7 +184,8 @@ require_once __DIR__ . '/../includes/header.php';
             
             <!-- Product Variations Form -->
             <form id="addToCartForm" method="POST" action="<?php echo htmlspecialchars(site_url('api/add_to_cart.php'), ENT_QUOTES, 'UTF-8'); ?>">
-                <input type="hidden" name="product_id" value="<?php echo $product['id']; ?>">
+                <?= csrf_field() ?>
+                <input type="hidden" name="product_id" value="<?php echo (int) $product['id']; ?>">
                 
                 <!-- Size Selection -->
                 <?php if (count($sizes) > 0): ?>
@@ -218,7 +219,7 @@ require_once __DIR__ . '/../includes/header.php';
                                             <small class="d-block text-dark"><i class="fas fa-star"></i> Default</small>
                                         <?php endif; ?>
                                         <?php if ($size['price_modifier'] != 0): ?>
-                                            <small class="d-block"><?php echo $size['price_modifier'] > 0 ? '+' : ''; ?>Rs. <?php echo number_format($size['price_modifier'], 2); ?></small>
+                                            <small class="d-block"><?php echo $size['price_modifier'] > 0 ? '+' : ''; ?><?php echo format_pkr($size['price_modifier']); ?></small>
                                         <?php endif; ?>
                                         <small class="d-block text-muted">Stock: <?php echo isset($size['inventory']) ? $size['inventory'] : $product['inventory']; ?></small>
                                     </label>
@@ -265,7 +266,7 @@ require_once __DIR__ . '/../includes/header.php';
                                             <small class="d-block text-dark"><i class="fas fa-star"></i> Default</small>
                                         <?php endif; ?>
                                         <?php if ($color['price_modifier'] != 0): ?>
-                                            <small class="d-block"><?php echo $color['price_modifier'] > 0 ? '+' : ''; ?>Rs. <?php echo number_format($color['price_modifier'], 2); ?></small>
+                                            <small class="d-block"><?php echo $color['price_modifier'] > 0 ? '+' : ''; ?><?php echo format_pkr($color['price_modifier']); ?></small>
                                         <?php else: ?>
                                             <small class="d-block text-muted">Base price</small>
                                         <?php endif; ?>
@@ -378,12 +379,12 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="row">
                     <?php foreach ($relatedProducts as $related): ?>
-                        <div class="col-md-3 mb-4">
+                        <div class="col-6 col-md-3 mb-4">
                             <div class="card h-100">
-                                <img src="<?php echo htmlspecialchars(getProductImagePath($related['imagelink'])); ?>" class="card-img-top" alt="<?php echo htmlspecialchars($related['name']); ?>" style="height: 200px; object-fit: cover;">
+                                <img src="<?php echo htmlspecialchars(getProductImagePath($related['imagelink'])); ?>" class="card-img-top related-img" alt="<?php echo htmlspecialchars($related['name']); ?>" loading="lazy">
                                 <div class="card-body d-flex flex-column">
-                                    <h6 class="card-title"><?php echo htmlspecialchars($related['name']); ?></h6>
-                                    <p class="card-text fw-bold">Rs. <?php echo number_format($related['price'], 2); ?></p>
+                                    <h6 class="card-title related-title"><?php echo htmlspecialchars($related['name']); ?></h6>
+                                    <p class="card-text fw-bold price-tag"><?php echo format_pkr($related['price']); ?></p>
                                     <div class="mt-auto">
                                         <a href="<?php echo htmlspecialchars(site_url('shop/product-details.php?id=' . (int)$related['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-primary w-100">View Details</a>
                                     </div>
@@ -447,6 +448,14 @@ document.querySelectorAll('input[name="size"], input[name="color"]').forEach(inp
     }
 });
 
+function formatPkr(n) {
+    n = Number(n) || 0;
+    return (n < 0 ? '-' : '') + 'Rs ' + Math.round(Math.abs(n)).toLocaleString('en-US');
+}
+function formatPkrDelta(n) {
+    return (n > 0 ? '+' : '') + formatPkr(n);
+}
+
 function updatePrice() {
     let totalPrice = basePrice;
     let priceModifiers = [];
@@ -455,7 +464,7 @@ function updatePrice() {
         const modifier = parseFloat(selectedSize.dataset.priceModifier) || 0;
         totalPrice += modifier;
         if (modifier != 0) {
-            priceModifiers.push(selectedSize.value + (modifier > 0 ? ' (+Rs. ' + modifier.toFixed(2) + ')' : ' (Rs. ' + modifier.toFixed(2) + ')'));
+            priceModifiers.push(selectedSize.value + ' (' + formatPkrDelta(modifier) + ')');
         }
     }
     
@@ -463,11 +472,11 @@ function updatePrice() {
         const modifier = parseFloat(selectedColor.dataset.priceModifier) || 0;
         totalPrice += modifier;
         if (modifier != 0) {
-            priceModifiers.push(selectedColor.value + (modifier > 0 ? ' (+Rs. ' + modifier.toFixed(2) + ')' : ' (Rs. ' + modifier.toFixed(2) + ')'));
+            priceModifiers.push(selectedColor.value + ' (' + formatPkrDelta(modifier) + ')');
         }
     }
     
-    document.getElementById('displayPrice').textContent = 'Rs. ' + totalPrice.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('displayPrice').textContent = formatPkr(totalPrice);
 }
 
 function updateStock() {
@@ -608,9 +617,15 @@ document.getElementById('addToCartForm').addEventListener('submit', function(e) 
             document.getElementById('addToCartForm').after(alert);
             
             // Update cart badge if it exists
-            const cartBadge = document.querySelector('.badge.bg-danger');
-            if (cartBadge && data.cart_count !== undefined) {
-                cartBadge.textContent = data.cart_count;
+            if (data.cart_count !== undefined) {
+                let cartBadge = document.querySelector('.nav-cart-badge');
+                const cartLink = document.querySelector('.nav-icon-btn[title="Cart"]');
+                if (!cartBadge && cartLink) {
+                    cartBadge = document.createElement('span');
+                    cartBadge.className = 'nav-cart-badge';
+                    cartLink.appendChild(cartBadge);
+                }
+                if (cartBadge) cartBadge.textContent = data.cart_count;
             }
             
             // Reset form after 2 seconds

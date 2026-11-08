@@ -237,9 +237,7 @@ $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                         <i class="fas fa-eye"></i> Details
                                     </a>
                                     <?php if ($product['inventory'] > 0): ?>
-                                        <a href="<?php echo htmlspecialchars(site_url('shop/cart.php?add=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary btn-sm">
-                                            <i class="fas fa-cart-plus"></i> Add
-                                        </a>
+                                        <?php echo cart_add_form((int)$product['id'], 'btn btn-primary btn-sm', '<i class="fas fa-cart-plus"></i> Add'); ?>
                                     <?php else: ?>
                                         <button class="btn btn-secondary btn-sm" disabled>
                                             <i class="fas fa-times-circle"></i> Out
@@ -247,12 +245,8 @@ $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <?php endif; ?>
                                 </div>
                             </div>
-                            <?php if ($product['inventory'] > 0): ?>
-                                <span class="badge bg-success position-absolute top-0 end-0 m-2">
-                                    <i class="fas fa-check-circle me-1"></i>In Stock
-                                </span>
-                            <?php else: ?>
-                                <span class="badge bg-danger position-absolute top-0 end-0 m-2">
+                            <?php if ($product['inventory'] <= 0): ?>
+                                <span class="badge bg-danger stock-corner position-absolute top-0 end-0 m-2">
                                     <i class="fas fa-exclamation-circle me-1"></i>Out of Stock
                                 </span>
                             <?php endif; ?>
@@ -264,22 +258,20 @@ $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 </a>
                             </h5>
                             <p class="card-text text-muted mb-1"><?php echo htmlspecialchars($product['category_name']); ?></p>
-                            <p class="card-text fw-bold mb-2">Rs. <?php echo number_format($product['price'], 2); ?></p>
+                            <p class="card-text fw-bold mb-2 price-tag"><?php echo format_pkr($product['price']); ?></p>
                             <?php if ($product['inventory'] <= 0): ?>
                                 <small class="text-danger mb-2"><i class="fas fa-exclamation-circle me-1"></i>Currently unavailable</small>
                             <?php elseif ($product['inventory'] <= 5): ?>
-                                <small class="stock-low mb-2"><i class="fas fa-fire me-1"></i>Only <?php echo $product['inventory']; ?> left!</small>
+                                <small class="stock-low mb-2"><i class="fas fa-fire me-1"></i>Only <?php echo (int) $product['inventory']; ?> left</small>
                             <?php else: ?>
-                                <small class="text-success mb-2"><i class="fas fa-check-circle me-1"></i>In Stock</small>
+                                <small class="text-success mb-2"><i class="fas fa-check-circle me-1"></i>In stock</small>
                             <?php endif; ?>
                             <div class="mt-auto d-flex justify-content-between pt-2 d-none d-md-flex">
                                 <a href="<?php echo htmlspecialchars(site_url('shop/product-details.php?id=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-primary btn-sm">
                                     <i class="fas fa-eye"></i> View
                                 </a>
                                 <?php if ($product['inventory'] > 0): ?>
-                                    <a href="<?php echo htmlspecialchars(site_url('shop/cart.php?add=' . (int)$product['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-success btn-sm">
-                                        <i class="fas fa-cart-plus"></i> Add to Cart
-                                    </a>
+                                    <?php echo cart_add_form((int)$product['id'], 'btn btn-success btn-sm', '<i class="fas fa-cart-plus"></i> Add to Cart'); ?>
                                 <?php else: ?>
                                     <button class="btn btn-secondary btn-sm" disabled>Out of Stock</button>
                                 <?php endif; ?>

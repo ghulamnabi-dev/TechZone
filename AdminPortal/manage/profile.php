@@ -1,64 +1,76 @@
 <?php
-$pageTitle = 'Profile Management';
+$pageTitle = 'Profile';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="row">
-    <div class="col-md-6 mb-4">
-        <div class="form-container">
-            <h5 class="mb-4">Profile Information</h5>
-            <div class="mb-3">
-                <p><strong>Name:</strong> <span id="displayName">Loading...</span></p>
-                <p><strong>Email:</strong> <span id="displayEmail">Loading...</span></p>
-                <p><strong>Phone:</strong> <span id="displayPhone">Loading...</span></p>
-                <p><strong>Member Since:</strong> <span id="memberSince">Loading...</span></p>
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="panel h-100 mb-0">
+            <div class="panel-head">
+                <span class="admin-header-avatar" style="width:40px;height:40px;font-size:1rem"><?php echo htmlspecialchars($adminInitial, ENT_QUOTES, 'UTF-8'); ?></span>
+                <div>
+                    <h2 class="panel-title" id="displayName">Loading…</h2>
+                    <div class="panel-sub">Administrator · member since <span id="memberSince">—</span></div>
+                </div>
             </div>
-            
-            <h5 class="mb-4 mt-4">Update Profile</h5>
-            <form id="updateProfileForm" novalidate>
-                <div id="profileErrorMessage" class="alert alert-danger d-none mb-3"></div>
-                
-                <div class="mb-3">
-                    <label class="form-label">Name</label>
-                    <input type="text" class="form-control" id="adminName" autocomplete="name">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Email</label>
-                    <input type="email" class="form-control" id="adminEmail" autocomplete="email">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Phone</label>
-                    <input type="text" class="form-control" id="adminPhone" placeholder="03xx-xxxxxxx" autocomplete="tel" maxlength="12">
-                </div>
-                <button type="submit" class="btn btn-primary w-100">Update Profile</button>
-            </form>
+            <div class="panel-body">
+                <dl class="kv mb-4">
+                    <dt>Email</dt><dd id="displayEmail">—</dd>
+                    <dt>Phone</dt><dd id="displayPhone" class="tabular">—</dd>
+                </dl>
+                <h3 class="form-section-title">Update profile</h3>
+                <form id="updateProfileForm" novalidate>
+                    <div id="profileErrorMessage" class="alert alert-danger d-none mb-3"></div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="adminName">Name</label>
+                            <input type="text" class="form-control" id="adminName" autocomplete="name">
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label" for="adminEmail">Email</label>
+                            <input type="email" class="form-control" id="adminEmail" autocomplete="email">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label" for="adminPhone">Phone</label>
+                            <input type="text" class="form-control" id="adminPhone" placeholder="03xx-xxxxxxx" autocomplete="tel" maxlength="12">
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-4">
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-    
-    <div class="col-md-6 mb-4">
-        <div class="form-container">
-            <h5 class="mb-4">Change Password</h5>
-            <form id="changePasswordForm" novalidate>
-                <div id="passwordErrorMessage" class="alert alert-danger d-none mb-3"></div>
-                
-                <div class="mb-3">
-                    <label class="form-label">Current Password</label>
-                    <input type="password" class="form-control" id="currentPassword" autocomplete="current-password">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">New Password</label>
-                    <input type="password" class="form-control" id="newPassword" autocomplete="new-password">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Confirm New Password</label>
-                    <input type="password" class="form-control" id="confirmPassword" autocomplete="new-password">
-                </div>
-                <button type="submit" class="btn btn-warning w-100">Change Password</button>
-            </form>
+
+    <div class="col-lg-6">
+        <div class="panel h-100 mb-0">
+            <div class="panel-head">
+                <h2 class="panel-title">Change password</h2>
+            </div>
+            <div class="panel-body">
+                <form id="changePasswordForm" novalidate>
+                    <div id="passwordErrorMessage" class="alert alert-danger d-none mb-3"></div>
+                    <div class="mb-3">
+                        <label class="form-label" for="currentPassword">Current password</label>
+                        <input type="password" class="form-control" id="currentPassword" autocomplete="current-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="newPassword">New password</label>
+                        <input type="password" class="form-control" id="newPassword" minlength="8" maxlength="72" autocomplete="new-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="confirmPassword">Confirm new password</label>
+                        <input type="password" class="form-control" id="confirmPassword" autocomplete="new-password">
+                    </div>
+                    <div class="d-flex justify-content-end mt-4">
+                        <button type="submit" class="btn btn-primary">Update password</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </div>
 
-<script src="<?php echo htmlspecialchars(admin_url('assets/js/profile.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+<script src="<?php echo htmlspecialchars(admin_url('assets/js/profile.js'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/js/profile.js'); ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
-

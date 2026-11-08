@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
 require_once __DIR__ . '/../config/customer_auth.php';
 require_once __DIR__ . '/../config/database.php';
@@ -49,7 +49,7 @@ $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <td><strong>#<?php echo $order['id']; ?></strong></td>
                             <td><?php echo date('F j, Y', strtotime($order['order_date'])); ?></td>
                             <td><span class="badge bg-<?php echo $statusColor; ?>"><?php echo $order['status']; ?></span></td>
-                            <td><strong>Rs. <?php echo number_format($order['total'], 2); ?></strong></td>
+                            <td><strong><?php echo format_pkr($order['total']); ?></strong></td>
                             <td>
                                 <a href="<?php echo htmlspecialchars(site_url('account/order-details.php?id=' . (int)$order['id']), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-primary">View Details</a>
                             </td>

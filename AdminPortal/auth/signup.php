@@ -1,14 +1,19 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
+require_once __DIR__ . '/../../core/security.php';
 if (isset($_SESSION['admin_id'])) {
     header('Location: ' . admin_url('manage/dashboard.php'));
     exit();
 }
+$signupEnabled = env('ADMIN_SIGNUP_CODE') !== null;
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
     <title>Admin Signup - TechZone.pk</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -26,7 +31,16 @@ if (isset($_SESSION['admin_id'])) {
                         </div>
 
                         <form id="adminSignupForm" novalidate class="admin-signup-form">
-                            <div id="errorMessage" class="alert alert-danger d-none mb-2 py-2"></div>
+                            <?php if (!$signupEnabled): ?>
+                            <div class="alert alert-warning mb-2 py-2 small" role="status">
+                                <i class="fas fa-lock me-1"></i> Admin sign-up is currently closed. Ask an existing administrator for an invite code.
+                            </div>
+                            <?php endif; ?>
+                            <div id="errorMessage" class="alert alert-danger d-none mb-2 py-2" role="alert"></div>
+                            <div class="mb-2">
+                                <label class="form-label small" for="adminInviteCode">Invite code</label>
+                                <input type="text" class="form-control form-control-sm" id="adminInviteCode" placeholder="Invite code from an administrator" autocomplete="off" spellcheck="false" maxlength="200">
+                            </div>
                             <div class="row g-2">
                                 <div class="col-6">
                                     <label class="form-label small">Full Name</label>
@@ -83,9 +97,11 @@ if (isset($_SESSION['admin_id'])) {
             var phoneField = document.getElementById('adminPhone');
             var passwordField = document.getElementById('adminPassword');
             var confirmPasswordField = document.getElementById('adminConfirmPassword');
+            var inviteField = document.getElementById('adminInviteCode');
+            var submitBtn = signupForm.querySelector('button[type="submit"]');
             var errorMsg = document.getElementById('errorMessage');
             
-            var fields = [nameField, usernameField, emailField, phoneField, passwordField, confirmPasswordField];
+            var fields = [inviteField, nameField, usernameField, emailField, phoneField, passwordField, confirmPasswordField];
             
             // Clear validation state on input
             fields.forEach(function(field) {
@@ -131,9 +147,19 @@ if (isset($_SESSION['admin_id'])) {
                 var phone = phoneField ? phoneField.value.trim() : '';
                 var password = passwordField ? passwordField.value : '';
                 var confirmPassword = confirmPasswordField ? confirmPasswordField.value : '';
+                var inviteCode = inviteField ? inviteField.value.trim() : '';
                 
                 var isValid = true;
                 var errorMessage = '';
+
+                // Validate invite code
+                if (inviteCode === '') {
+                    if (inviteField) inviteField.classList.add('is-invalid');
+                    isValid = false;
+                    if (!errorMessage) {
+                        errorMessage = 'An invite code is required to create an admin account';
+                    }
+                }
                 
                 // Validate name
                 if (name === '') {
@@ -206,11 +232,11 @@ if (isset($_SESSION['admin_id'])) {
                     if (!errorMessage) {
                         errorMessage = 'Password is required';
                     }
-                } else if (password.length < 6) {
+                } else if (password.length < 8) {
                     if (passwordField) passwordField.classList.add('is-invalid');
                     isValid = false;
                     if (!errorMessage) {
-                        errorMessage = 'Password must be at least 6 characters long';
+                        errorMessage = 'Password must be at least 8 characters long';
                     }
                 }
                 
@@ -244,6 +270,7 @@ if (isset($_SESSION['admin_id'])) {
                 }
                 
                 // Submit via AJAX
+                if (submitBtn) submitBtn.disabled = true;
                 fetch(adminUrl('api/signup.php'), {
                     method: 'POST',
                     headers: {
@@ -254,13 +281,24 @@ if (isset($_SESSION['admin_id'])) {
                         username: username,
                         email: email,
                         phone: phone,
-                        password: password
+                        password: password,
+                        invite_code: inviteCode
                     })
                 })
                 .then(function(response) {
-                    return response.json();
+                    return response.json().catch(function () {
+                        return { success: false, message: 'Signup failed (HTTP ' + response.status + '). Please try again.' };
+                    }).then(function (data) {
+                        data.status = response.status;
+                        return data;
+                    });
                 })
                 .then(function(data) {
+                    if (submitBtn) submitBtn.disabled = false;
+                    if (!data.success && (data.status === 403 || data.status === 429) && inviteField && /invite|sign-up is disabled/i.test(data.message || '')) {
+                        inviteField.classList.add('is-invalid');
+                        inviteField.focus();
+                    }
                     if (data.success) {
                         showNotification(data.message + '! Please login', 'success');
                         setTimeout(function() {
@@ -276,6 +314,7 @@ if (isset($_SESSION['admin_id'])) {
                     }
                 })
                 .catch(function(error) {
+                    if (submitBtn) submitBtn.disabled = false;
                     if (errorMsg) {
                         errorMsg.textContent = 'Network error occurred';
                         errorMsg.classList.remove('d-none');

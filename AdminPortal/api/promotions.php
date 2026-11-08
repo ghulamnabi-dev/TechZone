@@ -1,172 +1,143 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/validation.php';
+require_once __DIR__ . '/../../core/uploads.php';
 
 checkLogin(true);
-header('Content-Type: application/json');
-
-// Check if promotions table exists, if not create it
-try {
-    $conn->query("SELECT 1 FROM promotions LIMIT 1");
-} catch (PDOException $e) {
-    // Table doesn't exist, create it
-    $sql = "CREATE TABLE IF NOT EXISTS promotions (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        title VARCHAR(200) NOT NULL,
-        description TEXT,
-        image_url VARCHAR(500),
-        discount_percentage DECIMAL(5, 2) DEFAULT 0,
-        discount_amount DECIMAL(10, 2) DEFAULT 0,
-        promo_code VARCHAR(50),
-        start_date DATE,
-        end_date DATE,
-        is_active TINYINT(1) DEFAULT 1,
-        display_order INT DEFAULT 0,
-        link_url VARCHAR(500),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
-    $conn->exec($sql);
-}
+json_headers();
 
 $method = $_SERVER['REQUEST_METHOD'];
+$uploadDir = __DIR__ . '/../uploads';
 
-// GET - Get all promotions
-if ($method == 'GET') {
-    $query = "SELECT * FROM promotions ORDER BY display_order ASC, created_at DESC";
-    $stmt = $conn->query($query);
-    $promotions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    echo json_encode(array('success' => true, 'promotions' => $promotions));
+/**
+ * Validate promotion fields from $src (POST form or JSON body). Exits 422 on invalid input.
+ */
+function promotion_input(array $src): array
+{
+    $title = v_str($src['title'] ?? '', 200);
+    $description = v_str($src['description'] ?? '', 5000);
+    $pct = v_num(($src['discount_percentage'] ?? '') === '' ? 0 : $src['discount_percentage'], 0, 100);
+    $amount = v_num(($src['discount_amount'] ?? '') === '' ? 0 : $src['discount_amount'], 0, 99999999);
+    $code = v_str($src['promo_code'] ?? '', 50);
+    $start = v_date($src['start_date'] ?? '');
+    $end = v_date($src['end_date'] ?? '');
+    $isActive = isset($src['is_active']) ? ((int) $src['is_active'] === 1 ? 1 : 0) : 1;
+    $order = v_int(($src['display_order'] ?? '') === '' ? 0 : $src['display_order'], -100000, 100000);
+    // Rendered as an href on the storefront: only relative paths or http(s) URLs (no javascript:)
+    $link = v_link($src['link_url'] ?? '');
+
+    if ($title === null || $title === '') {
+        json_error('Title is required (max 200 characters)', 422);
+    }
+    if ($description === null) {
+        json_error('Description is too long', 422);
+    }
+    if ($pct === null || $amount === null) {
+        json_error('Discounts must be numbers (percentage 0-100)', 422);
+    }
+    if ($code === null || ($code !== '' && !preg_match('/^[A-Za-z0-9_-]+$/', $code))) {
+        json_error('Promo code may only contain letters, numbers, dashes and underscores (max 50)', 422);
+    }
+    if ($start === false || $end === false) {
+        json_error('Dates must be in YYYY-MM-DD format', 422);
+    }
+    if ($start !== null && $end !== null && $end < $start) {
+        json_error('End date must be on or after the start date', 422);
+    }
+    if ($order === null) {
+        json_error('Invalid display order', 422);
+    }
+    if ($link === null) {
+        json_error('Link must be a relative path or an http(s) URL', 422);
+    }
+    return [$title, $description, $pct, $amount, $code, $start, $end, $isActive, $order, $link];
 }
 
-// POST - Create new promotion or update (check for ID)
-else if ($method == 'POST') {
-    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-    $title = $_POST['title'] ?? '';
-    $description = $_POST['description'] ?? '';
-    $discount_percentage = isset($_POST['discount_percentage']) ? (float)$_POST['discount_percentage'] : 0;
-    $discount_amount = isset($_POST['discount_amount']) ? (float)$_POST['discount_amount'] : 0;
-    $promo_code = $_POST['promo_code'] ?? '';
-    $start_date = !empty($_POST['start_date']) ? $_POST['start_date'] : null;
-    $end_date = !empty($_POST['end_date']) ? $_POST['end_date'] : null;
-    $is_active = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
-    $display_order = isset($_POST['display_order']) ? (int)$_POST['display_order'] : 0;
-    $link_url = $_POST['link_url'] ?? '';
-    
-    if (empty($title)) {
-        echo json_encode(array('success' => false, 'message' => 'Title is required'));
-        exit();
+try {
+    // GET - all promotions
+    if ($method === 'GET') {
+        $stmt = $conn->query("SELECT * FROM promotions ORDER BY display_order ASC, created_at DESC");
+        json_response(['success' => true, 'promotions' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     }
-    
-    // Handle image upload
-    $image_url = '';
-    if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-        $uploadDir = __DIR__ . '/../uploads/';
-        if (!file_exists($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
-        $fileName = uniqid() . '_' . basename($_FILES['image']['name']);
-        $uploadFile = $uploadDir . $fileName;
-        
-        if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadFile)) {
-            // Store path relative to admin directory (will be adjusted in display code if needed)
-            $image_url = 'uploads/' . $fileName;
-        }
-    } elseif ($id > 0) {
-        // Keep existing image if updating and no new file uploaded
-        $stmt = $conn->prepare("SELECT image_url FROM promotions WHERE id = ?");
-        $stmt->execute(array($id));
-        $promo = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($promo) {
-            $image_url = $promo['image_url'];
-        }
-    }
-    
-    try {
+
+    // POST - create, or update when id is given (multipart, optional image)
+    if ($method === 'POST') {
+        enforce_csrf_json();
+        $id = v_id($_POST['id'] ?? 0);
+        [$title, $description, $pct, $amount, $code, $start, $end, $isActive, $order, $link] = promotion_input($_POST);
+
+        $oldImage = null;
         if ($id > 0) {
-            // Update existing promotion
-            $stmt = $conn->prepare("UPDATE promotions SET title = ?, description = ?, image_url = ?, discount_percentage = ?, discount_amount = ?, promo_code = ?, start_date = ?, end_date = ?, is_active = ?, display_order = ?, link_url = ? WHERE id = ?");
-            $stmt->execute(array($title, $description, $image_url, $discount_percentage, $discount_amount, $promo_code, $start_date ?: null, $end_date ?: null, $is_active, $display_order, $link_url, $id));
-            
-            echo json_encode(array('success' => true, 'message' => 'Promotion updated successfully'));
-        } else {
-            // Create new promotion
-            $stmt = $conn->prepare("INSERT INTO promotions (title, description, image_url, discount_percentage, discount_amount, promo_code, start_date, end_date, is_active, display_order, link_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute(array($title, $description, $image_url, $discount_percentage, $discount_amount, $promo_code, $start_date ?: null, $end_date ?: null, $is_active, $display_order, $link_url));
-            
-            echo json_encode(array('success' => true, 'message' => 'Promotion created successfully', 'id' => $conn->lastInsertId()));
+            $stmt = $conn->prepare("SELECT image_url FROM promotions WHERE id = ?");
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                json_error('Promotion not found', 404);
+            }
+            $oldImage = $row['image_url'];
         }
-    } catch (Exception $e) {
-        echo json_encode(array('success' => false, 'message' => 'Error: ' . $e->getMessage()));
-    }
-}
 
-// PUT - Update promotion (kept for backward compatibility, but POST handles both now)
-else if ($method == 'PUT') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    
-    $id = $data['id'] ?? 0;
-    if ($id <= 0) {
-        echo json_encode(array('success' => false, 'message' => 'Invalid ID'));
-        exit();
-    }
-    
-    $title = $data['title'] ?? '';
-    $description = $data['description'] ?? '';
-    $image_url = $data['image_url'] ?? '';
-    $discount_percentage = $data['discount_percentage'] ?? 0;
-    $discount_amount = $data['discount_amount'] ?? 0;
-    $promo_code = $data['promo_code'] ?? '';
-    $start_date = $data['start_date'] ?? null;
-    $end_date = $data['end_date'] ?? null;
-    $is_active = isset($data['is_active']) ? (int)$data['is_active'] : 1;
-    $display_order = $data['display_order'] ?? 0;
-    $link_url = $data['link_url'] ?? '';
-    
-    if (empty($title)) {
-        echo json_encode(array('success' => false, 'message' => 'Title is required'));
-        exit();
-    }
-    
-    try {
-        $stmt = $conn->prepare("UPDATE promotions SET title = ?, description = ?, image_url = ?, discount_percentage = ?, discount_amount = ?, promo_code = ?, start_date = ?, end_date = ?, is_active = ?, display_order = ?, link_url = ? WHERE id = ?");
-        $stmt->execute(array($title, $description, $image_url, $discount_percentage, $discount_amount, $promo_code, $start_date ?: null, $end_date ?: null, $is_active, $display_order, $link_url, $id));
-        
-        echo json_encode(array('success' => true, 'message' => 'Promotion updated successfully'));
-    } catch (Exception $e) {
-        echo json_encode(array('success' => false, 'message' => 'Error: ' . $e->getMessage()));
-    }
-}
-
-// DELETE - Delete promotion
-else if ($method == 'DELETE') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    $id = $data['id'] ?? 0;
-    
-    if ($id <= 0) {
-        echo json_encode(array('success' => false, 'message' => 'Invalid ID'));
-        exit();
-    }
-    
-    try {
-        // Get image path and delete file from uploads to save space (before deleting DB row)
-        $stmt = $conn->prepare("SELECT image_url FROM promotions WHERE id = ?");
-        $stmt->execute(array($id));
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($row && !empty($row['image_url']) && strpos($row['image_url'], 'uploads/') === 0) {
-            $filePath = __DIR__ . '/../' . $row['image_url'];
-            if (file_exists($filePath) && is_file($filePath)) {
-                @unlink($filePath);
+        $imageUrl = $oldImage ?? '';
+        if (upload_present('image')) {
+            try {
+                $imageUrl = 'uploads/' . store_uploaded_image('image', $uploadDir);
+            } catch (UploadException $e) {
+                json_error($e->getMessage(), 422);
             }
         }
-        
-        $stmt = $conn->prepare("DELETE FROM promotions WHERE id = ?");
-        $stmt->execute(array($id));
-        
-        echo json_encode(array('success' => true, 'message' => 'Promotion deleted successfully'));
-    } catch (Exception $e) {
-        echo json_encode(array('success' => false, 'message' => 'Error: ' . $e->getMessage()));
+
+        if ($id > 0) {
+            $stmt = $conn->prepare("UPDATE promotions SET title = ?, description = ?, image_url = ?, discount_percentage = ?, discount_amount = ?, promo_code = ?, start_date = ?, end_date = ?, is_active = ?, display_order = ?, link_url = ? WHERE id = ?");
+            $stmt->execute([$title, $description, $imageUrl, $pct, $amount, $code, $start, $end, $isActive, $order, $link, $id]);
+            if ($oldImage && $oldImage !== $imageUrl && strpos($oldImage, 'uploads/') === 0) {
+                delete_upload_if_unused($conn, $oldImage, $uploadDir);
+            }
+            json_response(['success' => true, 'message' => 'Promotion updated successfully']);
+        }
+
+        $stmt = $conn->prepare("INSERT INTO promotions (title, description, image_url, discount_percentage, discount_amount, promo_code, start_date, end_date, is_active, display_order, link_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$title, $description, $imageUrl, $pct, $amount, $code, $start, $end, $isActive, $order, $link]);
+        json_response(['success' => true, 'message' => 'Promotion created successfully', 'id' => $conn->lastInsertId()]);
     }
+
+    // PUT - JSON update (kept for backward compatibility; image cannot be changed here)
+    if ($method === 'PUT') {
+        enforce_csrf_json();
+        $data = request_json();
+        $id = v_id($data['id'] ?? 0);
+        if ($id === 0) {
+            json_error('Invalid ID', 422);
+        }
+        [$title, $description, $pct, $amount, $code, $start, $end, $isActive, $order, $link] = promotion_input($data);
+
+        $stmt = $conn->prepare("UPDATE promotions SET title = ?, description = ?, discount_percentage = ?, discount_amount = ?, promo_code = ?, start_date = ?, end_date = ?, is_active = ?, display_order = ?, link_url = ? WHERE id = ?");
+        $stmt->execute([$title, $description, $pct, $amount, $code, $start, $end, $isActive, $order, $link, $id]);
+        json_response(['success' => true, 'message' => 'Promotion updated successfully']);
+    }
+
+    // DELETE - JSON body {id} (or ?id=)
+    if ($method === 'DELETE') {
+        enforce_csrf_json();
+        $data = request_json();
+        $id = v_id($data['id'] ?? ($_GET['id'] ?? 0));
+        if ($id === 0) {
+            json_error('Invalid ID', 422);
+        }
+
+        $stmt = $conn->prepare("SELECT image_url FROM promotions WHERE id = ?");
+        $stmt->execute([$id]);
+        $image = $stmt->fetchColumn();
+
+        $conn->prepare("DELETE FROM promotions WHERE id = ?")->execute([$id]);
+        if ($image && strpos($image, 'uploads/') === 0) {
+            delete_upload_if_unused($conn, $image, $uploadDir);
+        }
+        json_response(['success' => true, 'message' => 'Promotion deleted successfully']);
+    }
+
+    json_error('Invalid request method', 405);
+} catch (PDOException $e) {
+    json_error(safe_error_message($e, 'Could not save the promotion.'), 500);
 }
-?>

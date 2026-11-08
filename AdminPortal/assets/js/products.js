@@ -37,6 +37,13 @@ window.onload = function() {
         });
     }
     
+    var searchEl = document.getElementById('productSearch');
+    var catFilterEl = document.getElementById('productCategoryFilter');
+    var statusFilterEl = document.getElementById('productStatusFilter');
+    if (searchEl) searchEl.addEventListener('input', function() { productPage = 1; renderProducts(); });
+    if (catFilterEl) catFilterEl.addEventListener('change', function() { productPage = 1; renderProducts(); });
+    if (statusFilterEl) statusFilterEl.addEventListener('change', function() { productPage = 1; renderProducts(); });
+
     document.getElementById('addProductBtn').onclick = function() {
         openAddProductModal();
     };
@@ -84,7 +91,6 @@ window.onload = function() {
         if (btn) {
             e.preventDefault();
             e.stopPropagation();
-            console.log('Add Variation button clicked from product form');
             openAddVariationFromProductForm();
             return false;
         }
@@ -105,8 +111,20 @@ function loadCategories() {
 }
 
 function populateCategorySelect() {
+    var filter = document.getElementById('productCategoryFilter');
+    if (filter) {
+        var keep = filter.value;
+        filter.innerHTML = '<option value="">All categories</option>';
+        categories.slice().sort(function(a, b) { return a.name.localeCompare(b.name); }).forEach(function(c) {
+            var o = document.createElement('option');
+            o.value = c.id;
+            o.text = c.name;
+            filter.appendChild(o);
+        });
+        filter.value = keep;
+    }
     var select = document.getElementById('productCategory');
-    select.innerHTML = '<option value="">Select Category</option>';
+    select.innerHTML = '<option value="">Select category</option>';
     for (var i = 0; i < categories.length; i++) {
         var option = document.createElement('option');
         option.value = categories[i].id;
@@ -128,63 +146,92 @@ function loadProducts() {
     });
 }
 
+var PRODUCTS_PAGE_SIZE = 25;
+var productPage = 1;
+var PLACEHOLDER_IMG = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+function isProductActive(p) {
+    return p.is_active == 1 || p.is_active === true || p.is_active === '1';
+}
+
+function filteredProducts() {
+    var q = ((document.getElementById('productSearch') || {}).value || '').trim().toLowerCase();
+    var cat = (document.getElementById('productCategoryFilter') || {}).value || '';
+    var status = (document.getElementById('productStatusFilter') || {}).value || '';
+    return products.filter(function(p) {
+        if (cat && String(p.category_id) !== String(cat)) return false;
+        var inv = parseInt(p.inventory, 10) || 0;
+        if (status === 'active' && !isProductActive(p)) return false;
+        if (status === 'inactive' && isProductActive(p)) return false;
+        if (status === 'low' && !(inv > 0 && inv <= 5)) return false;
+        if (status === 'out' && inv > 0) return false;
+        if (q) {
+            var hay = (p.name + ' ' + (p.category_name || '') + ' tz-' + String(p.id).padStart(4, '0') + ' #' + p.id).toLowerCase();
+            if (hay.indexOf(q) === -1) return false;
+        }
+        return true;
+    });
+}
+
 function renderProducts() {
     var tbody = document.getElementById('productsTable');
-    document.getElementById('productCount').innerHTML = products.length;
-    
+    var list = filteredProducts();
+    document.getElementById('productCount').textContent = products.length;
+
+    var pages = Math.max(1, Math.ceil(list.length / PRODUCTS_PAGE_SIZE));
+    if (productPage > pages) productPage = pages;
+    var pageItems = list.slice((productPage - 1) * PRODUCTS_PAGE_SIZE, productPage * PRODUCTS_PAGE_SIZE);
+
+    renderPager(document.getElementById('productsPager'), list.length, productPage, PRODUCTS_PAGE_SIZE, function(pg) {
+        productPage = pg;
+        renderProducts();
+        var panel = tbody.closest('.panel');
+        if (panel && panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: 'start' });
+    }, 'products');
+
     if (products.length == 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center">No products found</td></tr>';
+        tbody.innerHTML = emptyRow(7, 'No products yet. Use "Add product" to create one.');
         return;
     }
-    
+    if (list.length == 0) {
+        tbody.innerHTML = emptyRow(7, 'No products match these filters.');
+        return;
+    }
+
     var html = '';
-    for (var i = 0; i < products.length; i++) {
-        var product = products[i];
-        var stockStatus = '<span class="badge bg-success">In Stock</span>';
-        if (product.inventory < 5) {
-            stockStatus = '<span class="badge bg-danger">Low Stock</span>';
-        } else if (product.inventory < 10) {
-            stockStatus = '<span class="badge bg-warning">Medium</span>';
-        }
-        
-        html += '<tr>';
-        // Add cache buster to image URL to ensure updated images show
+    for (var i = 0; i < pageItems.length; i++) {
+        var product = pageItems[i];
+        var active = isProductActive(product);
         var imageUrl = product.imagelink || '';
         if (imageUrl) {
-            imageUrl += (imageUrl.indexOf('?') > -1 ? '&' : '?') + 't=' + Date.now();
+            // cache-bust on updated_at so replaced images show without busting on every render
+            imageUrl += (imageUrl.indexOf('?') > -1 ? '&' : '?') + 'v=' + encodeURIComponent(product.updated_at || '');
         }
-        // Use base64 GIF to avoid quote/syntax issues in onerror attribute
-        var placeholderImg = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-        html += '<td><img src="' + imageUrl + '" class="product-img-small" style="width:50px;height:50px;object-fit:cover;" onerror="this.onerror=null;this.src=\'' + placeholderImg + '\'"></td>';
-        html += '<td>' + product.id + '</td>';
-        html += '<td><strong>' + product.name + '</strong></td>';
-        html += '<td><span class="badge bg-secondary">' + product.category_name + '</span></td>';
-        html += '<td><strong>Rs. ' + parseFloat(product.price).toFixed(2) + '</strong></td>';
-        html += '<td>' + product.inventory + '</td>';
-        html += '<td>' + product.sold + '</td>';
-        var statusBadge = '';
-        if (product.is_active == 1 || product.is_active === true || product.is_active === '1') {
-            statusBadge = '<span class="badge bg-success">Active</span>';
-        } else {
-            statusBadge = '<span class="badge bg-secondary">Inactive</span>';
-        }
-        html += '<td>' + statusBadge + '</td>';
-        html += '<td>';
-        html += '<button class="btn btn-sm btn-info me-1" data-manage-variations="' + product.id + '" title="Manage Variations" style="min-width: 110px;"><i class="fas fa-palette me-1"></i>Variations</button> ';
-        html += '<button class="btn btn-sm btn-warning me-1" data-edit-product="' + product.id + '" title="Edit Product"><i class="fas fa-edit"></i></button> ';
-        var toggleBtnClass = (product.is_active == 1 || product.is_active === true || product.is_active === '1') ? 'btn-secondary' : 'btn-success';
-        var toggleBtnText = (product.is_active == 1 || product.is_active === true || product.is_active === '1') ? 'Deactivate' : 'Activate';
-        var toggleBtnIcon = (product.is_active == 1 || product.is_active === true || product.is_active === '1') ? 'fa-toggle-off' : 'fa-toggle-on';
-        html += '<button class="btn btn-sm ' + toggleBtnClass + ' me-1" data-toggle-status="' + product.id + '" data-current-status="' + (product.is_active || 0) + '" title="Toggle Status"><i class="fas ' + toggleBtnIcon + '"></i> ' + toggleBtnText + '</button> ';
-        html += '<button class="btn btn-sm btn-danger" data-delete-product="' + product.id + '" title="Delete Product"><i class="fas fa-trash"></i></button>';
-        html += '</td>';
+        var sku = 'TZ-' + String(product.id).padStart(4, '0');
+
+        html += '<tr>';
+        html += '<td><div class="prod-cell">';
+        html += '<img src="' + escapeHtml(imageUrl || PLACEHOLDER_IMG) + '" class="thumb" alt="" loading="lazy" onerror="this.onerror=null;this.src=\'' + PLACEHOLDER_IMG + '\'">';
+        html += '<div class="txt"><div class="cell-main">' + escapeHtml(product.name) + '</div><div class="cell-sub">SKU ' + sku + '</div></div>';
+        html += '</div></td>';
+        html += '<td><span class="chip">' + escapeHtml(product.category_name || 'Uncategorised') + '</span></td>';
+        html += '<td class="num">' + formatPKR(product.price) + '</td>';
+        html += '<td>' + stockCell(product.inventory) + '</td>';
+        html += '<td class="num">' + formatNumber(product.sold) + '</td>';
+        html += '<td>' + statusPill(active ? 'active' : 'inactive') + '</td>';
+        html += '<td class="text-end"><div class="actions">';
+        html += iconButton('fa-layer-group', 'Variations', 'data-manage-variations="' + product.id + '"');
+        html += iconButton('fa-pen', 'Edit', 'data-edit-product="' + product.id + '"');
+        html += iconButton(active ? 'fa-eye-slash' : 'fa-eye', active ? 'Deactivate' : 'Activate', 'data-toggle-status="' + product.id + '" data-current-status="' + (active ? 1 : 0) + '"', active ? '' : 'ok');
+        html += iconButton('fa-trash', 'Delete', 'data-delete-product="' + product.id + '"', 'danger');
+        html += '</div></td>';
         html += '</tr>';
     }
     tbody.innerHTML = html;
 }
 
 function openAddProductModal() {
-    document.getElementById('productModalTitle').innerHTML = 'Add New Product';
+    document.getElementById('productModalTitle').textContent = 'Add product';
     document.getElementById('productForm').reset();
     document.getElementById('productId').value = '';
     document.getElementById('productSold').value = '0';
@@ -201,7 +248,7 @@ function openAddProductModal() {
     // Reset button
     var btn = document.getElementById('toggleVariationFormBtn');
     if (btn) {
-        btn.innerHTML = '<i class="fas fa-plus"></i> Add Variation';
+        btn.innerHTML = '<i class="fas fa-plus"></i> Add variation';
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-outline-primary');
     }
@@ -221,7 +268,7 @@ function openEditProductModal(productId) {
     for (var i = 0; i < products.length; i++) {
         if (products[i].id == productId) {
             var product = products[i];
-            document.getElementById('productModalTitle').innerHTML = 'Edit Product';
+            document.getElementById('productModalTitle').textContent = 'Edit product';
             document.getElementById('productId').value = product.id;
             document.getElementById('productName').value = product.name;
             document.getElementById('productCategory').value = product.category_id;
@@ -277,7 +324,6 @@ function loadProductVariationsForForm(productId) {
         if (data.success) {
             productFormVariations = data.variations || [];
             window.productFormVariations = productFormVariations;
-            console.log('Loaded variations for form:', productFormVariations.length, productFormVariations);
             // Use inline render function if available, otherwise fall back
             if (typeof renderProductFormVariationsInline === 'function') {
                 renderProductFormVariationsInline();
@@ -307,42 +353,9 @@ function loadProductVariationsForForm(productId) {
 }
 
 function renderProductFormVariations() {
-    var container = document.getElementById('productVariationsList');
-    if (!container) {
-        console.log('productVariationsList container not found');
-        return;
+    if (typeof window.renderProductFormVariationsInline === 'function') {
+        window.renderProductFormVariationsInline();
     }
-    
-    // Use global reference
-    var variations = window.productFormVariations || productFormVariations || [];
-    
-    console.log('Rendering variations:', variations.length);
-    
-    if (variations.length == 0) {
-        container.innerHTML = '<p class="text-muted text-center mb-0 small">No variations added yet. Click "Add Variation" to add size or color options.</p>';
-        return;
-    }
-    
-    var html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0">';
-    html += '<thead><tr><th>Type</th><th>Value</th><th>Price Modifier</th><th>Inventory</th><th>Actions</th></tr></thead><tbody>';
-    
-    for (var i = 0; i < variations.length; i++) {
-        var v = variations[i];
-        var typeBadge = v.variation_type == 'size' ? '<span class="badge bg-primary">Size</span>' : '<span class="badge bg-info">Color</span>';
-        var priceMod = parseFloat(v.price_modifier) || 0;
-        var priceText = priceMod == 0 ? 'Rs. 0.00' : (priceMod > 0 ? '+Rs. ' + priceMod.toFixed(2) : 'Rs. ' + priceMod.toFixed(2));
-        
-        html += '<tr>';
-        html += '<td>' + typeBadge + '</td>';
-        html += '<td><strong>' + v.variation_value + '</strong></td>';
-        html += '<td>' + priceText + '</td>';
-        html += '<td>' + (v.inventory || 'Product inventory') + '</td>';
-        html += '<td><button type="button" class="btn btn-sm btn-danger" onclick="window.removeVariationFromProductForm(' + i + ')"><i class="fas fa-trash"></i></button></td>';
-        html += '</tr>';
-    }
-    
-    html += '</tbody></table></div>';
-    container.innerHTML = html;
 }
 
 function removeVariationFromProductForm(index) {
@@ -361,7 +374,6 @@ function removeVariationFromProductForm(index) {
 window.removeVariationFromProductForm = removeVariationFromProductForm;
 
 function openAddVariationFromProductForm() {
-    console.log('openAddVariationFromProductForm called');
     
     try {
         var productIdEl = document.getElementById('productId');
@@ -380,7 +392,7 @@ function openAddVariationFromProductForm() {
         
         // Set form values
         var titleEl = document.getElementById('variationFormTitle');
-        if (titleEl) titleEl.textContent = 'Add Variation';
+        if (titleEl) titleEl.textContent = 'Add variation';
         
         var variationIdEl = document.getElementById('variationId');
         if (variationIdEl) variationIdEl.value = '';
@@ -432,7 +444,6 @@ function openAddVariationFromProductForm() {
             
             modal.show();
             
-            console.log('Modal shown successfully');
         } else {
             console.error('Bootstrap is not loaded!');
             // Fallback: show modal manually
@@ -543,12 +554,7 @@ function handleProductSubmit() {
     }
 
     // DEBUG: Check variations array before saving
-    console.log('=== PRODUCT SAVE DEBUG ===');
-    console.log('Product ID:', productId);
-    console.log('window.productFormVariations:', window.productFormVariations);
-    console.log('productFormVariations (local):', typeof productFormVariations !== 'undefined' ? productFormVariations : 'undefined');
     var variationsCheck = window.productFormVariations || (typeof productFormVariations !== 'undefined' ? productFormVariations : []);
-    console.log('Variations to save:', variationsCheck.length, variationsCheck);
     
     var form = document.getElementById('productForm');
     var formData = new FormData(form);
@@ -564,7 +570,6 @@ function handleProductSubmit() {
     formData.set('is_active', document.getElementById('productIsActive').checked ? '1' : '0');
     var csrfHeaders = { 'X-CSRF-Token': csrfVal };
     if (imageFile) {
-        console.log('Image file attached:', imageFile.name, 'Size:', imageFile.size, 'Type:', imageFile.type);
     }
 
     if (productId == '') {
@@ -591,17 +596,12 @@ function handleProductSubmit() {
         .then(function(data) {
             if (data.success) {
                 var newProductId = data.product_id || data.id;
-                console.log('[CSRF DEBUG] Add product response: success', newProductId);
-                console.log('Product saved successfully, ID:', newProductId);
                 
                 // Save variations if any (check both local and global array)
                 var variations = window.productFormVariations || (typeof productFormVariations !== 'undefined' ? productFormVariations : []);
-                console.log('Checking variations before save:', variations.length, variations);
                 
                 if (variations.length > 0 && newProductId) {
-                    console.log('Calling saveProductVariations with product ID:', newProductId);
                     saveProductVariations(newProductId, function() {
-                        console.log('Variations save completed');
                         showNotification('Product and variations added successfully', 'success');
                         bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
                         window.productFormVariations = [];
@@ -609,7 +609,6 @@ function handleProductSubmit() {
                         loadProducts();
                     });
                 } else {
-                    console.log('No variations provided - ensuring default variation exists');
                     // If no variations were provided, ensure a default variation exists
                     ensureDefaultVariation(newProductId, function() {
                         showNotification('Product added successfully', 'success');
@@ -690,8 +689,6 @@ function saveProductVariations(productId, callback) {
     // Use global array if available
     var variationsToSave = window.productFormVariations || productFormVariations || [];
     
-    console.log('saveProductVariations called for product ID:', productId);
-    console.log('Variations to save:', variationsToSave.length, variationsToSave);
     
     // Note: Even if variationsToSave is empty, we still proceed to check existing variations
     // This allows us to delete all variations if needed, but ensureDefaultVariation will create a default
@@ -727,7 +724,6 @@ function saveProductVariations(productId, callback) {
             formData.append('display_order', v.display_order || i);
             formData.append('is_active', v.is_active || 1);
             
-            console.log('Saving variation:', v.variation_type, v.variation_value, 'ID:', v.id);
             
             if (v.id) {
                 // Update existing - Use POST with _method=PUT for FormData compatibility
@@ -740,7 +736,6 @@ function saveProductVariations(productId, callback) {
                     return res.text().then(function(text) {
                         try {
                             var data = JSON.parse(text);
-                            console.log('Variation updated:', data);
                             return data;
                         } catch (e) {
                             console.error('Invalid JSON in update response:', text);
@@ -757,7 +752,6 @@ function saveProductVariations(productId, callback) {
                     return res.text().then(function(text) {
                         try {
                             var data = JSON.parse(text);
-                            console.log('Variation added:', data);
                             return data;
                         } catch (e) {
                             console.error('Invalid JSON in add response:', text);
@@ -784,10 +778,8 @@ function saveProductVariations(productId, callback) {
             }
         }
         
-        console.log('Total promises to execute:', promises.length);
         
         Promise.all(promises).then(function(results) {
-            console.log('All variations saved successfully. Results:', results);
             if (callback) callback();
         }).catch(function(error) {
             console.error('Error saving variations:', error);
@@ -858,7 +850,6 @@ function ensureDefaultVariation(productId, callback) {
             })
             .then(function(result) {
                 if (result.success) {
-                    console.log('Default variation created successfully');
                 } else {
                     console.warn('Failed to create default variation:', result.message);
                 }
@@ -870,7 +861,6 @@ function ensureDefaultVariation(productId, callback) {
             });
         } else {
             // Variations already exist, nothing to do
-            console.log('Product already has variations, skipping default creation');
             if (callback) callback();
         }
     })
@@ -897,7 +887,7 @@ function openVariationsModal(productId) {
 }
 
 function loadVariations(productId) {
-    document.getElementById('variationsList').innerHTML = '<p class="text-muted text-center">Loading variations...</p>';
+    document.getElementById('variationsList').innerHTML = '<p class="text-muted text-center py-4 mb-0">Loading variations…</p>';
     
     fetch(adminUrl('api/variations.php?product_id=' + productId))
     .then(function(response) {
@@ -918,53 +908,48 @@ function loadVariations(productId) {
             currentVariations = data.variations || [];
             renderVariations();
         } else {
-            document.getElementById('variationsList').innerHTML = '<p class="text-danger text-center">Error loading variations: ' + (data.message || 'Unknown error') + '</p>';
+            document.getElementById('variationsList').innerHTML = '<p class="text-danger text-center py-4 mb-0">Error loading variations: ' + escapeHtml(data.message || 'Unknown error') + '</p>';
         }
     })
     .catch(function(error) {
         console.error('Error:', error);
-        document.getElementById('variationsList').innerHTML = '<p class="text-danger text-center">Error loading variations. Please check console for details.</p>';
+        document.getElementById('variationsList').innerHTML = '<p class="text-danger text-center py-4 mb-0">Could not load variations.</p>';
     });
 }
 
 function renderVariations() {
     var container = document.getElementById('variationsList');
-    
+
     if (currentVariations.length == 0) {
-        container.innerHTML = '<p class="text-muted text-center">No variations added yet. Click "Add Variation" to get started.</p>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-layer-group"></i></div><div class="empty-state-title">No variations yet</div><p class="empty-state-text mb-0">Add sizes or colours customers can choose from.</p></div>';
         return;
     }
-    
-    var html = '<div class="table-responsive"><table class="table table-sm table-hover">';
-    html += '<thead><tr><th>Type</th><th>Value</th><th>Price Modifier</th><th>Inventory</th><th>Order</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
-    
+
+    var html = '<div class="table-scroll"><table class="table table-hover mb-0">';
+    html += '<thead><tr><th>Type</th><th>Value</th><th class="num">Price ±</th><th>Inventory</th><th class="num">Order</th><th>Status</th><th class="text-end">Actions</th></tr></thead><tbody>';
+
     for (var i = 0; i < currentVariations.length; i++) {
         var v = currentVariations[i];
-        var typeBadge = v.variation_type == 'size' ? '<span class="badge bg-primary">Size</span>' : '<span class="badge bg-info">Color</span>';
-        var statusBadge = v.is_active == 1 ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>';
-        var priceMod = parseFloat(v.price_modifier) || 0;
-        var priceText = priceMod == 0 ? 'Rs. 0.00' : (priceMod > 0 ? '+Rs. ' + priceMod.toFixed(2) : 'Rs. ' + priceMod.toFixed(2));
-        
         html += '<tr>';
-        html += '<td>' + typeBadge + '</td>';
-        html += '<td><strong>' + v.variation_value + '</strong></td>';
-        html += '<td>' + priceText + '</td>';
-        html += '<td>' + v.inventory + '</td>';
-        html += '<td>' + v.display_order + '</td>';
-        html += '<td>' + statusBadge + '</td>';
-        html += '<td>';
-        html += '<button class="btn btn-sm btn-warning me-1" onclick="openEditVariationModal(' + v.id + ')" title="Edit"><i class="fas fa-edit"></i></button> ';
-        html += '<button class="btn btn-sm btn-danger" onclick="deleteVariation(' + v.id + ')" title="Delete"><i class="fas fa-trash"></i></button>';
-        html += '</td>';
+        html += '<td><span class="chip">' + (v.variation_type == 'size' ? 'Size' : 'Colour') + '</span></td>';
+        html += '<td class="cell-main">' + escapeHtml(v.variation_value) + (v.is_default == 1 ? ' <span class="muted" style="font-weight:400">· default</span>' : '') + '</td>';
+        html += '<td class="num">' + formatPKRDelta(v.price_modifier) + '</td>';
+        html += '<td>' + stockCell(v.inventory) + '</td>';
+        html += '<td class="num">' + escapeHtml(v.display_order) + '</td>';
+        html += '<td>' + statusPill(v.is_active == 1 ? 'active' : 'inactive') + '</td>';
+        html += '<td class="text-end"><div class="actions">';
+        html += iconButton('fa-pen', 'Edit', 'onclick="openEditVariationModal(' + parseInt(v.id, 10) + ')"');
+        html += iconButton('fa-trash', 'Delete', 'onclick="deleteVariation(' + parseInt(v.id, 10) + ')"', 'danger');
+        html += '</div></td>';
         html += '</tr>';
     }
-    
+
     html += '</tbody></table></div>';
     container.innerHTML = html;
 }
 
 function openAddVariationModal() {
-    document.getElementById('variationFormTitle').textContent = 'Add Variation';
+    document.getElementById('variationFormTitle').textContent = 'Add variation';
     document.getElementById('variationForm').reset();
     document.getElementById('variationId').value = '';
     document.getElementById('variationProductIdForm').value = currentProductId;
@@ -984,7 +969,7 @@ function openEditVariationModal(variationId) {
         return;
     }
     
-    document.getElementById('variationFormTitle').textContent = 'Edit Variation';
+    document.getElementById('variationFormTitle').textContent = 'Edit variation';
     document.getElementById('variationId').value = variation.id;
     document.getElementById('variationProductIdForm').value = variation.product_id;
     document.getElementById('variationType').value = variation.variation_type;
@@ -1143,7 +1128,6 @@ function handleVariationSubmit() {
                         is_active: parseInt(isActive) || 1
                     };
                     
-                    console.log('Adding variation to array:', newVariation);
                     
                     if (!window.productFormVariations) {
                         window.productFormVariations = [];
@@ -1151,7 +1135,6 @@ function handleVariationSubmit() {
                     window.productFormVariations.push(newVariation);
                     productFormVariations = window.productFormVariations;
                     
-                    console.log('Variations array now has', window.productFormVariations.length, 'items');
                     
                     // Refresh the display immediately
                     renderProductFormVariations();

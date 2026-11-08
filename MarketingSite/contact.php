@@ -6,6 +6,16 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        require_csrf_token();
+        $csrfOk = true;
+    } catch (RuntimeException $e) {
+        $csrfOk = false;
+    }
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrfOk) {
+    $error = 'Your session has expired. Please refresh the page and try again.';
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $subject = trim($_POST['subject'] ?? '');
@@ -84,6 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h5 class="contact-form-heading">Send a Message</h5>
                 <div id="errorMessage" class="alert alert-danger d-none"></div>
                 <form method="POST" id="contactForm" novalidate>
+                    <?= csrf_field() ?>
                     <div class="row g-3">
                         <div class="col-sm-6">
                             <label for="contactName" class="form-label">Your Name <span class="text-danger">*</span></label>

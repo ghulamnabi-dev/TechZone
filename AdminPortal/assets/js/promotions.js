@@ -1,9 +1,16 @@
 let promotions = [];
+
+// image_url is stored relative to the Admin Portal root ("uploads/x.png"); resolve it so it
+// also works from manage/*.php pages.
+function promoImageSrc(url) {
+    if (!url || /^(https?:)?\/\//i.test(url) || url.charAt(0) === '/') return url;
+    return adminUrl(url);
+}
 let editingPromotionId = null;
 
 function loadPromotions() {
     const container = document.getElementById('promotionsList');
-    container.innerHTML = '<div class="col-12 text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+    container.innerHTML = '<tr class="loading-row"><td colspan="7">Loading…</td></tr>';
     fetch(adminUrl('api/promotions.php'))
         .then(response => response.json())
         .then(data => {
@@ -14,62 +21,60 @@ function loadPromotions() {
         })
         .catch(error => {
             console.error('Error:', error);
-            container.innerHTML = '<div class="col-12"><div class="empty-state"><div class="empty-state-icon"><i class="fas fa-exclamation-triangle text-warning"></i></div><h5 class="empty-state-title">Error loading promotions</h5><p class="empty-state-text mb-0">Please refresh the page or try again later.</p></div></div>';
+            container.innerHTML = emptyRow(7, 'Could not load promotions. Refresh to try again.');
         });
+}
+
+function promoState(promo) {
+    if (!(promo.is_active == 1 || promo.is_active === true)) return 'inactive';
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var start = parseDate(promo.start_date), end = parseDate(promo.end_date);
+    if (start && start > today) return 'scheduled';
+    if (end && end < today) return 'ended';
+    return 'live';
 }
 
 function displayPromotions() {
     const container = document.getElementById('promotionsList');
-    
+    const countEl = document.getElementById('promotionCount');
+    if (countEl) countEl.textContent = promotions.length;
+
     if (promotions.length === 0) {
-        container.innerHTML = `
-            <div class="col-12">
-                <div class="empty-state">
-                    <div class="empty-state-icon">
-                        <i class="fas fa-tag"></i>
-                    </div>
-                    <h5 class="empty-state-title mb-1">No promotions yet</h5>
-                    <p class="empty-state-text mb-0">Create your first promotion to show on the homepage and product pages. Click "Add Promotion" to get started.</p>
-                </div>
-            </div>
-        `;
+        container.innerHTML = emptyRow(7, 'No promotions yet. Use "Add promotion" to create one.');
         return;
     }
-    
-    container.innerHTML = promotions.map(promo => `
-        <div class="col-md-4">
-            <div class="card h-100 promotion-card">
-                ${promo.image_url ? `<img src="${promo.image_url}" class="card-img-top" alt="${promo.title}" style="height: 200px; object-fit: cover;">` : 
-                    `<div class="card-img-top bg-primary d-flex align-items-center justify-content-center" style="height: 200px;"><i class="fas fa-tag fa-3x text-white"></i></div>`}
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title">${promo.title}</h5>
-                    ${promo.description ? `<p class="card-text text-muted small flex-grow-1">${promo.description}</p>` : ''}
-                    ${promo.discount_percentage > 0 ? `<span class="badge badge-status badge-status-delivered mb-2">${promo.discount_percentage}% OFF</span>` : ''}
-                    ${promo.discount_amount > 0 ? `<span class="badge badge-status badge-status-delivered mb-2">Rs. ${promo.discount_amount} OFF</span>` : ''}
-                    ${promo.promo_code ? `<small class="text-muted mb-2">Code: <strong>${promo.promo_code}</strong></small>` : ''}
-                    <div class="mt-auto">
-                        <small class="text-muted d-block mb-2">
-                            ${promo.is_active ? '<span class="badge badge-status badge-status-delivered">Active</span>' : '<span class="badge badge-status badge-status-archived">Inactive</span>'}
-                            &nbsp;Order: ${promo.display_order}
-                        </small>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-primary flex-grow-1" onclick="editPromotion(${promo.id})">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deletePromotion(${promo.id})">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `).join('');
+
+    container.innerHTML = promotions.map(promo => {
+        const id = parseInt(promo.id, 10);
+        const pct = Number(promo.discount_percentage) || 0;
+        const amt = Number(promo.discount_amount) || 0;
+        const discount = [pct > 0 ? (pct % 1 === 0 ? pct.toFixed(0) : pct) + '% off' : '', amt > 0 ? formatPKR(amt) + ' off' : ''].filter(Boolean).join(' + ') || '—';
+        const img = promo.image_url
+            ? `<img src="${escapeHtml(promoImageSrc(promo.image_url))}" class="thumb" alt="" loading="lazy">`
+            : '<span class="thumb thumb-ph"><i class="fas fa-tag"></i></span>';
+        const runs = (promo.start_date || promo.end_date)
+            ? `${promo.start_date ? formatDate(promo.start_date) : 'Now'} – ${promo.end_date ? formatDate(promo.end_date) : 'open'}`
+            : 'Always';
+        const state = promoState(promo);
+        return `
+            <tr>
+                <td><div class="prod-cell">${img}<div class="txt"><div class="cell-main">${escapeHtml(promo.title)}</div><div class="cell-sub cell-clip" style="max-width:340px">${escapeHtml(promo.description || '')}</div></div></div></td>
+                <td class="nowrap tabular">${escapeHtml(discount)}</td>
+                <td>${promo.promo_code ? `<span class="code-chip">${escapeHtml(promo.promo_code)}</span>` : '<span class="muted">—</span>'}</td>
+                <td class="nowrap ink-2">${runs}</td>
+                <td>${statusPill(state)}</td>
+                <td class="num">${escapeHtml(promo.display_order)}</td>
+                <td class="text-end"><div class="actions">
+                    ${iconButton('fa-pen', 'Edit', `onclick="editPromotion(${id})"`)}
+                    ${iconButton('fa-trash', 'Delete', `onclick="deletePromotion(${id})"`, 'danger')}
+                </div></td>
+            </tr>`;
+    }).join('');
 }
 
 function showAddPromotionModal() {
     editingPromotionId = null;
-    document.getElementById('promotionModalTitle').textContent = 'Add Promotion';
+    document.getElementById('promotionModalTitle').textContent = 'Add promotion';
     document.getElementById('promotionForm').reset();
     document.getElementById('promotion_id').value = '';
     document.getElementById('promotion_discount_percentage').value = '0';
@@ -79,7 +84,7 @@ function showAddPromotionModal() {
     // Hide image preview for new promotion
     document.getElementById('currentPromotionImage').style.display = 'none';
     document.getElementById('currentPromotionImagePreview').src = '';
-    const modal = new bootstrap.Modal(document.getElementById('promotionModal'));
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('promotionModal'));
     modal.show();
 }
 
@@ -88,7 +93,7 @@ function editPromotion(id) {
     if (!promo) return;
     
     editingPromotionId = id;
-    document.getElementById('promotionModalTitle').textContent = 'Edit Promotion';
+    document.getElementById('promotionModalTitle').textContent = 'Edit promotion';
     document.getElementById('promotion_id').value = promo.id;
     document.getElementById('promotion_title').value = promo.title || '';
     document.getElementById('promotion_description').value = promo.description || '';
@@ -103,14 +108,14 @@ function editPromotion(id) {
     
     // Handle image preview
     if (promo.image_url) {
-        document.getElementById('currentPromotionImagePreview').src = promo.image_url;
+        document.getElementById('currentPromotionImagePreview').src = promoImageSrc(promo.image_url);
         document.getElementById('currentPromotionImage').style.display = 'block';
     } else {
         document.getElementById('currentPromotionImage').style.display = 'none';
         document.getElementById('currentPromotionImagePreview').src = '';
     }
     
-    const modal = new bootstrap.Modal(document.getElementById('promotionModal'));
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('promotionModal'));
     modal.show();
 }
 

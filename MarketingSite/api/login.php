@@ -1,56 +1,60 @@
 <?php
-session_start();
+// Customer login (AJAX, form-encoded: email, password)
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/auth.php';
+require_once __DIR__ . '/../../core/validation.php';
 
-header('Content-Type: application/json');
+json_headers();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Invalid request method']);
-    exit();
+    json_error('Invalid request method', 405);
+}
+enforce_csrf_json();
+
+$email = v_str($_POST['email'] ?? '', 150) ?? '';
+$password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
+
+if ($email === '' || $password === '') {
+    json_error('Please enter email and password', 422);
 }
 
-$email = $_POST['email'] ?? '';
-$password = $_POST['password'] ?? '';
-
-if (empty($email) || empty($password)) {
-    echo json_encode(['success' => false, 'message' => 'Please enter email and password']);
-    exit();
+$locked = login_lock_remaining($conn, 'customer');
+if ($locked > 0) {
+    json_error(login_locked_message($locked), 429);
 }
 
 try {
-    // Check if customer exists - first check if password column exists
-    $stmt = $conn->prepare("SELECT * FROM customers WHERE email = ?");
+    $stmt = $conn->prepare("SELECT id, name, email, password FROM customers WHERE email = ? LIMIT 1");
     $stmt->execute([$email]);
-    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($customer) {
-        // Check if customer has password field (for new customers)
-        if (isset($customer['password'])) {
-            if (password_verify($password, $customer['password'])) {
-                $_SESSION['customer_id'] = $customer['id'];
-                $_SESSION['customer_name'] = $customer['name'];
-                $_SESSION['customer_email'] = $customer['email'];
-                echo json_encode([
-                    'success' => true, 
-                    'message' => 'Login successful',
-                    'customer' => [
-                        'id' => $customer['id'],
-                        'name' => $customer['name'],
-                        'email' => $customer['email']
-                    ]
-                ]);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Invalid password']);
-            }
-        } else {
-            // For existing customers without password, we need to add password support
-            // This is a fallback - in production, all customers should have passwords
-            echo json_encode(['success' => false, 'message' => 'Please register first or reset your password']);
-        }
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Email not found']);
+    $customer = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    // Same message and timing for unknown email, missing password and wrong password
+    if (!verify_password_constant($password, $customer['password'] ?? null)) {
+        login_register_failure($conn, 'customer');
+        json_error(LOGIN_FAILED_MESSAGE, 401);
     }
-} catch(PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+
+    if (password_needs_rehash($customer['password'], PASSWORD_DEFAULT)) {
+        $conn->prepare("UPDATE customers SET password = ? WHERE id = ?")
+             ->execute([password_hash($password, PASSWORD_DEFAULT), $customer['id']]);
+    }
+
+    login_clear_failures($conn, 'customer');
+    session_after_login();
+    $_SESSION['customer_id'] = (int) $customer['id'];
+    $_SESSION['customer_name'] = $customer['name'];
+    $_SESSION['customer_email'] = $customer['email'];
+
+    json_response([
+        'success' => true,
+        'message' => 'Login successful',
+        'customer' => [
+            'id' => (int) $customer['id'],
+            'name' => $customer['name'],
+            'email' => $customer['email'],
+        ],
+    ]);
+} catch (PDOException $e) {
+    json_error(safe_error_message($e, 'Login failed. Please try again.'), 500);
 }
-?>

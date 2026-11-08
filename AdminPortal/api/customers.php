@@ -1,80 +1,84 @@
 <?php
-require_once '../config/database.php';
-require_once '../config/auth.php';
+// Admin: customer list / detail (read-only). Never returns password hashes or tokens.
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../../core/validation.php';
 
-checkLogin();
-header('Content-Type: application/json');
+checkLogin(true);
+json_headers();
 
-// GET - Get all customers or one customer
-if (isset($_GET['id'])) {
-    // Get one customer
-    $id = $_GET['id'];
-    $stmt = $conn->prepare("SELECT * FROM customers WHERE id = ?");
-    $stmt->execute(array($id));
-    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Get orders
-    $stmt2 = $conn->prepare("SELECT id, order_date, status, total FROM orders WHERE customer_id = ? ORDER BY order_date DESC");
-    $stmt2->execute(array($id));
-    $orders = $stmt2->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Calculate stats
-    $totalOrders = count($orders);
-    $totalSpent = 0;
-    foreach ($orders as $order) {
-        $totalSpent += $order['total'];
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    json_error('Invalid request method', 405);
+}
+
+// Explicit, non-sensitive columns only
+const CUSTOMER_PUBLIC_COLUMNS = 'id, name, email, phone, city, address, created_at, updated_at';
+
+try {
+    if (isset($_GET['id'])) {
+        $id = v_id($_GET['id']);
+        $stmt = $conn->prepare("SELECT " . CUSTOMER_PUBLIC_COLUMNS . " FROM customers WHERE id = ?");
+        $stmt->execute([$id]);
+        $customer = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$customer) {
+            json_error('Customer not found', 404);
+        }
+
+        $stmt2 = $conn->prepare("SELECT id, order_date, status, total FROM orders WHERE customer_id = ? ORDER BY order_date DESC");
+        $stmt2->execute([$id]);
+        $orders = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+        $totalOrders = count($orders);
+        $totalSpent = 0;
+        foreach ($orders as $order) {
+            $totalSpent += (float) $order['total'];
+        }
+
+        $customer['orders'] = $orders;
+        $customer['total_orders'] = $totalOrders;
+        $customer['total_spent'] = $totalSpent;
+        $customer['avg_order_value'] = $totalOrders > 0 ? $totalSpent / $totalOrders : 0;
+
+        json_response(['success' => true, 'customer' => $customer]);
     }
-    $avgOrderValue = $totalOrders > 0 ? $totalSpent / $totalOrders : 0;
-    
-    $customer['orders'] = $orders;
-    $customer['total_orders'] = $totalOrders;
-    $customer['total_spent'] = $totalSpent;
-    $customer['avg_order_value'] = $avgOrderValue;
-    
-    echo json_encode(array('success' => true, 'customer' => $customer));
-} else {
-    // Get all customers with pagination
-    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-    $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+
+    // List with pagination (limit 1..1000, page >= 1)
+    $page = v_int($_GET['page'] ?? 1, 1, 100000) ?? 1;
+    $limit = v_int($_GET['limit'] ?? 10, 1, 1000) ?? 10;
     $offset = ($page - 1) * $limit;
-    
-    $query = "SELECT * FROM customers WHERE 1=1";
-    $countQuery = "SELECT COUNT(*) as total FROM customers WHERE 1=1";
-    $params = array();
-    
-    if (isset($_GET['search']) && $_GET['search'] != '') {
-        $query .= " AND (name LIKE ? OR email LIKE ?)";
-        $countQuery .= " AND (name LIKE ? OR email LIKE ?)";
-        $search = '%' . $_GET['search'] . '%';
-        $params[] = $search;
-        $params[] = $search;
+
+    $where = " WHERE 1=1";
+    $params = [];
+
+    $search = v_str($_GET['search'] ?? '', 100) ?? '';
+    if ($search !== '') {
+        $where .= " AND (c.name LIKE ? OR c.email LIKE ?)";
+        $like = '%' . addcslashes($search, '%_\\') . '%';
+        $params[] = $like;
+        $params[] = $like;
     }
-    
-    if (isset($_GET['city']) && $_GET['city'] != '') {
-        $query .= " AND city = ?";
-        $countQuery .= " AND city = ?";
-        $params[] = $_GET['city'];
+    $city = v_str($_GET['city'] ?? '', 100) ?? '';
+    if ($city !== '') {
+        $where .= " AND c.city = ?";
+        $params[] = $city;
     }
-    
-    $query .= " ORDER BY created_at DESC LIMIT $limit OFFSET $offset";
-    
-    $stmt = $conn->prepare($query);
+
+    $sql = "SELECT c.id, c.name, c.email, c.phone, c.city, c.address, c.created_at, c.updated_at,
+                   COUNT(o.id) AS total_orders, COALESCE(SUM(o.total), 0) AS total_spent
+            FROM customers c
+            LEFT JOIN orders o ON o.customer_id = c.id" . $where . "
+            GROUP BY c.id
+            ORDER BY c.created_at DESC
+            LIMIT " . (int) $limit . " OFFSET " . (int) $offset;
+    $stmt = $conn->prepare($sql);
     $stmt->execute($params);
     $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    $stmt2 = $conn->prepare($countQuery);
+
+    $stmt2 = $conn->prepare("SELECT COUNT(*) AS total FROM customers c" . $where);
     $stmt2->execute($params);
     $total = $stmt2->fetch(PDO::FETCH_ASSOC)['total'];
-    
-    // Add order stats
-    for ($i = 0; $i < count($customers); $i++) {
-        $stmt3 = $conn->prepare("SELECT COUNT(*) as total_orders, SUM(total) as total_spent FROM orders WHERE customer_id = ?");
-        $stmt3->execute(array($customers[$i]['id']));
-        $stats = $stmt3->fetch(PDO::FETCH_ASSOC);
-        $customers[$i]['total_orders'] = $stats['total_orders'];
-        $customers[$i]['total_spent'] = $stats['total_spent'] ? $stats['total_spent'] : 0;
-    }
-    
-    echo json_encode(array('success' => true, 'customers' => $customers, 'total' => $total, 'page' => $page, 'limit' => $limit));
+
+    json_response(['success' => true, 'customers' => $customers, 'total' => $total, 'page' => $page, 'limit' => $limit]);
+} catch (PDOException $e) {
+    json_error(safe_error_message($e, 'Could not load customers.'), 500);
 }
-?>

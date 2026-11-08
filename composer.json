@@ -1,6 +1,6 @@
 {
   "name": "techzone/ecommerce",
-  "description": "TechZone PHP eCommerce — root package for Railway/Railpack PHP detection",
+  "description": "TechZone PHP eCommerce \u2014 root package for Railway/Railpack PHP detection",
   "type": "project",
   "require": {
     "php": "^8.2",
@@ -9,5 +9,9 @@
   },
   "config": {
     "optimize-autoloader": true
+  },
+  "license": "MIT",
+  "scripts": {
+    "lint": "find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l"
   }
 }

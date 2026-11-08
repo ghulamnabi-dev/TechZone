@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../core/bootstrap.php';
 require_once __DIR__ . '/config/paths.php';
 if (isset($_SESSION['admin_id'])) {
     header('Location: ' . admin_url('manage/dashboard.php'));

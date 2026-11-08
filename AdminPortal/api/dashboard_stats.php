@@ -5,7 +5,7 @@ require_once __DIR__ . '/../config/auth.php';
 
 checkLogin(true);
 
-header('Content-Type: application/json');
+json_headers();
 
 // Get total sales
 $stmt = $conn->query("SELECT SUM(total) as total_sales FROM orders");

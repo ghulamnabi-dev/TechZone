@@ -6,9 +6,14 @@ This document describes how **admin and customer authentication** works and how 
 
 ## Current Behaviour (Session-Based)
 
-- **Admin**: `config/auth.php` starts the session and `checkLogin()` ensures `$_SESSION['admin_id']` is set; otherwise redirect to login or return JSON.
-- **Customer**: Similar pattern for the marketing site (e.g. login, cart, profile).
-- **Logout**: Clear session and redirect (e.g. `api/logout.php`).
+- **Session**: `core/session.php` → `start_secure_session()` (HttpOnly, SameSite=Lax, Secure on HTTPS, strict mode), started by `core/bootstrap.php`.
+- **Admin**: `AdminPortal/api/login.php` (email + password, throttled, generic error) → `session_after_login()` (`session_regenerate_id(true)`) → `$_SESSION['admin_id']`. `config/auth.php` → `checkLogin()` redirects pages and returns **401 JSON** for APIs.
+- **Customer**: `MarketingSite/api/login.php`, same pattern → `$_SESSION['customer_id']`; `checkCustomerLogin()` for pages, `requireCustomerJson()` (401) for APIs.
+- **Logout**: `session_logout('admin'|'customer')` removes only that identity; destroys the session and cookie when nothing is left.
+- **Admin sign-up**: disabled unless `ADMIN_SIGNUP_CODE` is set (invite code required).
+- **Password reset**: implemented for both sides (sha256-hashed, 1-hour, single-use tokens) — see [SECURITY.md](SECURITY.md) §5.
+
+The sections below are the original design notes / extension ideas (Remember Me is not implemented).
 
 ---
 

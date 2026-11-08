@@ -1,33 +1,55 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
 require_once __DIR__ . '/../config/customer_auth.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/auth.php';
+require_once __DIR__ . '/../../core/validation.php';
 
 checkCustomerLogin();
 $pageTitle = 'My Profile';
-require_once __DIR__ . '/../includes/header.php';
 
-$customer_id = $_SESSION['customer_id'];
+$customer_id = (int) $_SESSION['customer_id'];
 
-// Get customer details
-$stmt = $conn->prepare("SELECT * FROM customers WHERE id = ?");
-$stmt->execute([$customer_id]);
-$customer = $stmt->fetch(PDO::FETCH_ASSOC);
+function load_profile_customer(PDO $conn, int $id): ?array {
+    $stmt = $conn->prepare("SELECT id, name, email, password, phone, city, address, created_at FROM customers WHERE id = ?");
+    $stmt->execute([$id]);
+    return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+$customer = load_profile_customer($conn, $customer_id);
+if (!$customer) {
+    session_logout('customer');
+    header('Location: ' . site_url('auth/login.php'));
+    exit();
+}
 
 $error = '';
 $success = '';
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['update_profile']) || isset($_POST['change_password']))) {
+    try {
+        require_csrf_token();
+    } catch (RuntimeException $e) {
+        $error = 'Your session has expired. Please refresh the page and try again.';
+    }
+}
+
 // Handle profile update
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
-    $name = trim($_POST['name']);
-    $email = trim($_POST['email']);
-    $phone = trim($_POST['phone']);
-    $city = trim($_POST['city']);
-    $address = trim($_POST['address']);
-    
-    if (empty($name) || empty($email)) {
+if ($error === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
+    $name    = v_str($_POST['name'] ?? '', 100, false);
+    $email   = v_email($_POST['email'] ?? '');
+    $phone   = v_str($_POST['phone'] ?? '', 30);
+    $city    = v_str($_POST['city'] ?? '', 100);
+    $address = v_str($_POST['address'] ?? '', 500);
+
+    if ($name === null || trim((string) ($_POST['email'] ?? '')) === '') {
         $error = 'Name and email are required';
+    } elseif ($email === null) {
+        $error = 'Please enter a valid email address';
+    } elseif ($phone === null || $city === null || $address === null) {
+        $error = 'One of the fields is too long';
     } else {
         try {
             // Check if email is already taken by another customer
@@ -40,49 +62,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
                 $stmt->execute([$name, $email, $phone, $city, $address, $customer_id]);
                 $success = 'Profile updated successfully';
                 $_SESSION['customer_name'] = $name;
-                // Reload customer data
-                $stmt = $conn->prepare("SELECT * FROM customers WHERE id = ?");
-                $stmt->execute([$customer_id]);
-                $customer = $stmt->fetch(PDO::FETCH_ASSOC);
+                $_SESSION['customer_email'] = $email;
+                $customer = load_profile_customer($conn, $customer_id) ?? $customer;
             }
-        } catch (Exception $e) {
-            $error = 'Error updating profile: ' . $e->getMessage();
+        } catch (Throwable $e) {
+            log_exception($e, 'customer-profile');
+            $error = 'We could not update your profile. Please try again.';
         }
     }
 }
 
 // Handle password change
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
-    $current_password = $_POST['current_password'];
-    $new_password = $_POST['new_password'];
-    $confirm_password = $_POST['confirm_password'];
-    
-    if (empty($current_password) || empty($new_password) || empty($confirm_password)) {
+if ($error === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
+    $current_password = is_string($_POST['current_password'] ?? null) ? $_POST['current_password'] : '';
+    $new_password     = is_string($_POST['new_password'] ?? null) ? $_POST['new_password'] : '';
+    $confirm_password = is_string($_POST['confirm_password'] ?? null) ? $_POST['confirm_password'] : '';
+
+    if ($current_password === '' || $new_password === '' || $confirm_password === '') {
         $error = 'All password fields are required';
-    } elseif ($new_password !== $confirm_password) {
+    } elseif (!hash_equals($new_password, $confirm_password)) {
         $error = 'New passwords do not match';
-    } elseif (strlen($new_password) < 6) {
-        $error = 'Password must be at least 6 characters';
+    } elseif ($policyError = password_policy_error($new_password)) {
+        $error = $policyError;
+    } elseif (empty($customer['password'])) {
+        $error = 'Password feature not available. Please contact support.';
+    } elseif (!password_verify($current_password, $customer['password'])) {
+        $error = 'Current password is incorrect';
     } else {
-        // Check current password if password column exists
-        if (isset($customer['password']) && !empty($customer['password'])) {
-            if (!password_verify($current_password, $customer['password'])) {
-                $error = 'Current password is incorrect';
-            } else {
-                try {
-                    $hashedPassword = password_hash($new_password, PASSWORD_DEFAULT);
-                    $stmt = $conn->prepare("UPDATE customers SET password = ? WHERE id = ?");
-                    $stmt->execute([$hashedPassword, $customer_id]);
-                    $success = 'Password changed successfully';
-                } catch (Exception $e) {
-                    $error = 'Error changing password: ' . $e->getMessage();
-                }
+        try {
+            $conn->beginTransaction();
+            $conn->prepare("UPDATE customers SET password = ? WHERE id = ?")
+                 ->execute([password_hash($new_password, PASSWORD_DEFAULT), $customer_id]);
+            // A password change invalidates any outstanding reset links
+            $conn->prepare("DELETE FROM customer_password_resets WHERE customer_id = ?")->execute([$customer_id]);
+            $conn->commit();
+            if (!headers_sent()) {
+                session_regenerate_id(true);
             }
-        } else {
-            $error = 'Password feature not available. Please contact support.';
+            $success = 'Password changed successfully';
+            $customer = load_profile_customer($conn, $customer_id) ?? $customer;
+        } catch (Throwable $e) {
+            if ($conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            log_exception($e, 'customer-password');
+            $error = 'We could not change your password. Please try again.';
         }
     }
 }
+
+require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="container mt-5">
@@ -122,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
                 </div>
                 <div class="card-body">
                     <form method="POST">
+                        <?= csrf_field() ?>
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Full Name *</label>
@@ -157,18 +187,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
                 </div>
                 <div class="card-body">
                     <form method="POST">
+                        <?= csrf_field() ?>
                         <div class="mb-3">
                             <label class="form-label">Current Password</label>
-                            <input type="password" class="form-control" name="current_password" required>
+                            <input type="password" class="form-control" name="current_password" required autocomplete="current-password">
                         </div>
                         <div class="mb-3">
                             <label class="form-label">New Password</label>
-                            <input type="password" class="form-control" name="new_password" required minlength="6">
-                            <small class="text-muted">Minimum 6 characters</small>
+                            <input type="password" class="form-control" name="new_password" required minlength="8" maxlength="72" autocomplete="new-password">
+                            <small class="text-muted">Minimum 8 characters</small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Confirm New Password</label>
-                            <input type="password" class="form-control" name="confirm_password" required minlength="6">
+                            <input type="password" class="form-control" name="confirm_password" required minlength="8" maxlength="72" autocomplete="new-password">
                         </div>
                         <button type="submit" name="change_password" class="btn btn-primary">Change Password</button>
                     </form>

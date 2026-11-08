@@ -1,5 +1,5 @@
 <?php
-// Shared database configuration and PDO connection
-// This now uses the central core/database.php for better reusability.
+// Shared bootstrap (env, error handling, security headers, secure session)
+// and PDO connection from the central core/ folder.
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../../core/database.php';
-

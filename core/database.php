@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/bootstrap.php';
+
 /**
  * Centralized database configuration and connection bootstrap.
  *
@@ -31,13 +33,17 @@ if ($db_url !== '' && (strpos($db_url, 'mysql://') === 0 || strpos($db_url, 'mys
 
 // Create a single PDO instance
 try {
-    $conn = new PDO($dsn, $db_user, $db_pass);
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    // Optional: set default fetch mode for cleaner code
-    $conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $conn = new PDO($dsn, $db_user, $db_pass, [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        // Real server-side prepared statements (no client-side emulation)
+        PDO::ATTR_EMULATE_PREPARES   => false,
+        // Keep returning column values as strings (as before) so JSON payloads
+        // consumed by the existing JavaScript keep exactly the same shape.
+        PDO::ATTR_STRINGIFY_FETCHES  => true,
+    ]);
 } catch (PDOException $e) {
-    // In a portfolio project it's better to fail clearly than to hide errors
-    die("Database connection failed: " . $e->getMessage());
+    // Log the details server-side only; never echo DSN/host/user to visitors.
+    error_log('[TechZone] Database connection failed: ' . $e->getMessage());
+    app_fail(500, 'The service is temporarily unavailable. Please try again shortly.', $e);
 }
-
-

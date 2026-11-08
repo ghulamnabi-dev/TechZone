@@ -58,3 +58,37 @@ function showNotification(message, type) {
     }, 3000);
 }
 
+
+/* ---------- CSRF: attach the session token to every same-origin write ----------
+ * Same helper as AdminPortal/assets/js/common.js: reads <meta name="csrf-token">
+ * and adds the X-CSRF-Token header (plus a csrf_token field for FormData /
+ * URLSearchParams bodies) to non-GET fetch() calls to this site. */
+(function () {
+    if (!window.fetch || window.__tzFetchWrapped) return;
+    window.__tzFetchWrapped = true;
+    var nativeFetch = window.fetch.bind(window);
+    function token() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        return m ? m.getAttribute('content') : '';
+    }
+    window.fetch = function (input, init) {
+        try {
+            init = init || {};
+            var method = String(init.method || (input && input.method) || 'GET').toUpperCase();
+            var url = typeof input === 'string' ? input : (input && input.url) || '';
+            var sameOrigin = !/^https?:\/\//i.test(url) || url.indexOf(location.origin) === 0;
+            var t = token();
+            if (t && sameOrigin && method !== 'GET' && method !== 'HEAD') {
+                var headers = new Headers(init.headers || {});
+                if (!headers.has('X-CSRF-Token')) headers.set('X-CSRF-Token', t);
+                init.headers = headers;
+                if (typeof FormData !== 'undefined' && init.body instanceof FormData && !init.body.has('csrf_token')) {
+                    init.body.append('csrf_token', t);
+                } else if (typeof URLSearchParams !== 'undefined' && init.body instanceof URLSearchParams && !init.body.has('csrf_token')) {
+                    init.body.append('csrf_token', t);
+                }
+            }
+        } catch (e) { /* never block a request because of the helper */ }
+        return nativeFetch(input, init);
+    };
+})();

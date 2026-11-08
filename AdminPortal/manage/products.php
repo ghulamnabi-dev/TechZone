@@ -1,260 +1,275 @@
 <?php
-$pageTitle = 'Product Management';
+$pageTitle = 'Products';
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../../core/security.php';
 $csrfToken = csrf_token();
 ?>
 <!-- CSRF token for JS (product form submit) -->
 <div id="csrf-meta" data-csrf-token="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true" style="display:none"></div>
-<div class="table-container">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">All Products (<span id="productCount">0</span>)</h5>
-        <button class="btn btn-primary" id="addProductBtn">
-            <i class="fas fa-plus"></i> Add New Product
-        </button>
+
+<div class="panel">
+    <div class="panel-head">
+        <h2 class="panel-title">All products <span class="count-chip" id="productCount">0</span></h2>
     </div>
-    <div class="table-responsive">
+    <div class="toolbar">
+        <label class="search mb-0">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="search" class="form-control" id="productSearch" placeholder="Search name or SKU…" aria-label="Search products">
+        </label>
+        <select class="form-select" id="productCategoryFilter" aria-label="Filter by category">
+            <option value="">All categories</option>
+        </select>
+        <select class="form-select" id="productStatusFilter" aria-label="Filter by status">
+            <option value="">Any status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="low">Low stock (≤ 5)</option>
+            <option value="out">Out of stock</option>
+        </select>
+        <div class="end">
+            <button class="btn btn-primary" id="addProductBtn" type="button">
+                <i class="fas fa-plus"></i> Add product
+            </button>
+        </div>
+    </div>
+    <div class="table-scroll">
         <table class="table table-hover">
             <thead>
                 <tr>
-                    <th>Image</th>
-                    <th>ID</th>
-                    <th>Name</th>
+                    <th>Product</th>
                     <th>Category</th>
-                    <th>Price</th>
+                    <th class="num">Price</th>
                     <th>Inventory</th>
-                    <th>Sold</th>
-                    <th>Active Status</th>
-                    <th>Actions</th>
+                    <th class="num">Sold</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody id="productsTable">
-                <tr><td colspan="9" class="text-center">Loading...</td></tr>
+                <tr class="loading-row"><td colspan="7">Loading…</td></tr>
             </tbody>
         </table>
     </div>
+    <div class="table-foot" id="productsPager"></div>
 </div>
 
 <!-- Variations Modal -->
-<div class="modal fade" id="variationsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade" id="variationsModal" tabindex="-1" aria-labelledby="variationsModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="variationsModalTitle">Manage Product Variations</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div>
+                    <h5 class="modal-title" id="variationsModalTitle">Variations</h5>
+                    <div class="panel-sub" id="variationProductName"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body p-0">
                 <input type="hidden" id="variationProductId">
-                <div class="mb-3">
-                    <h6>Product: <span id="variationProductName"></span></h6>
+                <div id="variationsList">
+                    <p class="text-muted text-center py-4 mb-0">Loading variations…</p>
                 </div>
-                
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="mb-0">Variations</h6>
-                    <button type="button" class="btn btn-sm btn-primary" id="addVariationBtn">
-                        <i class="fas fa-plus"></i> Add Variation
-                    </button>
-                </div>
-                
-                <div id="variationsList" class="mb-3">
-                    <p class="text-muted text-center">Loading variations...</p>
-                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="addVariationBtn"><i class="fas fa-plus"></i> Add variation</button>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Add/Edit Variation Modal -->
-<div class="modal fade" id="variationFormModal" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade" id="variationFormModal" tabindex="-1" aria-labelledby="variationFormTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="variationFormTitle">Add Variation</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="variationFormTitle">Add variation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form id="variationForm">
                     <input type="hidden" id="variationId">
                     <input type="hidden" id="variationProductIdForm">
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Variation Type <span class="text-danger">*</span></label>
-                        <select class="form-select" id="variationType" required>
-                            <option value="">Select Type</option>
-                            <option value="size">Size</option>
-                            <option value="color">Color</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Variation Value <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="variationValue" placeholder="e.g., Large, Red, 32GB" required>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Price Modifier (Rs.)</label>
-                            <input type="number" class="form-control" id="variationPriceModifier" value="0" step="0.01">
-                            <small class="text-muted">Additional cost (can be negative for discount)</small>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label class="form-label" for="variationType">Type <span class="text-danger">*</span></label>
+                            <select class="form-select" id="variationType" required>
+                                <option value="">Select type</option>
+                                <option value="size">Size</option>
+                                <option value="color">Color</option>
+                            </select>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Inventory</label>
+                        <div class="col-sm-6">
+                            <label class="form-label" for="variationValue">Value <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="variationValue" placeholder="e.g. Large, Red, 32GB" required>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" for="variationPriceModifier">Price modifier (Rs)</label>
+                            <input type="number" class="form-control" id="variationPriceModifier" value="0" step="0.01">
+                            <div class="form-text">Added to the base price; negative for a discount.</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" for="variationInventory">Inventory</label>
                             <input type="number" class="form-control" id="variationInventory" value="0" min="0">
                         </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Display Order</label>
+                        <div class="col-sm-6">
+                            <label class="form-label" for="variationDisplayOrder">Display order</label>
                             <input type="number" class="form-control" id="variationDisplayOrder" value="0" min="0">
-                            <small class="text-muted">Controls the order variations appear (0 = first, 1 = second, etc.)</small>
+                            <div class="form-text">0 shows first.</div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Status</label>
+                        <div class="col-sm-6">
+                            <label class="form-label" for="variationIsActive">Status</label>
                             <select class="form-select" id="variationIsActive">
                                 <option value="1">Active</option>
                                 <option value="0">Inactive</option>
                             </select>
                         </div>
                     </div>
-                    
-                    <button type="submit" class="btn btn-primary w-100">Save Variation</button>
                 </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="variationForm" class="btn btn-primary">Save variation</button>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Product Modal -->
-<div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade" id="productModal" tabindex="-1" aria-labelledby="productModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="productModalTitle">Add New Product</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="productModalTitle">Add product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form id="productForm" novalidate>
                     <?= csrf_field() ?>
                     <input type="hidden" id="productId" name="id" value="">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Product Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="productName" name="name" required>
+                    <div class="row g-4">
+                        <div class="col-lg-7">
+                            <div class="form-section">
+                                <h6 class="form-section-title">Details</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-7">
+                                        <label class="form-label" for="productName">Product name <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" id="productName" name="name" required>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label" for="productCategory">Category <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="productCategory" name="category_id" required>
+                                            <option value="">Select category</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label" for="productDescription">Description <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="productDescription" name="description" rows="4" required></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-section">
+                                <h6 class="form-section-title">Pricing &amp; stock</h6>
+                                <div class="row g-3">
+                                    <div class="col-sm-4">
+                                        <label class="form-label" for="productPrice">Price (Rs) <span class="text-danger">*</span></label>
+                                        <input type="number" class="form-control" id="productPrice" name="price" required min="0" step="0.01">
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label" for="productInventory">Inventory <span class="text-danger">*</span></label>
+                                        <input type="number" class="form-control" id="productInventory" name="inventory" required min="0">
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label" for="productSold">Units sold</label>
+                                        <input type="number" class="form-control" id="productSold" name="sold" value="0" min="0">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Category <span class="text-danger">*</span></label>
-                            <select class="form-select" id="productCategory" name="category_id" required>
-                                <option value="">Select Category</option>
-                            </select>
+                        <div class="col-lg-5">
+                            <div class="form-section">
+                                <h6 class="form-section-title">Image</h6>
+                                <div class="d-flex gap-3 align-items-start">
+                                    <div id="currentImage" style="display: none;">
+                                        <img id="currentImagePreview" src="" alt="Current product image" class="img-preview">
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <label class="form-label" for="productImage">Upload <span class="text-danger">*</span></label>
+                                        <input type="file" class="form-control" id="productImage" name="image" accept="image/*">
+                                        <div class="form-text">Required for new products. JPG, PNG or WebP.</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-section">
+                                <h6 class="form-section-title">Visibility</h6>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="productIsActive" name="is_active" value="1" checked>
+                                    <label class="form-check-label" for="productIsActive">Active on storefront</label>
+                                </div>
+                                <div class="form-text">Inactive products are hidden from the marketing site.</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Price (Rs.) <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="productPrice" name="price" required min="0" step="0.01">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Inventory Stock <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="productInventory" name="inventory" required min="0">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Sold Count</label>
-                            <input type="number" class="form-control" id="productSold" name="sold" value="0" min="0">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="productIsActive" name="is_active" value="1" checked>
-                            <label class="form-check-label" for="productIsActive">
-                                <strong>Active</strong> (Product will be visible on marketing site)
-                            </label>
-                        </div>
-                        <small class="text-muted">Inactive products will not appear on the marketing site</small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="productDescription" name="description" rows="3" required></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Product Image <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control" id="productImage" name="image" accept="image/*">
-                        <small class="text-muted">Upload a product image (required for new products)</small>
-                        <div id="currentImage" class="mt-2" style="display: none;">
-                            <img id="currentImagePreview" src="" alt="Current Image" style="max-width: 100px; max-height: 100px;">
-                        </div>
-                    </div>
-                    
+
                     <!-- Product Variations Section -->
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label class="form-label mb-0">Product Variations</label>
+                    <div class="form-section mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="form-section-title mb-0">Variations</h6>
                             <button type="button" class="btn btn-sm btn-outline-primary" id="toggleVariationFormBtn" onclick="toggleVariationForm(); return false;">
-                                <i class="fas fa-plus"></i> Add Variation
+                                <i class="fas fa-plus"></i> Add variation
                             </button>
                         </div>
-                        
+
                         <!-- Inline Variation Form (Hidden by default) -->
-                        <div id="inlineVariationForm" class="border rounded p-3 mb-3" style="display: none; background-color: #f8f9fa;">
-                            <h6 class="mb-3">Add New Variation</h6>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Variation Type <span class="text-danger">*</span></label>
+                        <div id="inlineVariationForm" class="subtle-box mb-3" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label" for="inlineVariationType">Type <span class="text-danger">*</span></label>
                                     <select class="form-select" id="inlineVariationType">
-                                        <option value="">Select Type</option>
+                                        <option value="">Select type</option>
                                         <option value="size">Size</option>
                                         <option value="color">Color</option>
                                     </select>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Variation Value <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="inlineVariationValue" placeholder="e.g., Large, Red, 32GB">
+                                <div class="col-md-3">
+                                    <label class="form-label" for="inlineVariationValue">Value <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="inlineVariationValue" placeholder="e.g. Large, Red, 32GB">
                                 </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Price Modifier (Rs.)</label>
+                                <div class="col-md-2">
+                                    <label class="form-label" for="inlineVariationPriceModifier">Price ± (Rs)</label>
                                     <input type="number" class="form-control" id="inlineVariationPriceModifier" value="0" step="0.01">
-                                    <small class="text-muted">Additional cost (can be negative)</small>
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Inventory</label>
+                                <div class="col-md-2">
+                                    <label class="form-label" for="inlineVariationInventory">Inventory</label>
                                     <input type="number" class="form-control" id="inlineVariationInventory" value="0" min="0">
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label">Display Order</label>
+                                <div class="col-md-2">
+                                    <label class="form-label" for="inlineVariationDisplayOrder">Order</label>
                                     <input type="number" class="form-control" id="inlineVariationDisplayOrder" value="0" min="0">
-                                    <small class="text-muted">Lower = appears first</small>
                                 </div>
                             </div>
-                            <div class="mb-3">
-                                <div class="form-check">
+                            <div class="d-flex flex-wrap align-items-center gap-3 mt-3">
+                                <div class="form-check mb-0 me-auto">
                                     <input class="form-check-input" type="checkbox" id="inlineVariationIsDefault">
-                                    <label class="form-check-label" for="inlineVariationIsDefault">
-                                        Set as Base/Default Variant
-                                    </label>
-                                    <small class="text-muted d-block">This will be the default selection for customers</small>
+                                    <label class="form-check-label" for="inlineVariationIsDefault">Default variant</label>
                                 </div>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-primary" onclick="addVariationInline(); return false;">
-                                    <i class="fas fa-save"></i> Add to List
-                                </button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleVariationForm(); return false;">
-                                    Cancel
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="toggleVariationForm(); return false;">Cancel</button>
+                                <button type="button" class="btn btn-sm btn-primary" onclick="addVariationInline(); return false;">
+                                    <i class="fas fa-check"></i> Add to list
                                 </button>
                             </div>
                         </div>
-                        
+
                         <!-- Variations List -->
-                        <div id="productVariationsList" class="border rounded p-3" style="min-height: 100px; background-color: #f8f9fa;">
-                            <p class="text-muted text-center mb-0 small">No variations added yet. Click "Add Variation" to add size or color options.</p>
+                        <div id="productVariationsList" class="subtle-box p-0" style="overflow:hidden">
+                            <p class="text-muted text-center mb-0 py-3 small">No variations yet. Add size or colour options customers can pick from.</p>
                         </div>
-                        <small class="text-muted">Add size and color options for this product. Variations will be shown to customers on the product page.</small>
                     </div>
-                    
-                    <button type="submit" class="btn btn-primary w-100">Save Product</button>
                 </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="productForm" class="btn btn-primary">Save product</button>
             </div>
         </div>
     </div>
@@ -271,7 +286,7 @@ function toggleVariationForm() {
     
     if (form.style.display === 'none' || !form.style.display) {
         form.style.display = 'block';
-        btn.innerHTML = '<i class="fas fa-times"></i> Cancel';
+        btn.innerHTML = '<i class="fas fa-xmark"></i> Close';
         btn.classList.remove('btn-outline-primary');
         btn.classList.add('btn-secondary');
         
@@ -285,7 +300,7 @@ function toggleVariationForm() {
         document.getElementById('inlineVariationDisplayOrder').value = variationsCount.toString();
     } else {
         form.style.display = 'none';
-        btn.innerHTML = '<i class="fas fa-plus"></i> Add Variation';
+        btn.innerHTML = '<i class="fas fa-plus"></i> Add variation';
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-outline-primary');
     }
@@ -424,36 +439,30 @@ function renderProductFormVariationsInline() {
     // Use global reference
     var variations = window.productFormVariations || [];
     
-    console.log('Rendering variations inline:', variations.length);
     
     if (variations.length == 0) {
-        container.innerHTML = '<p class="text-muted text-center mb-0 small">No variations added yet. Click "Add Variation" to add size or color options.</p>';
+        container.innerHTML = '<p class="text-muted text-center mb-0 py-3 small">No variations yet. Add size or colour options customers can pick from.</p>';
         return;
     }
-    
-    var html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0">';
-    html += '<thead><tr><th>Type</th><th>Value</th><th>Price Modifier</th><th>Inventory</th><th>Default</th><th>Actions</th></tr></thead><tbody>';
-    
+
+    var html = '<div class="table-scroll"><table class="table mini-table mb-0">';
+    html += '<thead><tr><th>Type</th><th>Value</th><th class="num">Price ±</th><th class="num">Inventory</th><th>Default</th><th class="text-end"></th></tr></thead><tbody>';
+
     for (var i = 0; i < variations.length; i++) {
         var v = variations[i];
-        var typeBadge = v.variation_type == 'size' ? '<span class="badge bg-primary">Size</span>' : '<span class="badge bg-info">Color</span>';
-        var priceMod = parseFloat(v.price_modifier) || 0;
-        var priceText = priceMod == 0 ? 'Rs. 0.00' : (priceMod > 0 ? '+Rs. ' + priceMod.toFixed(2) : 'Rs. ' + priceMod.toFixed(2));
-        var defaultBadge = (v.is_default == 1 || v.is_default == true || v.is_default == '1') ? '<span class="badge bg-success"><i class="fas fa-star"></i> Default</span>' : '<span class="text-muted">-</span>';
-        
+        var isDefault = (v.is_default == 1 || v.is_default === true || v.is_default == '1');
         html += '<tr>';
-        html += '<td>' + typeBadge + '</td>';
-        html += '<td><strong>' + (v.variation_value || '') + '</strong></td>';
-        html += '<td>' + priceText + '</td>';
-        html += '<td>' + (v.inventory || 0) + '</td>';
-        html += '<td>' + defaultBadge + '</td>';
-        html += '<td><button type="button" class="btn btn-sm btn-danger" onclick="removeVariationInline(' + i + ', ' + (v.id ? v.id : 'null') + ')"><i class="fas fa-trash"></i></button></td>';
+        html += '<td><span class="chip">' + (v.variation_type == 'size' ? 'Size' : 'Colour') + '</span></td>';
+        html += '<td class="cell-main">' + escapeHtml(v.variation_value || '') + '</td>';
+        html += '<td class="num">' + formatPKRDelta(v.price_modifier) + '</td>';
+        html += '<td class="num">' + formatNumber(v.inventory || 0) + '</td>';
+        html += '<td>' + (isDefault ? statusPill('active', 'Default') : '<span class="muted">—</span>') + '</td>';
+        html += '<td class="text-end">' + iconButton('fa-trash', 'Remove variation', 'onclick="removeVariationInline(' + i + ', ' + (v.id ? parseInt(v.id, 10) : 'null') + ')"', 'danger') + '</td>';
         html += '</tr>';
     }
-    
+
     html += '</tbody></table></div>';
     container.innerHTML = html;
-    console.log('Variations rendered successfully. Count:', variations.length);
 }
 
 function removeVariationInline(index, variationId) {
@@ -571,7 +580,6 @@ window.addVariationInline = addVariationInline;
 
 // Old modal function (removed - keeping for compatibility but not used)
 window.openAddVariationFromProductForm = function() {
-    console.log('openAddVariationFromProductForm called from window');
     
     try {
         var productIdEl = document.getElementById('productId');
@@ -642,7 +650,6 @@ window.openAddVariationFromProductForm = function() {
             
             modal.show();
             
-            console.log('Modal shown successfully');
         } else {
             console.error('Bootstrap is not loaded!');
             alert('Bootstrap is not loaded. Please refresh the page.');

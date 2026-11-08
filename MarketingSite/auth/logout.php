@@ -1,7 +1,10 @@
 <?php
-session_start();
-session_destroy();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
+
+// Logs out the customer identity only (clears cart/promo too); an admin signed in
+// on the same browser stays signed in.
+session_logout('customer');
 $home = site_url('index.php');
 ?>
 <!DOCTYPE html>

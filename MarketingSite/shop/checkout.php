@@ -1,10 +1,12 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
 require_once __DIR__ . '/../config/customer_auth.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../../core/inventory.php';
 require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/validation.php';
+require_once __DIR__ . '/../../core/orders.php';
 
 // Check if customer is logged in
 checkCustomerLogin();
@@ -16,11 +18,12 @@ if (!isset($_SESSION['cart']) || count($_SESSION['cart']) == 0) {
 }
 
 $pageTitle = 'Checkout';
-require_once __DIR__ . '/../includes/header.php';
+// NOTE: includes/header.php is required after the POST handler below, so the
+// post-order redirect can still send its Location header.
 
 // Get customer details
 $customer_id = $_SESSION['customer_id'];
-$stmt = $conn->prepare("SELECT * FROM customers WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, name, email, phone, city, address FROM customers WHERE id = ?");
 $stmt->execute([$customer_id]);
 $customer = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -60,128 +63,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($error)) {
-    $customer_name = trim($_POST['customer_name']);
-    $customer_email = trim($_POST['customer_email']);
-    $customer_phone = trim($_POST['customer_phone']);
-    $city = trim($_POST['city']);
-    $address = trim($_POST['address']);
-    $payment_method = isset($_POST['payment_method']) ? $_POST['payment_method'] : 'cash_on_delivery';
-    $jazzcash_number = isset($_POST['jazzcash_number']) ? trim($_POST['jazzcash_number']) : '';
-    
-    // Validation
-    if (empty($customer_name) || empty($customer_email) || empty($customer_phone) || empty($city) || empty($address)) {
-        $error = 'Please fill in all required fields';
-    } elseif ($payment_method === 'jazzcash' && empty($jazzcash_number)) {
-        $error = 'Please enter your JazzCash account number';
-    } else {
-        // Validate inventory before processing order (check variation inventory if applicable)
-        $inventoryErrors = [];
-        foreach ($cart as $cart_key => $item) {
-            $product_id = (int)$item['id'];
-            $requested_quantity = (int)$item['quantity'];
-            $size = isset($item['size']) ? $item['size'] : null;
-            $color = isset($item['color']) ? $item['color'] : null;
+        $customer_name = v_str($_POST['customer_name'] ?? '', 100);
+        $customer_email_raw = v_str($_POST['customer_email'] ?? '', 150);
+        $customer_phone = v_str($_POST['customer_phone'] ?? '', 30);
+        $city = v_str($_POST['city'] ?? '', 100);
+        $address = v_str($_POST['address'] ?? '', 500);
+        $payment_method = v_enum($_POST['payment_method'] ?? 'cash_on_delivery', ['cash_on_delivery', 'jazzcash']);
+        $jazzcash_number = v_str($_POST['jazzcash_number'] ?? '', 30);
 
-            $availableInventory = getAvailableInventory($conn, $product_id, $size, $color);
-
-            if ($availableInventory === null) {
-                // Product no longer exists or has been deactivated
-                $variationInfo = '';
-                if ($size || $color) {
-                    $variationInfo = ' (';
-                    if ($size) $variationInfo .= "Size: {$size}";
-                    if ($size && $color) $variationInfo .= ', ';
-                    if ($color) $variationInfo .= "Color: {$color}";
-                    $variationInfo .= ')';
-                }
-                $inventoryErrors[] = "Product '{$item['name']}'{$variationInfo} is no longer available or has been deactivated";
-                continue;
-            }
-
-            if ($availableInventory < $requested_quantity) {
-                $variationInfo = '';
-                if ($size || $color) {
-                    $variationInfo = ' (';
-                    if ($size) $variationInfo .= "Size: {$size}";
-                    if ($size && $color) $variationInfo .= ', ';
-                    if ($color) $variationInfo .= "Color: {$color}";
-                    $variationInfo .= ')';
-                }
-
-                if ($availableInventory <= 0) {
-                    $inventoryErrors[] = "Product '{$item['name']}'{$variationInfo} is out of stock";
-                } else {
-                    $inventoryErrors[] = "Only {$availableInventory} available for '{$item['name']}'{$variationInfo} (requested: {$requested_quantity})";
-                }
-            }
-        }
-        
-        if (!empty($inventoryErrors)) {
-            $error = 'Inventory issues: ' . implode('. ', $inventoryErrors) . '. Please update your cart.';
+        if (!$customer_name || !$customer_email_raw || !$customer_phone || !$city || !$address) {
+            $error = 'Please fill in all required fields (name 100, city 100, address 500 characters max)';
+        } elseif (($customer_email = v_email($customer_email_raw)) === null) {
+            $error = 'Please enter a valid email address';
+        } elseif ($payment_method === null) {
+            $error = 'Please choose a valid payment method';
+        } elseif ($payment_method === 'jazzcash' && !$jazzcash_number) {
+            $error = 'Please enter your JazzCash account number';
         } else {
             try {
-            // Start transaction
-            $conn->beginTransaction();
+                // Stock is locked, re-checked, priced and decremented inside one
+                // transaction (see core/orders.php) - no overselling under concurrency.
+                $placed = place_order($conn, (int) $customer_id, $cart, [
+                    'customer_name'  => $customer_name,
+                    'customer_email' => $customer_email,
+                    'customer_phone' => $customer_phone,
+                    'city'           => $city,
+                    'payment_method' => $payment_method,
+                ], $applied_promo_code);
+                $order_id = $placed['order_id'];
 
-            // Create order (schema already defines payment_method and promo_code)
-            $stmt = $conn->prepare("INSERT INTO orders (customer_id, customer_name, customer_email, customer_phone, city, total, status, payment_method, promo_code) VALUES (?, ?, ?, ?, ?, ?, 'Pending', ?, ?)");
-            $stmt->execute([$customer_id, $customer_name, $customer_email, $customer_phone, $city, $total, $payment_method, $applied_promo_code]);
-            $order_id = $conn->lastInsertId();
-            
-            // Add order items (with variations if available)
-            // Check if size and color columns exist
-            $checkCols = $conn->query("SHOW COLUMNS FROM order_items LIKE 'size'");
-            $hasVariations = $checkCols->rowCount() > 0;
-            
-            if ($hasVariations) {
-                $stmt = $conn->prepare("INSERT INTO order_items (order_id, product_id, product_name, price, quantity, subtotal, size, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            } else {
-                $stmt = $conn->prepare("INSERT INTO order_items (order_id, product_id, product_name, price, quantity, subtotal) VALUES (?, ?, ?, ?, ?, ?)");
-            }
-            
-            foreach ($cart as $item) {
-                $subtotal_item = $item['price'] * $item['quantity'];
-                
-                if ($hasVariations) {
-                    $size = isset($item['size']) ? $item['size'] : null;
-                    $color = isset($item['color']) ? $item['color'] : null;
-                    $stmt->execute([$order_id, $item['id'], $item['name'], $item['price'], $item['quantity'], $subtotal_item, $size, $color]);
-                } else {
-                    $stmt->execute([$order_id, $item['id'], $item['name'], $item['price'], $item['quantity'], $subtotal_item]);
+                // Remember the delivery details on the customer profile (best effort, outside the order transaction)
+                if ($customer['name'] != $customer_name || $customer['email'] != $customer_email || $customer['phone'] != $customer_phone || $customer['city'] != $city || $customer['address'] != $address) {
+                    try {
+                        $updateCustomerStmt = $conn->prepare("UPDATE customers SET name = ?, email = ?, phone = ?, city = ?, address = ? WHERE id = ?");
+                        $updateCustomerStmt->execute([$customer_name, $customer_email, $customer_phone, $city, $address, $customer_id]);
+                    } catch (PDOException $e) {
+                        log_exception($e, 'checkout-profile-update');   // e.g. email already used by another account
+                    }
                 }
-                
-                // Update product inventory and sold count
-                $updateStmt = $conn->prepare("UPDATE products SET inventory = inventory - ?, sold = sold + ? WHERE id = ?");
-                $updateStmt->execute([$item['quantity'], $item['quantity'], $item['id']]);
-            }
-            
-            // Update customer info if changed
-            if ($customer['name'] != $customer_name || $customer['email'] != $customer_email || $customer['phone'] != $customer_phone || $customer['city'] != $city || $customer['address'] != $address) {
-                $updateCustomerStmt = $conn->prepare("UPDATE customers SET name = ?, email = ?, phone = ?, city = ?, address = ? WHERE id = ?");
-                $updateCustomerStmt->execute([$customer_name, $customer_email, $customer_phone, $city, $address, $customer_id]);
-            }
-            
-                $conn->commit();
-                
-                // Clear cart and promo code
-                unset($_SESSION['cart']);
-                unset($_SESSION['applied_promo_code']);
-                unset($_SESSION['applied_promo_data']);
-                
-                // Redirect to order confirmation
+
+                unset($_SESSION['cart'], $_SESSION['applied_promo_code'], $_SESSION['applied_promo_data']);
+
                 header('Location: ' . site_url('account/order-details.php?id=' . (int) $order_id));
                 exit();
-            } catch (Exception $e) {
-                // Only rollback if transaction is active
-                if ($conn->inTransaction()) {
-                    $conn->rollBack();
-                }
-                $error = 'Error processing order: ' . $e->getMessage();
+            } catch (CheckoutException $e) {
+                $error = $e->getMessage();
+            } catch (Throwable $e) {
+                $error = safe_error_message($e, 'We could not process your order. Please try again.');
             }
         }
     }
 }
-}
+
+require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="checkout-progress-bar">
@@ -320,10 +254,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 <span class="badge bg-secondary"><?php echo $item['quantity']; ?></span>
                                             </td>
                                             <td class="border-0 text-end text-muted">
-                                                Rs. <?php echo number_format($item['price'], 2); ?>
+                                                <?php echo format_pkr($item['price']); ?>
                                             </td>
                                             <td class="border-0 text-end">
-                                                <strong>Rs. <?php echo number_format($item['price'] * $item['quantity'], 2); ?></strong>
+                                                <strong><?php echo format_pkr($item['price'] * $item['quantity']); ?></strong>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -331,24 +265,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <tfoot class="border-top">
                                     <tr>
                                         <td colspan="3" class="text-end pt-3"><strong>Subtotal:</strong></td>
-                                        <td class="text-end pt-3"><strong>Rs. <?php echo number_format($subtotal, 2); ?></strong></td>
+                                        <td class="text-end pt-3"><strong><?php echo format_pkr($subtotal); ?></strong></td>
                                     </tr>
                                     <?php if ($discount > 0): ?>
                                     <tr>
                                         <td colspan="3" class="text-end text-success"><strong>Discount (<?php echo htmlspecialchars($applied_promo_code); ?>):</strong></td>
-                                        <td class="text-end text-success"><strong>- Rs. <?php echo number_format($discount, 2); ?></strong></td>
+                                        <td class="text-end text-success"><strong>- <?php echo format_pkr($discount); ?></strong></td>
                                     </tr>
                                     <?php endif; ?>
                                     <tr>
                                         <td colspan="3" class="text-end"><strong>Shipping:</strong></td>
-                                        <td class="text-end"><strong>Rs. <?php echo number_format($shipping, 2); ?></strong></td>
+                                        <td class="text-end"><strong><?php echo format_pkr($shipping); ?></strong></td>
                                     </tr>
                                     <tr style="background-color: #878787ff; border-top: 2px solid #4d4f52ff;">
                                         <td colspan="3" class="text-end py-3">
                                             <strong class="fs-5 text-dark">Total:</strong>
                                         </td>
                                         <td class="text-end py-3">
-                                            <strong class="fs-6 text-primary"><small>Rs.</small> <?php echo number_format($total, 2); ?></strong>
+                                            <strong class="fs-6 text-primary"><?php echo format_pkr($total); ?></strong>
                                         </td>
                                     </tr>
                                 </tfoot>
@@ -368,20 +302,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <hr>
                     <div class="d-flex justify-content-between mb-2">
                         <span>Items (<?php echo array_sum(array_column($cart, 'quantity')); ?>):</span>
-                        <span>Rs. <?php echo number_format($subtotal, 2); ?></span>
+                        <span><?php echo format_pkr($subtotal); ?></span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span>Shipping:</span>
-                        <span>Rs. <?php echo number_format($shipping, 2); ?></span>
+                        <span><?php echo format_pkr($shipping); ?></span>
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded">
                         <strong class="fs-5">Total:</strong>
-                        <strong class="fs-4 text-primary">Rs. <?php echo number_format($total, 2); ?></strong>
+                        <strong class="fs-4 text-primary"><?php echo format_pkr($total); ?></strong>
                     </div>
                     <?php if ($subtotal < 5000): ?>
                         <div class="alert alert-info py-2 px-3 mb-0">
-                            <small><i class="fas fa-info-circle"></i> Add Rs. <?php echo number_format(5000 - $subtotal, 2); ?> more for free shipping!</small>
+                            <small><i class="fas fa-info-circle"></i> Add <?php echo format_pkr(5000 - $subtotal); ?> more for free shipping!</small>
                         </div>
                     <?php endif; ?>
                 </div>

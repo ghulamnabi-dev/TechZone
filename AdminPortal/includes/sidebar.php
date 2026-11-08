@@ -4,7 +4,7 @@ if (!function_exists('admin_url')) {
 }
 $currentPage = basename($_SERVER['PHP_SELF']);
 ?>
-<div class="admin-sidebar">
+<aside class="admin-sidebar" id="adminSidebar">
     <a href="<?php echo htmlspecialchars(admin_url('manage/dashboard.php'), ENT_QUOTES, 'UTF-8'); ?>" class="sidebar-brand text-decoration-none">
         <div class="sidebar-brand-icon">
       <i class="fas fa-microchip"></i>
@@ -65,4 +65,4 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             </a>
         </nav>
     </div>
-</div>
+</aside>

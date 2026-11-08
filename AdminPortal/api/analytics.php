@@ -1,9 +1,9 @@
 <?php
-require_once '../config/database.php';
-require_once '../config/auth.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
 
-checkLogin();
-header('Content-Type: application/json');
+checkLogin(true);
+json_headers();
 
 // Get total revenue
 $stmt = $conn->query("SELECT SUM(total) as total_revenue FROM orders");

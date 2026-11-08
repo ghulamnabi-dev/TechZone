@@ -3,6 +3,8 @@ require_once __DIR__ . '/../config/paths.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/customer_auth.php';
 require_once __DIR__ . '/js-assets.php';
+require_once __DIR__ . '/format.php';
+require_once __DIR__ . '/../../core/security.php';
 
 /**
  * Fix image path for marketing site
@@ -38,6 +40,18 @@ function getProductImagePath($imagelink, $addCacheBuster = true) {
     return $trim;
 }
 
+/**
+ * "Add to cart" button for product listings: a tiny POST form (with CSRF token)
+ * to shop/cart.php instead of a state-changing GET link.
+ */
+function cart_add_form(int $productId, string $btnClass, string $labelHtml): string {
+    return '<form method="post" action="' . htmlspecialchars(site_url('shop/cart.php'), ENT_QUOTES, 'UTF-8') . '" class="d-inline m-0 cart-add-form">'
+        . csrf_field()
+        . '<input type="hidden" name="add" value="' . $productId . '">'
+        . '<button type="submit" class="' . htmlspecialchars($btnClass, ENT_QUOTES, 'UTF-8') . '">' . $labelHtml . '</button>'
+        . '</form>';
+}
+
 function getPromotionImagePath($imageUrl, $addCacheBuster = true) {
     return getProductImagePath($imageUrl, $addCacheBuster);
 }
@@ -59,7 +73,8 @@ function asset_url($path) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo isset($pageTitle) ? $pageTitle . ' - ' : ''; ?>TechZone.pk</title>
+    <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+    <title><?php echo isset($pageTitle) ? htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') . ' - ' : ''; ?>TechZone.pk</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="<?php echo htmlspecialchars(site_url('assets/css/style.css'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/css/style.css'); ?>">

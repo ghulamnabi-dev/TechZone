@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
 // Redirect if already logged in
 if (isset($_SESSION['customer_id'])) {
@@ -8,8 +8,12 @@ if (isset($_SESSION['customer_id'])) {
 }
 $pageTitle = 'Login';
 $redirectTarget = site_url('index.php');
-if (isset($_GET['redirect']) && $_GET['redirect'] === 'checkout') {
+$requestedRedirect = is_string($_GET['redirect'] ?? null) ? $_GET['redirect'] : '';
+if ($requestedRedirect === 'checkout') {
     $redirectTarget = site_url('shop/cart.php');
+} elseif ($requestedRedirect !== '') {
+    // Only same-site relative paths ("/MarketingSite/..."); never "//evil.com" or "https://..."
+    $redirectTarget = safe_redirect_path($requestedRedirect, $redirectTarget);
 }
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -95,7 +99,7 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
     }
     
     // Validate password
-    const passwordValidation = FormValidator.validatePassword(password);
+    const passwordValidation = FormValidator.validatePassword(password, 1);
     if (!passwordValidation.valid) {
         document.getElementById('password').classList.add('is-invalid');
         isValid = false;

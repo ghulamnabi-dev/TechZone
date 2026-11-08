@@ -1,111 +1,80 @@
 <?php
-$pageTitle = 'Analytics & Reports';
+$pageTitle = 'Analytics';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="row mb-4">
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card sales">
-            <div class="card-body text-center">
-                <i class="fas fa-dollar-sign fa-2x mb-2"></i>
-                <h6>Total Revenue</h6>
-                <h3 id="statRevenue">Rs. 0</h3>
-            </div>
-        </div>
+<section class="kpi-grid" aria-label="Sales figures">
+    <div class="kpi">
+        <div class="kpi-label"><i class="fas fa-wallet"></i> Revenue</div>
+        <div class="kpi-value" id="statRevenue">—</div>
+        <div class="kpi-sub">All-time gross sales</div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card orders">
-            <div class="card-body text-center">
-                <i class="fas fa-shopping-cart fa-2x mb-2"></i>
-                <h6>Total Orders</h6>
-                <h3 id="statOrders">0</h3>
-            </div>
-        </div>
+    <div class="kpi">
+        <div class="kpi-label"><i class="fas fa-bag-shopping"></i> Orders</div>
+        <div class="kpi-value" id="statOrders">—</div>
+        <div class="kpi-sub" id="statOrdersSub">&nbsp;</div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card products">
-            <div class="card-body text-center">
-                <i class="fas fa-box fa-2x mb-2"></i>
-                <h6>Units Sold</h6>
-                <h3 id="statUnitsSold">0</h3>
-            </div>
-        </div>
+    <div class="kpi">
+        <div class="kpi-label"><i class="fas fa-cubes"></i> Units sold</div>
+        <div class="kpi-value" id="statUnitsSold">—</div>
+        <div class="kpi-sub" id="statUnitsSub">&nbsp;</div>
     </div>
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card customers">
-            <div class="card-body text-center">
-                <i class="fas fa-chart-line fa-2x mb-2"></i>
-                <h6>Avg Order Value</h6>
-                <h3 id="statAvgOrder">Rs. 0</h3>
-            </div>
-        </div>
+    <div class="kpi">
+        <div class="kpi-label"><i class="fas fa-receipt"></i> Avg order value</div>
+        <div class="kpi-value" id="statAvgOrder">—</div>
+        <div class="kpi-sub">Revenue ÷ orders</div>
     </div>
-</div>
+</section>
 
-<div class="row">
-    <div class="col-md-6 mb-4">
-        <div class="table-container">
-            <h5 class="mb-3">Top Selling Products</h5>
+<section class="chart-grid" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr)">
+    <div class="panel mb-0">
+        <div class="panel-head"><h2 class="panel-title">Top selling products</h2></div>
+        <div class="table-scroll">
             <table class="table table-hover">
                 <thead>
                     <tr>
                         <th>Product</th>
-                        <th>Units Sold</th>
-                        <th>Revenue</th>
+                        <th class="num">Units</th>
+                        <th class="num">Revenue</th>
                     </tr>
                 </thead>
                 <tbody id="topProductsTable">
-                    <tr><td colspan="3" class="text-center">Loading...</td></tr>
+                    <tr class="loading-row"><td colspan="3">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
-    
-    <div class="col-md-6 mb-4">
-        <div class="table-container">
-            <h5 class="mb-3">Category Sales Breakdown</h5>
+    <div class="panel mb-0">
+        <div class="panel-head"><h2 class="panel-title">Revenue by category</h2></div>
+        <div class="table-scroll">
             <table class="table table-hover">
                 <thead>
                     <tr>
                         <th>Category</th>
-                        <th>Units Sold</th>
-                        <th>Revenue</th>
+                        <th class="num">Units</th>
+                        <th>Share of revenue</th>
+                        <th class="num">Revenue</th>
                     </tr>
                 </thead>
                 <tbody id="categorySalesTable">
-                    <tr><td colspan="3" class="text-center">Loading...</td></tr>
+                    <tr class="loading-row"><td colspan="4">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
-</div>
+</section>
 
-<div class="table-container">
-    <h5 class="mb-3">Performance Summary</h5>
-    <div class="row">
-        <div class="col-md-3">
-            <p><strong>Total Products:</strong> <span id="totalProducts">0</span></p>
-        </div>
-        <div class="col-md-3">
-            <p><strong>Total Orders:</strong> <span id="totalOrders">0</span></p>
-        </div>
-        <div class="col-md-3">
-            <p><strong>Total Customers:</strong> <span id="totalCustomers">0</span></p>
-        </div>
-        <div class="col-md-3">
-            <p><strong>Total Revenue:</strong> <span id="totalRevenue"><small>Rs.</small> 0</span></p>
-        </div>
-    </div>
-    <div class="row mt-3">
-        <div class="col-md-3">
-            <p><strong>Total Units Sold:</strong> <span id="totalUnitsSold">0</span></p>
-        </div>
-        <div class="col-md-3">
-            <p><strong>Average Order Value:</strong> <span id="avgOrderValue">Rs. 0</span></p>
-        </div>
+<div class="panel">
+    <div class="panel-head"><h2 class="panel-title">Performance summary</h2></div>
+    <div class="summary-grid">
+        <div><span>Products</span><strong id="totalProducts">—</strong></div>
+        <div><span>Orders</span><strong id="totalOrders">—</strong></div>
+        <div><span>Customers</span><strong id="totalCustomers">—</strong></div>
+        <div><span>Revenue</span><strong id="totalRevenue">—</strong></div>
+        <div><span>Units sold</span><strong id="totalUnitsSold">—</strong></div>
+        <div><span>Average order value</span><strong id="avgOrderValue">—</strong></div>
     </div>
 </div>
 
-<script src="<?php echo htmlspecialchars(admin_url('assets/js/analytics.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
+<script src="<?php echo htmlspecialchars(admin_url('assets/js/analytics.js'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/js/analytics.js'); ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
-

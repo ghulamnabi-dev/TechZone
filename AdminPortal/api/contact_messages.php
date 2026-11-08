@@ -1,100 +1,77 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/validation.php';
 
 checkLogin(true);
-header('Content-Type: application/json');
+json_headers();
 
 $method = $_SERVER['REQUEST_METHOD'];
-$adminId = $_SESSION['admin_id'];
+const CONTACT_STATUSES = ['new', 'read', 'replied', 'archived'];
 
-// GET - Get all contact messages
-if ($method == 'GET') {
-    $status = $_GET['status'] ?? '';
-    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-    $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
-    $offset = ($page - 1) * $limit;
-    
-    try {
-        // Ensure limit and offset are integers
-        $limit = (int)$limit;
-        $offset = (int)$offset;
-        
-        if (!empty($status) && in_array($status, ['new', 'read', 'replied', 'archived'])) {
-            $stmt = $conn->prepare("SELECT COUNT(*) as total FROM contact_messages WHERE status = ?");
-            $stmt->execute([$status]);
-            $total = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-            
-            // Use integers directly in SQL, not as bound parameters
-            $stmt = $conn->prepare("SELECT * FROM contact_messages WHERE status = ? ORDER BY created_at DESC LIMIT $limit OFFSET $offset");
-            $stmt->execute([$status]);
-        } else {
-            $stmt = $conn->query("SELECT COUNT(*) as total FROM contact_messages");
-            $total = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-            
-            // Use integers directly in SQL, not as bound parameters
-            $stmt = $conn->prepare("SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT $limit OFFSET $offset");
-            $stmt->execute();
-        }
-        
-        $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        echo json_encode([
+try {
+    // GET - list contact messages
+    if ($method === 'GET') {
+        $status = v_enum($_GET['status'] ?? '', CONTACT_STATUSES);
+        $page = v_int($_GET['page'] ?? 1, 1, 100000) ?? 1;
+        $limit = v_int($_GET['limit'] ?? 10, 1, 1000) ?? 10;
+        $offset = ($page - 1) * $limit;
+
+        $where = $status !== null ? " WHERE status = ?" : "";
+        $params = $status !== null ? [$status] : [];
+
+        $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM contact_messages" . $where);
+        $stmt->execute($params);
+        $total = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+        // limit/offset are validated integers
+        $stmt = $conn->prepare("SELECT * FROM contact_messages" . $where . " ORDER BY created_at DESC LIMIT " . (int) $limit . " OFFSET " . (int) $offset);
+        $stmt->execute($params);
+
+        json_response([
             'success' => true,
-            'messages' => $messages,
+            'messages' => $stmt->fetchAll(PDO::FETCH_ASSOC),
             'total' => $total,
             'page' => $page,
-            'limit' => $limit
+            'limit' => $limit,
         ]);
-    } catch(PDOException $e) {
-        echo json_encode(['success' => false, 'message' => 'Error fetching messages: ' . $e->getMessage()]);
     }
-}
 
-// PUT - Update message status
-else if ($method == 'PUT') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    $messageId = $data['id'] ?? 0;
-    $status = $data['status'] ?? '';
-    
-    if (empty($messageId) || empty($status)) {
-        echo json_encode(['success' => false, 'message' => 'Message ID and status are required']);
-        exit();
-    }
-    
-    if (!in_array($status, ['new', 'read', 'replied', 'archived'])) {
-        echo json_encode(['success' => false, 'message' => 'Invalid status']);
-        exit();
-    }
-    
-    try {
+    // PUT - update status (JSON body: id, status)
+    if ($method === 'PUT') {
+        enforce_csrf_json();
+        $data = request_json();
+        $messageId = v_id($data['id'] ?? 0);
+        $status = $data['status'] ?? '';
+
+        if ($messageId === 0 || $status === '') {
+            json_error('Message ID and status are required', 422);
+        }
+        if (v_enum($status, CONTACT_STATUSES) === null) {
+            json_error('Invalid status', 422);
+        }
+
         $stmt = $conn->prepare("UPDATE contact_messages SET status = ? WHERE id = ?");
         $stmt->execute([$status, $messageId]);
-        
-        echo json_encode(['success' => true, 'message' => 'Status updated successfully']);
-    } catch(PDOException $e) {
-        echo json_encode(['success' => false, 'message' => 'Error updating status: ' . $e->getMessage()]);
+        json_response(['success' => true, 'message' => 'Status updated successfully']);
     }
-}
 
-// DELETE - Delete message
-else if ($method == 'DELETE') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    $messageId = $data['id'] ?? 0;
-    
-    if (empty($messageId)) {
-        echo json_encode(['success' => false, 'message' => 'Message ID is required']);
-        exit();
-    }
-    
-    try {
+    // DELETE - delete message (JSON body: id, or ?id=)
+    if ($method === 'DELETE') {
+        enforce_csrf_json();
+        $data = request_json();
+        $messageId = v_id($data['id'] ?? ($_GET['id'] ?? 0));
+        if ($messageId === 0) {
+            json_error('Message ID is required', 422);
+        }
+
         $stmt = $conn->prepare("DELETE FROM contact_messages WHERE id = ?");
         $stmt->execute([$messageId]);
-        
-        echo json_encode(['success' => true, 'message' => 'Message deleted successfully']);
-    } catch(PDOException $e) {
-        echo json_encode(['success' => false, 'message' => 'Error deleting message: ' . $e->getMessage()]);
+        json_response(['success' => true, 'message' => 'Message deleted successfully']);
     }
-}
-?>
 
+    json_error('Invalid request method', 405);
+} catch (PDOException $e) {
+    json_error(safe_error_message($e, 'Could not process the request.'), 500);
+}

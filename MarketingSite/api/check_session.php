@@ -1,25 +1,17 @@
 <?php
-session_start();
-require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/customer_auth.php';
 
-header('Content-Type: application/json');
+json_headers();
 
-// Check if customer is logged in
 if (isset($_SESSION['customer_id'])) {
-    echo json_encode([
+    json_response([
         'success' => true,
         'logged_in' => true,
         'customer' => [
-            'id' => $_SESSION['customer_id'],
+            'id' => (int) $_SESSION['customer_id'],
             'name' => $_SESSION['customer_name'] ?? 'Customer',
-            'email' => $_SESSION['customer_email'] ?? ''
-        ]
-    ]);
-} else {
-    echo json_encode([
-        'success' => true,
-        'logged_in' => false
+            'email' => $_SESSION['customer_email'] ?? '',
+        ],
     ]);
 }
-?>
-
+json_response(['success' => true, 'logged_in' => false]);

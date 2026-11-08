@@ -1,247 +1,136 @@
 var customers = [];
 var currentPage = 1;
-var totalPages = 1;
-var limit = 10;
+var limit = 25;
+var knownCities = [];
 
 window.onload = function() {
     loadCustomers();
-    
+
+    var searchTimer = null;
     document.getElementById('customerSearch').oninput = function() {
-        currentPage = 1;
-        loadCustomers();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function() { currentPage = 1; loadCustomers(); }, 200);
     };
-    
+
     document.getElementById('cityFilter').onchange = function() {
         currentPage = 1;
         loadCustomers();
     };
-    
+
     document.getElementById('customersTable').onclick = function(e) {
-        if (e.target.closest('[data-view-customer]')) {
-            var id = e.target.closest('[data-view-customer]').getAttribute('data-view-customer');
-            showCustomerDetails(id);
-        }
+        var btn = e.target.closest('[data-view-customer]');
+        if (btn) showCustomerDetails(btn.getAttribute('data-view-customer'));
     };
 };
 
 function loadCustomers() {
     var search = document.getElementById('customerSearch').value;
     var city = document.getElementById('cityFilter').value;
-    
+
     var url = adminUrl('api/customers.php') + '?page=' + currentPage + '&limit=' + limit;
     if (search) url += '&search=' + encodeURIComponent(search);
     if (city) url += '&city=' + encodeURIComponent(city);
-    
+
     fetch(url)
-    .then(function(response) {
-        return response.json();
-    })
-    .then(function(data) {
-        if (data.success) {
-            customers = data.customers;
-            renderCustomers();
-            updateCityFilter();
-            updatePagination(data.total, data.page, data.limit);
-        }
-    });
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.success) {
+                customers = data.customers || [];
+                renderCustomers();
+                updateCityFilter();
+                var total = data.total != null ? Number(data.total) : customers.length;
+                document.getElementById('customerCount').textContent = total;
+                renderPager(document.getElementById('customersPager'), total, Number(data.page) || currentPage, Number(data.limit) || limit, function(pg) {
+                    currentPage = pg;
+                    loadCustomers();
+                }, 'customers');
+            } else {
+                document.getElementById('customersTable').innerHTML = emptyRow(7, data.message || 'Could not load customers');
+            }
+        })
+        .catch(function() {
+            document.getElementById('customersTable').innerHTML = emptyRow(7, 'Could not load customers');
+        });
 }
 
 function updateCityFilter() {
-    var cities = [];
-    for (var i = 0; i < customers.length; i++) {
-        if (customers[i].city && cities.indexOf(customers[i].city) == -1) {
-            cities.push(customers[i].city);
-        }
-    }
-    
+    // the API pages results, so remember every city we have seen rather than only this page's
+    customers.forEach(function(c) {
+        if (c.city && knownCities.indexOf(c.city) === -1) knownCities.push(c.city);
+    });
+    knownCities.sort();
     var select = document.getElementById('cityFilter');
     var currentValue = select.value;
-    select.innerHTML = '<option value="">All Cities</option>';
-    for (var i = 0; i < cities.length; i++) {
+    select.innerHTML = '<option value="">All cities</option>';
+    knownCities.forEach(function(city) {
         var option = document.createElement('option');
-        option.value = cities[i];
-        option.text = cities[i];
-        if (cities[i] == currentValue) option.selected = true;
+        option.value = city;
+        option.text = city;
         select.appendChild(option);
-    }
+    });
+    select.value = currentValue;
+}
+
+function initials(name) {
+    return String(name || '?').trim().split(/\s+/).slice(0, 2).map(function(w) { return w.charAt(0).toUpperCase(); }).join('');
 }
 
 function renderCustomers() {
     var tbody = document.getElementById('customersTable');
-    document.getElementById('customerCount').innerHTML = customers.length;
-    
     if (customers.length == 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center">No customers found</td></tr>';
+        tbody.innerHTML = emptyRow(7, 'No customers match these filters.');
         return;
     }
-    
     var html = '';
     for (var i = 0; i < customers.length; i++) {
-        var customer = customers[i];
+        var c = customers[i];
         html += '<tr>';
-        html += '<td>' + customer.id + '</td>';
-        html += '<td>' + customer.name + '</td>';
-        html += '<td>' + customer.email + '</td>';
-        html += '<td>' + (customer.phone || 'N/A') + '</td>';
-        html += '<td>' + (customer.city || 'N/A') + '</td>';
-        html += '<td><small>' + (customer.address || 'N/A') + '</small></td>';
-        html += '<td>' + formatDate(customer.created_at) + '</td>';
-        html += '<td><span class="badge bg-primary">' + (customer.total_orders || 0) + '</span></td>';
-        html += '<td>Rs. ' + (customer.total_spent || 0) + '</td>';
-        html += '<td><button class="btn btn-sm btn-info" data-view-customer="' + customer.id + '">View</button></td>';
+        html += '<td><div class="prod-cell" style="min-width:200px"><span class="admin-header-avatar" style="background:var(--surface-2);color:var(--ink-2);flex-shrink:0">' + escapeHtml(initials(c.name)) + '</span>' +
+            '<div class="txt"><div class="cell-main" style="font-weight:500">' + escapeHtml(c.name) + '</div><div class="cell-sub">' + escapeHtml(c.email) + '</div></div></div></td>';
+        html += '<td class="nowrap ink-2 tabular">' + escapeHtml(c.phone || '—') + '</td>';
+        html += '<td class="ink-2">' + escapeHtml(c.city || '—') + '</td>';
+        html += '<td class="nowrap ink-2">' + formatDate(c.created_at) + '</td>';
+        html += '<td class="num">' + formatNumber(c.total_orders || 0) + '</td>';
+        html += '<td class="num">' + formatPKR(c.total_spent || 0) + '</td>';
+        html += '<td class="text-end"><div class="actions">' + iconButton('fa-eye', 'View customer', 'data-view-customer="' + c.id + '"') + '</div></td>';
         html += '</tr>';
     }
     tbody.innerHTML = html;
 }
 
 function showCustomerDetails(customerId) {
-    fetch(adminUrl('api/customers.php?id=' + customerId))
-    .then(function(response) {
-        return response.json();
-    })
-    .then(function(data) {
-        if (data.success && data.customer) {
-            var customer = data.customer;
-            var orders = customer.orders || [];
-            
-            var ordersHtml = '';
-            if (orders.length > 0) {
-                for (var i = 0; i < orders.length; i++) {
-                    var statusClass = 'secondary';
-                    if (orders[i].status == 'Delivered') statusClass = 'success';
-                    else if (orders[i].status == 'Shipped') statusClass = 'info';
-                    else if (orders[i].status == 'Processing') statusClass = 'warning';
-                    
-                    ordersHtml += '<tr>';
-                    ordersHtml += '<td>#' + orders[i].id + '</td>';
-                    ordersHtml += '<td>' + formatDate(orders[i].order_date) + '</td>';
-                    ordersHtml += '<td><span class="badge bg-' + statusClass + '">' + orders[i].status + '</span></td>';
-                    ordersHtml += '<td>Rs. ' + orders[i].total + '</td>';
-                    ordersHtml += '</tr>';
-                }
-            } else {
-                ordersHtml = '<tr><td colspan="4" class="text-center">No orders found</td></tr>';
+    fetch(adminUrl('api/customers.php?id=' + encodeURIComponent(customerId)))
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (!(data.success && data.customer)) {
+                showNotification(data.message || 'Customer not found', 'error');
+                return;
             }
-            
-            var html = '<div class="row mb-4"><div class="col-md-6">';
-            html += '<h6>Personal Information</h6>';
-            html += '<p><strong>Name:</strong> ' + customer.name + '</p>';
-            html += '<p><strong>Email:</strong> ' + customer.email + '</p>';
-            html += '<p><strong>Phone:</strong> ' + (customer.phone || 'N/A') + '</p>';
-            html += '<p><strong>City:</strong> ' + (customer.city || 'N/A') + '</p>';
-            html += '<p><strong>Address:</strong> ' + (customer.address || 'N/A') + '</p>';
-            html += '</div><div class="col-md-6">';
-            html += '<h6>Statistics</h6>';
-            html += '<p><strong>Join Date:</strong> ' + formatDate(customer.created_at) + '</p>';
-            html += '<p><strong>Total Orders:</strong> <span class="badge bg-primary">' + customer.total_orders + '</span></p>';
-            html += '<p><strong>Total Spent:</strong> <span class="badge bg-success">Rs. ' + customer.total_spent + '</span></p>';
-            html += '<p><strong>Average Order Value:</strong> Rs. ' + customer.avg_order_value.toFixed(2) + '</p>';
-            html += '</div></div><hr>';
-            html += '<h6>Order History</h6>';
-            html += '<table class="table table-sm"><thead><tr><th>Order ID</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead>';
-            html += '<tbody>' + ordersHtml + '</tbody></table>';
-            
-            document.getElementById('customerDetailsContent').innerHTML = html;
-            var modal = new bootstrap.Modal(document.getElementById('customerDetailsModal'));
-            modal.show();
-        }
-    });
-}
+            var c = data.customer;
+            var orders = c.orders || [];
+            var ordersHtml = orders.length ? orders.map(function(o) {
+                return '<tr><td class="id-cell">#' + escapeHtml(o.id) + '</td><td class="nowrap ink-2">' + formatDate(o.order_date) + '</td><td>' + statusPill(o.status) + '</td><td class="num">' + formatPKR(o.total) + '</td></tr>';
+            }).join('') : emptyRow(4, 'No orders yet');
 
-function updatePagination(total, page, limit) {
-    totalPages = Math.ceil(total / limit);
-    currentPage = page;
-    
-    var start = (page - 1) * limit + 1;
-    var end = Math.min(page * limit, total);
-    
-    document.getElementById('customerCount').textContent = total;
-    document.getElementById('paginationInfo').textContent = 'Showing ' + start + ' to ' + end + ' of ' + total + ' customers';
-    
-    var controls = document.getElementById('paginationControls');
-    controls.innerHTML = '';
-    
-    if (totalPages <= 1) return;
-    
-    // Previous button
-    var prevLi = document.createElement('li');
-    prevLi.className = 'page-item' + (page == 1 ? ' disabled' : '');
-    var prevA = document.createElement('a');
-    prevA.className = 'page-link';
-    prevA.href = '#';
-    prevA.textContent = 'Previous';
-    prevA.onclick = function(e) { e.preventDefault(); if (page > 1) { currentPage--; loadCustomers(); } };
-    prevLi.appendChild(prevA);
-    controls.appendChild(prevLi);
-    
-    // Page numbers
-    var startPage = Math.max(1, page - 2);
-    var endPage = Math.min(totalPages, page + 2);
-    
-    if (startPage > 1) {
-        var li = document.createElement('li');
-        li.className = 'page-item';
-        var a = document.createElement('a');
-        a.className = 'page-link';
-        a.href = '#';
-        a.textContent = '1';
-        a.onclick = function(e) { e.preventDefault(); currentPage = 1; loadCustomers(); };
-        li.appendChild(a);
-        controls.appendChild(li);
-        
-        if (startPage > 2) {
-            var dots = document.createElement('li');
-            dots.className = 'page-item disabled';
-            var span = document.createElement('span');
-            span.className = 'page-link';
-            span.textContent = '...';
-            dots.appendChild(span);
-            controls.appendChild(dots);
-        }
-    }
-    
-    for (var i = startPage; i <= endPage; i++) {
-        var li = document.createElement('li');
-        li.className = 'page-item' + (i == page ? ' active' : '');
-        var a = document.createElement('a');
-        a.className = 'page-link';
-        a.href = '#';
-        a.textContent = i;
-        a.onclick = function(pageNum) { return function(e) { e.preventDefault(); currentPage = pageNum; loadCustomers(); } }(i);
-        li.appendChild(a);
-        controls.appendChild(li);
-    }
-    
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) {
-            var dots = document.createElement('li');
-            dots.className = 'page-item disabled';
-            var span = document.createElement('span');
-            span.className = 'page-link';
-            span.textContent = '...';
-            dots.appendChild(span);
-            controls.appendChild(dots);
-        }
-        
-        var li = document.createElement('li');
-        li.className = 'page-item';
-        var a = document.createElement('a');
-        a.className = 'page-link';
-        a.href = '#';
-        a.textContent = totalPages;
-        a.onclick = function(e) { e.preventDefault(); currentPage = totalPages; loadCustomers(); };
-        li.appendChild(a);
-        controls.appendChild(li);
-    }
-    
-    // Next button
-    var nextLi = document.createElement('li');
-    nextLi.className = 'page-item' + (page == totalPages ? ' disabled' : '');
-    var nextA = document.createElement('a');
-    nextA.className = 'page-link';
-    nextA.href = '#';
-    nextA.textContent = 'Next';
-    nextA.onclick = function(e) { e.preventDefault(); if (page < totalPages) { currentPage++; loadCustomers(); } };
-    nextLi.appendChild(nextA);
-    controls.appendChild(nextLi);
+            var html = '<div class="detail-grid mb-4">';
+            html += '<div class="detail-card"><h6 class="form-section-title">Contact</h6><dl class="kv">';
+            html += '<dt>Name</dt><dd>' + escapeHtml(c.name) + '</dd>';
+            html += '<dt>Email</dt><dd>' + escapeHtml(c.email) + '</dd>';
+            html += '<dt>Phone</dt><dd class="tabular">' + escapeHtml(c.phone || '—') + '</dd>';
+            html += '<dt>City</dt><dd>' + escapeHtml(c.city || '—') + '</dd>';
+            html += '<dt>Address</dt><dd>' + escapeHtml(c.address || '—') + '</dd>';
+            html += '</dl></div>';
+            html += '<div class="detail-card"><h6 class="form-section-title">Activity</h6><dl class="kv">';
+            html += '<dt>Joined</dt><dd>' + formatDate(c.created_at) + '</dd>';
+            html += '<dt>Orders</dt><dd class="tabular">' + formatNumber(c.total_orders || 0) + '</dd>';
+            html += '<dt>Total spent</dt><dd class="tabular">' + formatPKR(c.total_spent || 0) + '</dd>';
+            html += '<dt>Avg order</dt><dd class="tabular">' + formatPKR(c.avg_order_value || 0) + '</dd>';
+            html += '</dl></div></div>';
+            html += '<h6 class="form-section-title">Order history</h6>';
+            html += '<div class="detail-card p-0" style="overflow:hidden"><div class="table-scroll"><table class="table mini-table mb-0"><thead><tr><th>Order</th><th>Date</th><th>Status</th><th class="num">Total</th></tr></thead><tbody>' + ordersHtml + '</tbody></table></div></div>';
+
+            document.getElementById('customerDetailsTitle').textContent = c.name;
+            document.getElementById('customerDetailsContent').innerHTML = html;
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('customerDetailsModal')).show();
+        });
 }

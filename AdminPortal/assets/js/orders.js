@@ -19,13 +19,26 @@ window.onload = function() {
                                    new bootstrap.Modal(updateStatusModalElement);
     }
     
+    var searchTimer = null;
     document.getElementById('orderSearch').oninput = function() {
-        loadOrders();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function() { orderPage = 1; loadOrders(); }, 200);
     };
     
     document.getElementById('statusFilter').onchange = function() {
+        orderPage = 1;
         loadOrders();
     };
+
+    var detailsUpdateBtn = document.getElementById('orderDetailsUpdateBtn');
+    if (detailsUpdateBtn) {
+        detailsUpdateBtn.onclick = function() {
+            var id = this.getAttribute('data-order-id');
+            if (!id) return;
+            if (orderDetailsModalInstance) orderDetailsModalInstance.hide();
+            openStatusModal(id);
+        };
+    }
     
     document.getElementById('ordersTable').onclick = function(e) {
         if (e.target.closest('[data-view-order]')) {
@@ -64,39 +77,50 @@ function loadOrders() {
     });
 }
 
+var ORDERS_PAGE_SIZE = 25;
+var orderPage = 1;
+
+function paymentLabel(method) {
+    var m = String(method || 'cash_on_delivery');
+    if (m === 'cash_on_delivery') return 'Cash on delivery';
+    if (m === 'jazzcash') return 'JazzCash';
+    if (m === 'easypaisa') return 'Easypaisa';
+    return m.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+}
+
 function renderOrders() {
     var tbody = document.getElementById('ordersTable');
-    document.getElementById('orderCount').innerHTML = orders.length;
-    
+    document.getElementById('orderCount').textContent = orders.length;
+
+    var pages = Math.max(1, Math.ceil(orders.length / ORDERS_PAGE_SIZE));
+    if (orderPage > pages) orderPage = pages;
+    var pageItems = orders.slice((orderPage - 1) * ORDERS_PAGE_SIZE, orderPage * ORDERS_PAGE_SIZE);
+    renderPager(document.getElementById('ordersPager'), orders.length, orderPage, ORDERS_PAGE_SIZE, function(pg) {
+        orderPage = pg;
+        renderOrders();
+    }, 'orders');
+
     if (orders.length == 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center">No orders found</td></tr>';
+        tbody.innerHTML = emptyRow(9, 'No orders match these filters.');
         return;
     }
-    
+
     var html = '';
-    for (var i = 0; i < orders.length; i++) {
-        var order = orders[i];
-        var statusKey = (order.status || '').toLowerCase();
-        var statusClass = 'badge-status-pending';
-        if (statusKey === 'delivered') statusClass = 'badge-status-delivered';
-        else if (statusKey === 'shipped') statusClass = 'badge-status-shipped';
-        else if (statusKey === 'processing') statusClass = 'badge-status-processing';
-        else if (statusKey === 'cancelled') statusClass = 'badge-status-cancelled';
-        else if (statusKey === 'pending') statusClass = 'badge-status-pending';
-        
+    for (var i = 0; i < pageItems.length; i++) {
+        var order = pageItems[i];
         html += '<tr>';
-        html += '<td>#' + order.id + '</td>';
-        html += '<td>' + order.customer_name + '</td>';
-        html += '<td>' + order.customer_email + '</td>';
-        html += '<td>' + order.customer_phone + '</td>';
-        html += '<td>' + order.city + '</td>';
-        html += '<td>Rs. ' + order.total + '</td>';
-        html += '<td>' + formatDate(order.order_date) + '</td>';
-        html += '<td><span class="badge badge-status ' + statusClass + '">' + order.status + '</span></td>';
-        html += '<td>';
-        html += '<button class="btn btn-sm btn-outline-primary me-1" data-view-order="' + order.id + '">View</button>';
-        html += '<button class="btn btn-sm btn-outline-secondary btn-update-status" data-update-order="' + order.id + '">Update</button>';
-        html += '</td>';
+        html += '<td class="id-cell">#' + escapeHtml(order.id) + '</td>';
+        html += '<td><div class="cell-main" style="font-weight:500">' + escapeHtml(order.customer_name) + '</div><div class="cell-sub">' + escapeHtml(order.customer_email) + '</div></td>';
+        html += '<td class="nowrap ink-2 tabular">' + escapeHtml(order.customer_phone) + '</td>';
+        html += '<td class="ink-2">' + escapeHtml(order.city) + '</td>';
+        html += '<td class="nowrap ink-2">' + formatDate(order.order_date) + '</td>';
+        html += '<td class="nowrap ink-2">' + escapeHtml(paymentLabel(order.payment_method)) + '</td>';
+        html += '<td>' + statusPill(order.status) + '</td>';
+        html += '<td class="num">' + formatPKR(order.total) + '</td>';
+        html += '<td class="text-end"><div class="actions">';
+        html += iconButton('fa-eye', 'View order', 'data-view-order="' + order.id + '"');
+        html += iconButton('fa-arrows-rotate', 'Update status', 'data-update-order="' + order.id + '"');
+        html += '</div></td>';
         html += '</tr>';
     }
     tbody.innerHTML = html;
@@ -115,44 +139,38 @@ function showOrderDetails(orderId) {
             var itemsHtml = '';
             for (var i = 0; i < items.length; i++) {
                 itemsHtml += '<tr>';
-                itemsHtml += '<td>' + items[i].product_name + '</td>';
-                itemsHtml += '<td>' + items[i].quantity + '</td>';
-                itemsHtml += '<td>Rs. ' + items[i].price + '</td>';
-                itemsHtml += '<td>Rs. ' + items[i].subtotal + '</td>';
+                itemsHtml += '<td><div class="cell-main" style="font-weight:500">' + escapeHtml(items[i].product_name) + '</div>' +
+                    ((items[i].size || items[i].color) ? '<div class="cell-sub">' + escapeHtml([items[i].size, items[i].color].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>';
+                itemsHtml += '<td class="num">' + formatNumber(items[i].quantity) + '</td>';
+                itemsHtml += '<td class="num">' + formatPKR(items[i].price) + '</td>';
+                itemsHtml += '<td class="num">' + formatPKR(items[i].subtotal) + '</td>';
                 itemsHtml += '</tr>';
             }
-            
-            var statusKey = (order.status || '').toLowerCase();
-            var statusClass = 'badge-status-pending';
-            if (statusKey === 'delivered') statusClass = 'badge-status-delivered';
-            else if (statusKey === 'shipped') statusClass = 'badge-status-shipped';
-            else if (statusKey === 'processing') statusClass = 'badge-status-processing';
-            else if (statusKey === 'cancelled') statusClass = 'badge-status-cancelled';
-            else if (statusKey === 'pending') statusClass = 'badge-status-pending';
-            
-            var html = '<div class="row"><div class="col-md-6">';
-            html += '<h6>Order Information</h6>';
-            html += '<p><strong>Order ID:</strong> #' + order.id + '</p>';
-            html += '<p><strong>Date:</strong> ' + formatDate(order.order_date) + '</p>';
-            html += '<p><strong>Status:</strong> <span class="badge badge-status ' + statusClass + '">' + order.status + '</span></p>';
-            
-            // Display payment method
-            var paymentMethod = order.payment_method || 'cash_on_delivery';
-            var paymentMethodText = paymentMethod.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
-            html += '<p><strong>Payment Method:</strong> ' + paymentMethodText + '</p>';
-            
-            html += '</div><div class="col-md-6">';
-            html += '<h6>Customer Information</h6>';
-            html += '<p><strong>Name:</strong> ' + order.customer_name + '</p>';
-            html += '<p><strong>Email:</strong> ' + order.customer_email + '</p>';
-            html += '<p><strong>Phone:</strong> ' + order.customer_phone + '</p>';
-            html += '<p><strong>City:</strong> ' + order.city + '</p>';
-            html += '</div></div><hr>';
-            html += '<h6>Products Ordered</h6>';
-            html += '<table class="table"><thead><tr><th>Product</th><th>Quantity</th><th>Price</th><th>Subtotal</th></tr></thead>';
-            html += '<tbody>' + itemsHtml + '</tbody></table>';
-            html += '<div class="text-end"><h5>Total: Rs. ' + order.total + '</h5></div>';
-            
+            if (!items.length) itemsHtml = emptyRow(4, 'No line items');
+
+            var html = '<div class="detail-grid mb-4">';
+            html += '<div class="detail-card"><h6 class="form-section-title">Order</h6><dl class="kv">';
+            html += '<dt>Order</dt><dd class="tabular">#' + escapeHtml(order.id) + '</dd>';
+            html += '<dt>Placed</dt><dd>' + formatDateTime(order.order_date) + '</dd>';
+            html += '<dt>Status</dt><dd>' + statusPill(order.status) + '</dd>';
+            html += '<dt>Payment</dt><dd>' + escapeHtml(paymentLabel(order.payment_method)) + '</dd>';
+            if (order.promo_code) html += '<dt>Promo code</dt><dd><span class="code-chip">' + escapeHtml(order.promo_code) + '</span></dd>';
+            html += '</dl></div>';
+            html += '<div class="detail-card"><h6 class="form-section-title">Customer</h6><dl class="kv">';
+            html += '<dt>Name</dt><dd>' + escapeHtml(order.customer_name) + '</dd>';
+            html += '<dt>Email</dt><dd>' + escapeHtml(order.customer_email) + '</dd>';
+            html += '<dt>Phone</dt><dd class="tabular">' + escapeHtml(order.customer_phone) + '</dd>';
+            html += '<dt>City</dt><dd>' + escapeHtml(order.city) + '</dd>';
+            if (order.address || order.shipping_address) html += '<dt>Address</dt><dd>' + escapeHtml(order.address || order.shipping_address) + '</dd>';
+            html += '</dl></div></div>';
+            html += '<h6 class="form-section-title">Items</h6>';
+            html += '<div class="detail-card p-0" style="overflow:hidden"><div class="table-scroll"><table class="table mini-table mb-0"><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Subtotal</th></tr></thead>';
+            html += '<tbody>' + itemsHtml + '</tbody></table></div></div>';
+            html += '<div class="totals"><span>Total</span><strong>' + formatPKR(order.total) + '</strong></div>';
+
+            document.getElementById('orderDetailsTitle').textContent = 'Order #' + order.id;
+            var upd = document.getElementById('orderDetailsUpdateBtn');
+            if (upd) upd.setAttribute('data-order-id', order.id);
             document.getElementById('orderDetailsContent').innerHTML = html;
             
             // Use existing modal instance or create one
@@ -173,6 +191,8 @@ function openStatusModal(orderId) {
     for (var i = 0; i < orders.length; i++) {
         if (parseInt(orders[i].id) == orderId) {
             document.getElementById('updateOrderId').value = orderId;
+            var lbl = document.getElementById('updateOrderLabel');
+            if (lbl) lbl.textContent = '#' + orderId;
             document.getElementById('newStatus').value = orders[i].status;
             
             // Use existing modal instance or create one

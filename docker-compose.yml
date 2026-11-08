@@ -1,0 +1,44 @@
+# Local stack: MariaDB (schema + demo seed applied on first start) + PHP/Apache.
+#   docker compose up --build    ->  http://localhost:8080/
+# Admin: admin@techzone.pk / Admin@1234   Customer: ali.raza@example.pk / Customer@123
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: techzone_db
+      MARIADB_USER: techzone
+      MARIADB_PASSWORD: techzone
+      MARIADB_ROOT_PASSWORD: techzone-root
+    volumes:
+      - db_data:/var/lib/mysql
+      # Executed in alphabetical order, only when the data volume is empty
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      DATABASE_URL: mysql://techzone:techzone@db:3306/techzone_db
+      APP_URL: http://localhost:8080
+      APP_DEBUG: "0"
+      # ADMIN_SIGNUP_CODE: change-me   # uncomment to allow invite-only admin sign-up
+      # PASSWORD_RESET_SHOW_LINK: "1"  # demo: show reset links on screen
+    volumes:
+      - uploads:/var/www/html/AdminPortal/uploads
+
+volumes:
+  db_data:
+  uploads:

@@ -92,12 +92,12 @@ function loadProfile() {
         if (data.success && data.admin) {
             var admin = data.admin;
             
-            document.getElementById('displayName').innerHTML = admin.name;
-            document.getElementById('displayEmail').innerHTML = admin.email;
-            document.getElementById('displayPhone').innerHTML = admin.phone || 'N/A';
+            document.getElementById('displayName').textContent = admin.name;
+            document.getElementById('displayEmail').textContent = admin.email;
+            document.getElementById('displayPhone').textContent = admin.phone || '—';
             
             if (admin.created_at) {
-                document.getElementById('memberSince').innerHTML = formatDate(admin.created_at);
+                document.getElementById('memberSince').textContent = formatDate(admin.created_at);
             }
             
             document.getElementById('adminName').value = admin.name;
@@ -257,11 +257,11 @@ function handlePasswordChange() {
         if (!errorMessage) {
             errorMessage = 'New password is required';
         }
-    } else if (newPassword.length < 6) {
+    } else if (newPassword.length < 8) {
         if (newPasswordField) newPasswordField.classList.add('is-invalid');
         isValid = false;
         if (!errorMessage) {
-            errorMessage = 'Password must be at least 6 characters long';
+            errorMessage = 'Password must be at least 8 characters long';
         }
     }
     

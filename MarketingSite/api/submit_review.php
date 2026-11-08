@@ -1,65 +1,62 @@
 <?php
-session_start();
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/customer_auth.php';
+require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/validation.php';
 
-header('Content-Type: application/json');
-
-checkCustomerLogin();
+json_headers();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Invalid request method']);
-    exit();
+    json_error('Invalid request method', 405);
 }
+$customer_id = requireCustomerJson();
+enforce_csrf_json();
 
-$product_id = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
-$rating = isset($_POST['rating']) ? (int)$_POST['rating'] : 0;
-$comment = isset($_POST['comment']) ? trim($_POST['comment']) : '';
-$customer_id = $_SESSION['customer_id'];
-$customer_name = $_SESSION['customer_name'] ?? '';
+$product_id = v_id($_POST['product_id'] ?? 0);
+$rating = v_int($_POST['rating'] ?? 0, 1, 5);
+$comment = v_str($_POST['comment'] ?? '', 2000);
 
-if ($product_id <= 0) {
-    echo json_encode(['success' => false, 'message' => 'Invalid product']);
-    exit();
+if ($product_id === 0) {
+    json_error('Invalid product', 422);
 }
-
-if ($rating < 1 || $rating > 5) {
-    echo json_encode(['success' => false, 'message' => 'Rating must be between 1 and 5']);
-    exit();
+if ($rating === null) {
+    json_error('Rating must be between 1 and 5', 422);
 }
-
-if (empty($customer_name)) {
-    // Get customer name from database
-    $stmt = $conn->prepare("SELECT name FROM customers WHERE id = ?");
-    $stmt->execute([$customer_id]);
-    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($customer) {
-        $customer_name = $customer['name'];
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Customer not found']);
-        exit();
-    }
+if ($comment === null) {
+    json_error('Review is too long (max 2000 characters)', 422);
 }
 
 try {
-    // Check if customer already reviewed this product
+    $stmt = $conn->prepare("SELECT id FROM products WHERE id = ?");
+    $stmt->execute([$product_id]);
+    if (!$stmt->fetch()) {
+        json_error('Invalid product', 404);
+    }
+
+    $customer_name = (string) ($_SESSION['customer_name'] ?? '');
+    if ($customer_name === '') {
+        $stmt = $conn->prepare("SELECT name FROM customers WHERE id = ?");
+        $stmt->execute([$customer_id]);
+        $customer_name = (string) ($stmt->fetchColumn() ?: '');
+        if ($customer_name === '') {
+            json_error('Customer not found', 404);
+        }
+    }
+
     $stmt = $conn->prepare("SELECT id FROM reviews WHERE product_id = ? AND customer_id = ?");
     $stmt->execute([$product_id, $customer_id]);
-    $existingReview = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($existingReview) {
-        // Update existing review
-        $stmt = $conn->prepare("UPDATE reviews SET rating = ?, comment = ?, status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$rating, $comment, $existingReview['id']]);
-        echo json_encode(['success' => true, 'message' => 'Review updated successfully', 'action' => 'updated']);
-    } else {
-        // Insert new review
-        $stmt = $conn->prepare("INSERT INTO reviews (product_id, customer_id, customer_name, rating, comment, status) VALUES (?, ?, ?, ?, ?, 'Pending')");
-        $stmt->execute([$product_id, $customer_id, $customer_name, $rating, $comment]);
-        echo json_encode(['success' => true, 'message' => 'Review submitted successfully', 'action' => 'created']);
-    }
-} catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => 'Error submitting review: ' . $e->getMessage()]);
-}
-?>
+    $existingId = $stmt->fetchColumn();
 
+    if ($existingId) {
+        // Edited reviews go back to moderation
+        $stmt = $conn->prepare("UPDATE reviews SET rating = ?, comment = ?, status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$rating, $comment, $existingId]);
+        json_response(['success' => true, 'message' => 'Review updated successfully', 'action' => 'updated']);
+    }
+
+    $stmt = $conn->prepare("INSERT INTO reviews (product_id, customer_id, customer_name, rating, comment, status) VALUES (?, ?, ?, ?, ?, 'Pending')");
+    $stmt->execute([$product_id, $customer_id, $customer_name, $rating, $comment]);
+    json_response(['success' => true, 'message' => 'Review submitted successfully', 'action' => 'created']);
+} catch (PDOException $e) {
+    json_error(safe_error_message($e, 'Error submitting review. Please try again.'), 500);
+}

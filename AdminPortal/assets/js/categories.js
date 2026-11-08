@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    var searchEl = document.getElementById('categorySearch');
+    if (searchEl) searchEl.addEventListener('input', renderCategories);
+
     var grid = document.getElementById('categoriesGrid');
     if (grid) {
         grid.addEventListener('click', function (e) {
@@ -66,10 +69,10 @@ function resetImagePreview(currentImageUrl) {
     document.getElementById('categoryImage').value = '';
     document.getElementById('clearImageBtn').classList.add('d-none');
     if (currentImageUrl) {
-        preview.innerHTML = '<img src="' + currentImageUrl + '" alt="Current image">';
+        preview.innerHTML = '<img src="' + escapeHtml(currentImageUrl) + '" alt="Current image">';
         document.getElementById('clearImageBtn').classList.remove('d-none');
     } else {
-        preview.innerHTML = '<i class="fas fa-image fa-2x text-muted"></i><span class="text-muted small d-block mt-1">No image selected</span>';
+        preview.innerHTML = '<i class="fas fa-image fa-2x"></i><span class="small d-block mt-2">Click to choose image</span>';
     }
 }
 
@@ -90,43 +93,46 @@ function getCategoryImageUrl(image) {
 }
 
 function renderCategories() {
-    var grid = document.getElementById('categoriesGrid');
+    var tbody = document.getElementById('categoriesGrid');
+    var q = ((document.getElementById('categorySearch') || {}).value || '').trim().toLowerCase();
+    var list = categories.filter(function (c) {
+        return !q || (c.name + ' ' + (c.description || '')).toLowerCase().indexOf(q) !== -1;
+    });
+    var countEl = document.getElementById('categoryCount');
+    if (countEl) countEl.textContent = categories.length;
 
     if (categories.length == 0) {
-        grid.innerHTML = '<div class="col-12"><div class="alert alert-info">No categories found.</div></div>';
+        tbody.innerHTML = emptyRow(5, 'No categories yet. Use "Add category" to create one.');
+        return;
+    }
+    if (list.length == 0) {
+        tbody.innerHTML = emptyRow(5, 'No categories match your search.');
         return;
     }
 
     var html = '';
-    for (var i = 0; i < categories.length; i++) {
-        var cat = categories[i];
+    for (var i = 0; i < list.length; i++) {
+        var cat = list[i];
         var imgUrl = getCategoryImageUrl(cat.image);
         var imgHtml = imgUrl
-            ? '<img src="' + imgUrl + '" class="category-card-thumb" alt="' + cat.name + '">'
-            : '<div class="category-card-thumb category-card-img-placeholder"><i class="fas fa-tags"></i></div>';
-
-        html += '<div class="col-md-6 col-lg-4 mb-3">';
-        html += '<div class="category-card d-flex align-items-stretch">';
-        html += '<div class="category-card-body flex-grow-1">';
-        html += '<div class="category-card-name">' + cat.name + '</div>';
-        html += '<div class="category-card-desc">' + (cat.description || 'No description') + '</div>';
-        html += '<div class="category-card-footer">';
-        html += '<span class="badge bg-secondary">' + cat.product_count + ' products</span>';
-        html += '<div class="d-flex gap-1">';
-        html += '<button class="btn btn-sm btn-outline-primary" data-edit-category="' + cat.id + '"><i class="fas fa-pencil"></i></button>';
-        html += '<button class="btn btn-sm btn-outline-danger" data-delete-category="' + cat.id + '"><i class="fas fa-trash"></i></button>';
-        html += '</div>';
-        html += '</div>';
-        html += '</div>';
-        html += imgHtml;
-        html += '</div>';
-        html += '</div>';
+            ? '<img src="' + escapeHtml(imgUrl) + '" class="thumb" alt="" loading="lazy">'
+            : '<span class="thumb thumb-ph"><i class="fas fa-tags"></i></span>';
+        html += '<tr>';
+        html += '<td><div class="prod-cell" style="min-width:200px">' + imgHtml + '<div class="txt"><div class="cell-main">' + escapeHtml(cat.name) + '</div><div class="cell-sub">#' + escapeHtml(cat.id) + '</div></div></div></td>';
+        html += '<td class="ink-2"><div class="cell-clip" style="max-width:420px" title="' + escapeHtml(cat.description || '') + '">' + escapeHtml(cat.description || '—') + '</div></td>';
+        html += '<td class="num">' + formatNumber(cat.product_count || 0) + '</td>';
+        html += '<td class="nowrap ink-2">' + formatDate(cat.updated_at || cat.created_at) + '</td>';
+        html += '<td class="text-end"><div class="actions">';
+        html += iconButton('fa-pen', 'Edit', 'data-edit-category="' + cat.id + '"');
+        html += iconButton('fa-trash', 'Delete', 'data-delete-category="' + cat.id + '"', 'danger');
+        html += '</div></td>';
+        html += '</tr>';
     }
-    grid.innerHTML = html;
+    tbody.innerHTML = html;
 }
 
 function openAddCategoryModal() {
-    document.getElementById('categoryModalTitle').textContent = 'Add New Category';
+    document.getElementById('categoryModalTitle').textContent = 'Add category';
     document.getElementById('categoryForm').reset();
     document.getElementById('categoryId').value = '';
     resetImagePreview();
@@ -138,7 +144,7 @@ function openEditCategoryModal(categoryId) {
     for (var i = 0; i < categories.length; i++) {
         if (categories[i].id == categoryId) {
             var cat = categories[i];
-            document.getElementById('categoryModalTitle').textContent = 'Edit Category';
+            document.getElementById('categoryModalTitle').textContent = 'Edit category';
             document.getElementById('categoryId').value = cat.id;
             document.getElementById('categoryName').value = cat.name;
             document.getElementById('categoryDescription').value = cat.description || '';
@@ -197,7 +203,6 @@ function handleCategorySubmit() {
     }
 
     // Immediate feedback that the click worked
-    showNotification('Saving category…', 'success');
 
     fetch(url, { method: method, body: formData })
         .then(function (response) {

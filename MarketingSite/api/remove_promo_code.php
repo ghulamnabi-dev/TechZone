@@ -1,17 +1,13 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/security.php';
 
-header('Content-Type: application/json');
+json_headers();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(array('success' => false, 'message' => 'Invalid request method'));
-    exit();
+    json_error('Invalid request method', 405);
 }
+enforce_csrf_json();
 
-// Remove promo code from session
-unset($_SESSION['applied_promo_code']);
-unset($_SESSION['applied_promo_data']);
+unset($_SESSION['applied_promo_code'], $_SESSION['applied_promo_data']);
 
-echo json_encode(array('success' => true, 'message' => 'Promo code removed'));
-?>
-
+json_response(['success' => true, 'message' => 'Promo code removed']);

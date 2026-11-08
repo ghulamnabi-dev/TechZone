@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
 
 if (isset($_SESSION['admin_id'])) {
@@ -9,6 +9,8 @@ if (isset($_SESSION['admin_id'])) {
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/auth.php';
+require_once __DIR__ . '/../../core/validation.php';
 
 $message = '';
 $error = '';
@@ -20,10 +22,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Your session has expired. Please refresh the page and try again.';
     }
 
+    // Throttle reset requests per IP + session (5 per 15 minutes)
+    if ($error === '' && ($locked = login_lock_remaining($conn, 'admin_reset')) > 0) {
+        $error = 'Too many reset attempts. Please try again in ' . max(1, (int) ceil($locked / 60)) . ' minutes.';
+    }
+
     if ($error === '') {
-        $email = trim($_POST['email'] ?? '');
-        $username = trim($_POST['username'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
+        login_register_failure($conn, 'admin_reset');
+        $email = v_str($_POST['email'] ?? '', 150) ?? '';
+        $username = v_str($_POST['username'] ?? '', 50) ?? '';
+        $phone = v_str($_POST['phone'] ?? '', 30) ?? '';
 
         if ($email === '' || $username === '' || $phone === '') {
             $error = 'Please enter email, username, and phone to verify your account.';
@@ -36,48 +44,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$email, $username, $phone, $phoneNorm]);
             $admin = $stmt->fetch(PDO::FETCH_ASSOC);
 
+            // Same response whether or not the details matched (no account enumeration).
+            $message = 'If those details match an admin account, a password reset link has been sent to its email address.';
+
             if ($admin) {
+                // Only the sha256 of the token is stored; 1 hour expiry; single use.
                 $token = bin2hex(random_bytes(32));
                 $hash  = hash('sha256', $token);
-                $expires = (new DateTime('+1 hour'))->format('Y-m-d H:i:s');
 
-                $conn->exec("CREATE TABLE IF NOT EXISTS admin_password_resets (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    admin_id INT NOT NULL,
-                    token_hash CHAR(64) NOT NULL,
-                    expires_at DATETIME NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE,
-                    INDEX idx_token (token_hash),
-                    INDEX idx_expires (expires_at)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-                $stmt = $conn->prepare("INSERT INTO admin_password_resets (admin_id, token_hash, expires_at) VALUES (?, ?, ?)");
-                $stmt->execute([$admin['id'], $hash, $expires]);
+                // One live link per account: drop older / expired tokens
+                $conn->prepare("DELETE FROM admin_password_resets WHERE admin_id = ? OR expires_at < NOW()")->execute([$admin['id']]);
+                $stmt = $conn->prepare("INSERT INTO admin_password_resets (admin_id, token_hash, expires_at) VALUES (?, ?, NOW() + INTERVAL 1 HOUR)");
+                $stmt->execute([$admin['id'], $hash]);
 
                 $resetLink = 'reset_password.php?token=' . urlencode($token);
-                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                $base = dirname($_SERVER['SCRIPT_NAME'] ?? '');
-                if (strpos($base, '\\') !== false) $base = str_replace('\\', '/', $base);
-                $fullResetUrl = $scheme . '://' . $host . rtrim($base, '/') . '/' . $resetLink;
+                $fullResetUrl = absolute_url(admin_url('auth/' . $resetLink));
 
                 $emailSent = false;
-                if (defined('SEND_PASSWORD_RESET_EMAIL') && SEND_PASSWORD_RESET_EMAIL) {
+                if (env_flag('PASSWORD_RESET_EMAIL')) {
                     $subject = 'TechZone.pk Admin – Reset your password';
                     $body = "You requested a password reset. Click the link below (valid for 1 hour):\n\n" . $fullResetUrl . "\n\nIf you did not request this, ignore this email.";
                     $headers = "From: noreply@techzone.pk\r\nContent-Type: text/plain; charset=UTF-8";
                     $emailSent = @mail($email, $subject, $body, $headers);
                 }
 
-                if ($emailSent) {
-                    $message = 'We have sent a reset link to your email. Check your inbox and spam folder.';
-                } else {
+                // Demo / local only: show the link on screen instead of emailing it.
+                // Off by default because email+username+phone are not secrets.
+                if (!$emailSent && env_flag('PASSWORD_RESET_SHOW_LINK', app_debug())) {
                     $message = 'Identity verified. Use the link below to set a new password (valid for 1 hour).';
                     $message .= '<br><br><a href="' . htmlspecialchars($resetLink, ENT_QUOTES, 'UTF-8') . '" class="btn btn-primary">Reset password</a>';
                 }
-            } else {
-                $error = 'No account found with that combination of email, username, and phone. Please check and try again.';
             }
         }
     }

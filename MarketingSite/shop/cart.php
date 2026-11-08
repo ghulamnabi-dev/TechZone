@@ -1,17 +1,38 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
 $pageTitle = 'Shopping Cart';
-require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../config/database.php';
 
-// Handle add to cart from URL
-if (isset($_GET['add'])) {
-    $product_id = (int)$_GET['add'];
+require_once __DIR__ . '/../../core/security.php';
+
+$cartUrl = site_url('shop/cart.php');
+
+// Old GET links (?add= / ?remove=) no longer change the cart: state changes are POST + CSRF only.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && (isset($_GET['add']) || isset($_GET['remove']))) {
+    $legacyId = isset($_GET['add']) ? (int) $_GET['add'] : 0;
+    header('Location: ' . ($legacyId > 0 ? site_url('shop/product-details.php?id=' . $legacyId) : $cartUrl));
+    exit();
+}
+
+// Every cart action below is a POST that must carry the session's CSRF token.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        require_csrf_token();
+    } catch (RuntimeException $e) {
+        $_SESSION['cart_error'] = 'Your session has expired. Please refresh the page and try again.';
+        header('Location: ' . $cartUrl);
+        exit();
+    }
+}
+
+// Handle add to cart (POST from product listings)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add'])) {
+    $product_id = (int) $_POST['add'];
     if (!isset($_SESSION['cart'])) {
         $_SESSION['cart'] = [];
     }
-    
+
         // Check if is_active column exists
         $hasIsActiveColumn = false;
         try {
@@ -21,7 +42,7 @@ if (isset($_GET['add'])) {
         } catch(PDOException $e) {
             $hasIsActiveColumn = false;
         }
-        
+
         // Get product with inventory (for products without variations, this is fine) - only active products if column exists
         $query = "SELECT id, name, price, imagelink, inventory FROM products WHERE id = ?";
         if ($hasIsActiveColumn) {
@@ -30,27 +51,33 @@ if (isset($_GET['add'])) {
         $stmt = $conn->prepare($query);
         $stmt->execute([$product_id]);
         $product = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if ($product) {
             $availableInventory = (int)$product['inventory'];
-            
-            // Note: For products added via GET (without variations), we use base inventory
+
+            // Note: listing "Add" buttons have no variation choice, so base inventory is used.
             // Products with variations should use add_to_cart.php API
-            
+
             if ($availableInventory <= 0) {
                 $_SESSION['cart_error'] = 'Product is out of stock';
-                header('Location: ' . site_url('shop/cart.php'));
+                header('Location: ' . $cartUrl);
                 exit();
             }
-            
+
             $currentQuantity = isset($_SESSION['cart'][$product_id]) ? (int)$_SESSION['cart'][$product_id]['quantity'] : 0;
-            
+
             if ($currentQuantity + 1 > $availableInventory) {
                 $_SESSION['cart_error'] = 'Maximum available quantity already in cart';
-                header('Location: ' . site_url('shop/cart.php'));
+                header('Location: ' . $cartUrl);
                 exit();
             }
-            
+
+            if (!isset($_SESSION['cart'][$product_id]) && count($_SESSION['cart']) >= 50) {
+                $_SESSION['cart_error'] = 'Your cart is full (50 items maximum)';
+                header('Location: ' . $cartUrl);
+                exit();
+            }
+
             if (isset($_SESSION['cart'][$product_id])) {
                 $_SESSION['cart'][$product_id]['quantity']++;
             } else {
@@ -64,24 +91,24 @@ if (isset($_GET['add'])) {
                 ];
             }
         }
-    header('Location: ' . site_url('shop/cart.php'));
+    header('Location: ' . $cartUrl);
     exit();
 }
 
-// Handle remove from cart (now uses cart key)
-if (isset($_GET['remove'])) {
-    $cart_key = $_GET['remove'];
-    if (isset($_SESSION['cart'][$cart_key])) {
+// Handle remove from cart (POST, uses cart key)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove'])) {
+    $cart_key = is_scalar($_POST['remove']) ? (string) $_POST['remove'] : '';
+    if ($cart_key !== '' && isset($_SESSION['cart'][$cart_key])) {
         unset($_SESSION['cart'][$cart_key]);
     }
-    header('Location: ' . site_url('shop/cart.php'));
+    header('Location: ' . $cartUrl);
     exit();
 }
 
 // Handle update quantity (now uses cart key)
-if (isset($_POST['update_quantity'])) {
-    $cart_key = $_POST['cart_key'];
-    $quantity = max(1, (int)$_POST['quantity']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_quantity'])) {
+    $cart_key = is_scalar($_POST['cart_key'] ?? null) ? (string) $_POST['cart_key'] : '';
+    $quantity = min(100, max(1, (int) ($_POST['quantity'] ?? 1)));
     
     if (isset($_SESSION['cart'][$cart_key])) {
         $product_id = (int)$_SESSION['cart'][$cart_key]['id'];
@@ -156,14 +183,17 @@ if (isset($_POST['update_quantity'])) {
 }
 
 // Handle reorder
-if (isset($_POST['reorder_submit']) && isset($_POST['reorder']) && is_array($_POST['reorder'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reorder_submit']) && isset($_POST['reorder']) && is_array($_POST['reorder'])) {
     if (!isset($_SESSION['cart'])) {
         $_SESSION['cart'] = [];
     }
     
     foreach ($_POST['reorder'] as $product_id => $quantity) {
         $product_id = (int)$product_id;
-        $quantity = max(1, (int)$quantity);
+        $quantity = min(100, max(1, (int)$quantity));
+        if ($product_id <= 0 || (!isset($_SESSION['cart'][$product_id]) && count($_SESSION['cart']) >= 50)) {
+            continue;
+        }
         
         // Check if is_active column exists (reuse from above if already checked, or check again)
         if (!isset($hasIsActiveColumn)) {
@@ -224,6 +254,9 @@ if (isset($_POST['reorder_submit']) && isset($_POST['reorder']) && is_array($_PO
     header('Location: ' . site_url('shop/cart.php'));
     exit();
 }
+
+// Output starts here (after all redirecting cart actions above).
+require_once __DIR__ . '/../includes/header.php';
 
 $cart = isset($_SESSION['cart']) ? $_SESSION['cart'] : [];
 
@@ -354,7 +387,7 @@ if ($final_total < 0) $final_total = 0;
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>Rs. <?php echo number_format($item['price'], 2); ?></td>
+                                        <td class="text-nowrap"><?php echo format_pkr($item['price']); ?></td>
                                         <td>
                                             <?php 
                                             $availableInventory = isset($item['inventory']) ? (int)$item['inventory'] : 0;
@@ -366,19 +399,19 @@ if ($final_total < 0) $final_total = 0;
                                                    value="<?php echo $item['quantity']; ?>" 
                                                    min="1" 
                                                    max="<?php echo $maxQuantity; ?>"
-                                                   data-cart-key="<?php echo htmlspecialchars($cart_key); ?>"
+                                                   data-cart-key="<?php echo htmlspecialchars((string) $cart_key, ENT_QUOTES, 'UTF-8'); ?>"
                                                    data-inventory="<?php echo $availableInventory; ?>"
                                                    data-product-name="<?php echo htmlspecialchars($item['name']); ?>"
-                                                   onchange="updateQuantity('<?php echo htmlspecialchars($cart_key); ?>', this.value)">
+                                                   onchange="updateQuantity(this.dataset.cartKey, this.value)">
                                             <?php if ($availableInventory > 0): ?>
                                                 <small class="text-muted d-block mt-1">Max: <?php echo $availableInventory; ?></small>
                                             <?php else: ?>
                                                 <small class="text-danger d-block mt-1">Out of stock</small>
                                             <?php endif; ?>
                                         </td>
-                                        <td><strong>Rs. <?php echo number_format($item['price'] * $item['quantity'], 2); ?></strong></td>
+                                        <td><strong><?php echo format_pkr($item['price'] * $item['quantity']); ?></strong></td>
                                         <td>
-                                            <button type="button" class="btn btn-sm btn-danger" onclick="confirmRemoveItem('<?php echo urlencode($cart_key); ?>')">
+                                            <button type="button" class="btn btn-sm btn-danger" data-cart-key="<?php echo htmlspecialchars((string) $cart_key, ENT_QUOTES, 'UTF-8'); ?>" onclick="confirmRemoveItem(this.dataset.cartKey)">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </td>
@@ -430,22 +463,22 @@ if ($final_total < 0) $final_total = 0;
                         
                         <div class="d-flex justify-content-between mb-2">
                             <span>Subtotal:</span>
-                            <span>Rs. <?php echo number_format($total, 2); ?></span>
+                            <span><?php echo format_pkr($total); ?></span>
                         </div>
                         <?php if ($discount > 0): ?>
                             <div class="d-flex justify-content-between mb-2 text-success">
                                 <span>Discount (<?php echo htmlspecialchars($_SESSION['applied_promo_code']); ?>):</span>
-                                <span>- Rs. <?php echo number_format($discount, 2); ?></span>
+                                <span>- <?php echo format_pkr($discount); ?></span>
                             </div>
                         <?php endif; ?>
                         <div class="d-flex justify-content-between mb-2">
                             <span>Shipping:</span>
-                            <span>Rs. <?php echo number_format($shipping, 2); ?></span>
+                            <span><?php echo format_pkr($shipping); ?></span>
                         </div>
                         <hr>
                         <div class="d-flex justify-content-between mb-3">
                             <strong>Total:</strong>
-                            <strong class="fs-5" style="background: linear-gradient(135deg,#667eea,#764ba2); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">Rs. <?php echo number_format($final_total, 2); ?></strong>
+                            <strong class="fs-5 text-primary text-nowrap"><?php echo format_pkr($final_total); ?></strong>
                         </div>
                         <?php if (isset($_SESSION['customer_id'])): ?>
                             <a href="<?php echo htmlspecialchars(site_url('shop/checkout.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary w-100 checkout-button">Proceed to Checkout</a>
@@ -480,7 +513,7 @@ if ($final_total < 0) $final_total = 0;
 // Show notification if there was a cart error
 document.addEventListener('DOMContentLoaded', function() {
     <?php if (isset($_SESSION['cart_error'])): ?>
-        showNotification('<?php echo addslashes($_SESSION['cart_error']); ?>', 'error');
+        showNotification(<?php echo json_encode((string) $_SESSION['cart_error'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>, 'error');
     <?php endif; ?>
 });
 
@@ -549,7 +582,7 @@ function updateQuantity(cartKey, quantity) {
     quantity = parseInt(quantity);
     
     // Get the input element to check inventory
-    const input = document.querySelector(`input[data-cart-key="${cartKey}"]`);
+    const input = Array.prototype.find.call(document.querySelectorAll('input.quantity-input'), el => el.dataset.cartKey === cartKey);
     if (!input) return;
     
     const maxInventory = parseInt(input.dataset.inventory) || 0;
@@ -636,10 +669,29 @@ function showConfirm(message, callback) {
     };
 }
 
+// Submit a cart action as a classic POST form (CSRF token included) so the page reloads as before.
+function postCartAction(fields) {
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = marketingUrl('shop/cart.php');
+    form.style.display = 'none';
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    fields = Object.assign({ csrf_token: meta ? meta.getAttribute('content') : '' }, fields);
+    Object.keys(fields).forEach(function (name) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = fields[name];
+        form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+}
+
 function confirmRemoveItem(cartKey) {
     showConfirm('Are you sure you want to remove this item from your cart?', function(confirmed) {
         if (confirmed) {
-            window.location.href = marketingUrl('shop/cart.php?remove=' + encodeURIComponent(cartKey));
+            postCartAction({ remove: cartKey });
         }
     });
 }

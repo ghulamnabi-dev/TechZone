@@ -1,12 +1,11 @@
 <?php
-session_start();
+require_once __DIR__ . '/../../core/bootstrap.php';
 require_once __DIR__ . '/../config/paths.php';
 require_once __DIR__ . '/../config/customer_auth.php';
 require_once __DIR__ . '/../config/database.php';
 
 checkCustomerLogin();
 $pageTitle = 'Order Details';
-require_once __DIR__ . '/../includes/header.php';
 
 $order_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $customer_id = $_SESSION['customer_id'];
@@ -25,6 +24,9 @@ if (!$order) {
     header('Location: ' . site_url('account/orders.php'));
     exit();
 }
+
+// Output starts here (after all redirects above).
+require_once __DIR__ . '/../includes/header.php';
 
     // Get customer address
 $stmt = $conn->prepare("SELECT address FROM customers WHERE id = ?");
@@ -103,15 +105,15 @@ if (count($order_items) > 0) {
                                             <td class="text-center">
                                                 <span class="badge bg-secondary"><?php echo $item['quantity']; ?></span>
                                             </td>
-                                            <td>Rs. <?php echo number_format($item['price'], 2); ?></td>
-                                            <td><strong>Rs. <?php echo number_format($item['subtotal'], 2); ?></strong></td>
+                                            <td><?php echo format_pkr($item['price']); ?></td>
+                                            <td><strong><?php echo format_pkr($item['subtotal']); ?></strong></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                         <tfoot>
                             <tr>
                                 <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                                <td><strong>Rs. <?php echo number_format($order['total'], 2); ?></strong></td>
+                                <td><strong><?php echo format_pkr($order['total']); ?></strong></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -120,7 +122,7 @@ if (count($order_items) > 0) {
             
             <!-- Review Products Section -->
             <div class="card mt-4">
-                <div class="card-header text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card-header text-white brand-band">
                     <h5 class="mb-0"><i class="fas fa-star me-2"></i>Review Our Products</h5>
                 </div>
                 <div class="card-body">
@@ -143,7 +145,7 @@ if (count($order_items) > 0) {
                                         <button type="button" class="btn btn-sm btn-primary" 
                                                 data-bs-toggle="modal" 
                                                 data-bs-target="#reviewModal"
-                                                onclick="openReviewModal(<?php echo $item['product_id']; ?>, '<?php echo htmlspecialchars($item['product_name']); ?>', <?php echo $is_reviewed ? 'true' : 'false'; ?>)">
+                                                onclick="openReviewModal(<?php echo (int) $item['product_id']; ?>, <?php echo htmlspecialchars(json_encode((string) $item['product_name'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, <?php echo $is_reviewed ? 'true' : 'false'; ?>)">
                                             <i class="fas fa-star me-1"></i><?php echo $is_reviewed ? 'Update' : 'Review'; ?>
                                         </button>
                                     </div>
@@ -291,9 +293,10 @@ if (count($order_items) > 0) {
             <div class="card">
                 <div class="card-body">
                     <a href="<?php echo htmlspecialchars(site_url('account/orders.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary w-100 mb-2">Back to Orders</a>
-                    <form method="POST" action="cart.php">
+                    <form method="POST" action="<?php echo htmlspecialchars(site_url('shop/cart.php'), ENT_QUOTES, 'UTF-8'); ?>">
+                        <?= csrf_field() ?>
                         <?php foreach ($order_items as $item): ?>
-                            <input type="hidden" name="reorder[<?php echo $item['product_id']; ?>]" value="<?php echo $item['quantity']; ?>">
+                            <input type="hidden" name="reorder[<?php echo (int) $item['product_id']; ?>]" value="<?php echo (int) $item['quantity']; ?>">
                         <?php endforeach; ?>
                         <button type="submit" name="reorder_submit" value="1" class="btn btn-primary w-100">Reorder Items</button>
                     </form>

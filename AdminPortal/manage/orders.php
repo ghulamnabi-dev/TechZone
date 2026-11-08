@@ -1,55 +1,63 @@
 <?php
-$pageTitle = 'Order Management';
+$pageTitle = 'Orders';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="table-container">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">All Orders (<span id="orderCount">0</span>)</h5>
-        <div>
-            <input type="text" class="form-control d-inline-block" id="orderSearch" placeholder="Search orders..." style="width: 200px;">
-            <select class="form-select d-inline-block" id="statusFilter" style="width: 150px;">
-                <option value="">All Status</option>
-                <option value="Pending">Pending</option>
-                <option value="Processing">Processing</option>
-                <option value="Shipped">Shipped</option>
-                <option value="Delivered">Delivered</option>
-                <option value="Cancelled">Cancelled</option>
-            </select>
-        </div>
+<div class="panel">
+    <div class="panel-head">
+        <h2 class="panel-title">All orders <span class="count-chip" id="orderCount">0</span></h2>
     </div>
-    <div class="table-responsive">
+    <div class="toolbar">
+        <label class="search mb-0">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="search" class="form-control" id="orderSearch" placeholder="Search order #, customer, email…" aria-label="Search orders">
+        </label>
+        <select class="form-select" id="statusFilter" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Processing">Processing</option>
+            <option value="Shipped">Shipped</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Cancelled">Cancelled</option>
+        </select>
+    </div>
+    <div class="table-scroll">
         <table class="table table-hover">
             <thead>
                 <tr>
-                    <th>Order ID</th>
+                    <th>Order</th>
                     <th>Customer</th>
-                    <th>Email</th>
                     <th>Phone</th>
                     <th>City</th>
-                    <th>Total</th>
                     <th>Date</th>
+                    <th>Payment</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th class="num">Total</th>
+                    <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody id="ordersTable">
-                <tr><td colspan="9" class="text-center">Loading...</td></tr>
+                <tr class="loading-row"><td colspan="9">Loading…</td></tr>
             </tbody>
         </table>
     </div>
+    <div class="table-foot" id="ordersPager"></div>
 </div>
 
 <!-- Order Details Modal -->
-<div class="modal fade" id="orderDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade" id="orderDetailsModal" tabindex="-1" aria-labelledby="orderDetailsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Order Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="orderDetailsTitle">Order details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="orderDetailsContent">
-                Loading...
+                Loading…
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="orderDetailsUpdateBtn"><i class="fas fa-arrows-rotate"></i> Update status</button>
             </div>
         </div>
     </div>
@@ -57,27 +65,28 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Update Status Modal -->
 <div class="modal fade" id="updateStatusModal" tabindex="-1" aria-labelledby="updateStatusModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="updateStatusModalLabel">Update Order Status</h5>
+                <h5 class="modal-title" id="updateStatusModalLabel">Update status</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form id="updateStatusForm">
                     <input type="hidden" id="updateOrderId">
-                    <div class="mb-3">
-                        <label class="form-label">Select New Status</label>
-                        <select class="form-select" id="newStatus" required>
-                            <option value="Pending">Pending</option>
-                            <option value="Processing">Processing</option>
-                            <option value="Shipped">Shipped</option>
-                            <option value="Delivered">Delivered</option>
-                            <option value="Cancelled">Cancelled</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Update Status</button>
+                    <label class="form-label" for="newStatus">New status for order <span id="updateOrderLabel"></span></label>
+                    <select class="form-select" id="newStatus" required>
+                        <option value="Pending">Pending</option>
+                        <option value="Processing">Processing</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
                 </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="updateStatusForm" class="btn btn-primary">Save</button>
             </div>
         </div>
     </div>

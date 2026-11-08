@@ -40,7 +40,7 @@ const FormValidator = {
     /**
      * Validate password
      */
-    validatePassword: function(password, minLength = 6) {
+    validatePassword: function(password, minLength = 8) {
         if (!password || password.trim() === '') {
             return { valid: false, message: 'Password is required' };
         }
@@ -252,7 +252,7 @@ const FormValidator = {
     /**
      * Setup real-time validation for password field
      */
-    setupPasswordValidation: function(fieldId, minLength = 6) {
+    setupPasswordValidation: function(fieldId, minLength = 8) {
         const field = document.getElementById(fieldId);
         if (!field) return;
         

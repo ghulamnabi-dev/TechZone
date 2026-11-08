@@ -1,86 +1,77 @@
 <?php
-require_once '../config/database.php';
-require_once '../config/auth.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
+require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/validation.php';
 
-checkLogin();
-header('Content-Type: application/json');
+checkLogin(true);
+json_headers();
 
 $method = $_SERVER['REQUEST_METHOD'];
+const ORDER_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 
-// GET - Get all orders or one order
-if ($method == 'GET') {
-    if (isset($_GET['id'])) {
-        // Get one order
-        $id = $_GET['id'];
-        $stmt = $conn->prepare("SELECT * FROM orders WHERE id = ?");
-        $stmt->execute(array($id));
-        $order = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // Get order items
-        $stmt2 = $conn->prepare("SELECT * FROM order_items WHERE order_id = ?");
-        $stmt2->execute(array($id));
-        $items = $stmt2->fetchAll(PDO::FETCH_ASSOC);
-        $order['items'] = $items;
-        
-        echo json_encode(array('success' => true, 'order' => $order));
-    } else {
-        // Get all orders
+try {
+    // GET - all orders or one order
+    if ($method === 'GET') {
+        if (isset($_GET['id'])) {
+            $id = v_id($_GET['id']);
+            $stmt = $conn->prepare("SELECT * FROM orders WHERE id = ?");
+            $stmt->execute([$id]);
+            $order = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$order) {
+                json_error('Order not found', 404);
+            }
+
+            $stmt2 = $conn->prepare("SELECT * FROM order_items WHERE order_id = ?");
+            $stmt2->execute([$id]);
+            $order['items'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+            json_response(['success' => true, 'order' => $order]);
+        }
+
         $query = "SELECT * FROM orders WHERE 1=1";
-        $params = array();
-        
-        if (isset($_GET['status']) && $_GET['status'] != '') {
+        $params = [];
+
+        $status = v_enum($_GET['status'] ?? '', ORDER_STATUSES);
+        if ($status !== null) {
             $query .= " AND status = ?";
-            $params[] = $_GET['status'];
+            $params[] = $status;
         }
-        
-        if (isset($_GET['search']) && $_GET['search'] != '') {
+        $search = v_str($_GET['search'] ?? '', 100) ?? '';
+        if ($search !== '') {
             $query .= " AND (customer_name LIKE ? OR customer_email LIKE ?)";
-            $search = '%' . $_GET['search'] . '%';
-            $params[] = $search;
-            $params[] = $search;
+            $like = '%' . addcslashes($search, '%_\\') . '%';
+            $params[] = $like;
+            $params[] = $like;
         }
-        
         $query .= " ORDER BY order_date DESC";
-        
+
         $stmt = $conn->prepare($query);
         $stmt->execute($params);
-        $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        echo json_encode(array('success' => true, 'orders' => $orders));
+        json_response(['success' => true, 'orders' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     }
-}
 
-// PUT - Update order status
-else if ($method == 'PUT') {
-    $input = file_get_contents('php://input');
-    $data = json_decode($input, true);
-    
-    if (!$data || !isset($data['id']) || !isset($data['status'])) {
-        echo json_encode(array('success' => false, 'message' => 'Invalid data'));
-        exit();
-    }
-    
-    $id = intval($data['id']);
-    $status = $data['status'];
-    
-    // Validate status
-    $validStatuses = array('Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled');
-    if (!in_array($status, $validStatuses)) {
-        echo json_encode(array('success' => false, 'message' => 'Invalid status'));
-        exit();
-    }
-    
-    try {
-        $stmt = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
-        $result = $stmt->execute(array($status, $id));
-        
-        if ($result && $stmt->rowCount() > 0) {
-            echo json_encode(array('success' => true, 'message' => 'Order status updated'));
-        } else {
-            echo json_encode(array('success' => false, 'message' => 'Order not found or status unchanged'));
+    // PUT - update order status (JSON body: id, status)
+    if ($method === 'PUT') {
+        enforce_csrf_json();
+        $data = request_json();
+        $id = v_id($data['id'] ?? 0);
+        $status = v_enum($data['status'] ?? '', ORDER_STATUSES);
+
+        if ($id === 0 || $status === null) {
+            json_error('Invalid data', 422);
         }
-    } catch(PDOException $e) {
-        echo json_encode(array('success' => false, 'message' => 'Database error: ' . $e->getMessage()));
+
+        $stmt = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
+        $stmt->execute([$status, $id]);
+
+        if ($stmt->rowCount() > 0) {
+            json_response(['success' => true, 'message' => 'Order status updated']);
+        }
+        json_response(['success' => false, 'message' => 'Order not found or status unchanged']);
     }
+
+    json_error('Invalid request method', 405);
+} catch (PDOException $e) {
+    json_error(safe_error_message($e, 'Database error. Please try again.'), 500);
 }
-?>

@@ -1,11 +1,11 @@
 <?php
-session_start();
-
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../../core/security.php';
+require_once __DIR__ . '/../../core/auth.php';
 require_once __DIR__ . '/../config/paths.php';
 
-$token = $_GET['token'] ?? '';
+$token = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['token'] ?? '') : ($_GET['token'] ?? '');
+$token = (is_string($token) && preg_match('/^[a-f0-9]{64}$/', $token)) ? $token : '';
 $error = '';
 $message = '';
 $showForm = true;
@@ -13,26 +13,15 @@ $showForm = true;
 function find_reset_record(PDO $conn, string $token): ?array {
     if ($token === '') return null;
     $hash = hash('sha256', $token);
-    $stmt = $conn->prepare("SELECT r.id, r.admin_id, r.expires_at FROM admin_password_resets r WHERE r.token_hash = ? LIMIT 1");
+    // Expiry is compared in the database clock (same clock that set it)
+    $stmt = $conn->prepare("SELECT r.id, r.admin_id, r.expires_at FROM admin_password_resets r WHERE r.token_hash = ? AND r.expires_at > NOW() LIMIT 1");
     $stmt->execute([$hash]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$row) return null;
-    if (new DateTime($row['expires_at']) < new DateTime()) return null;
-    return $row;
+    return $row ?: null;
 }
 
 $resetRecord = null;
 if ($token !== '') {
-    $conn->exec("CREATE TABLE IF NOT EXISTS admin_password_resets (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        admin_id INT NOT NULL,
-        token_hash CHAR(64) NOT NULL,
-        expires_at DATETIME NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE,
-        INDEX idx_token (token_hash),
-        INDEX idx_expires (expires_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $resetRecord = find_reset_record($conn, $token);
     if (!$resetRecord) {
         $error = 'This reset link is invalid or has expired.';
@@ -51,27 +40,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $showForm = false;
     }
 
-    $token = $_POST['token'] ?? '';
     if ($error === '') {
         $resetRecord = find_reset_record($conn, $token);
         if (!$resetRecord) {
             $error = 'This reset link is invalid or has expired.';
             $showForm = false;
         } else {
-            $password = $_POST['password'] ?? '';
-            $confirm  = $_POST['password_confirm'] ?? '';
-            if (strlen($password) < 6) {
-                $error = 'Password must be at least 6 characters.';
-            } elseif ($password !== $confirm) {
+            $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
+            $confirm  = is_string($_POST['password_confirm'] ?? null) ? $_POST['password_confirm'] : '';
+            if ($policyError = password_policy_error($password)) {
+                $error = $policyError;
+            } elseif (!hash_equals($password, $confirm)) {
                 $error = 'Passwords do not match.';
             } else {
-                $hash = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $conn->prepare("UPDATE admins SET password = ? WHERE id = ?");
-                $stmt->execute([$hash, $resetRecord['admin_id']]);
+                // Single use: consume the token (and any other outstanding ones) atomically
+                $conn->beginTransaction();
                 $stmt = $conn->prepare("DELETE FROM admin_password_resets WHERE id = ?");
                 $stmt->execute([$resetRecord['id']]);
-                $message = 'Your password has been updated. You can now log in.';
-                $showForm = false;
+                if ($stmt->rowCount() !== 1) {
+                    $conn->rollBack();
+                    $error = 'This reset link is invalid or has expired.';
+                    $showForm = false;
+                } else {
+                    $conn->prepare("UPDATE admins SET password = ? WHERE id = ?")
+                         ->execute([password_hash($password, PASSWORD_DEFAULT), $resetRecord['admin_id']]);
+                    $conn->prepare("DELETE FROM admin_password_resets WHERE admin_id = ?")->execute([$resetRecord['admin_id']]);
+                    $conn->commit();
+                    $message = 'Your password has been updated. You can now log in.';
+                    $showForm = false;
+                }
             }
         }
     }
@@ -109,11 +106,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="hidden" name="token" value="<?php echo htmlspecialchars($token, ENT_QUOTES, 'UTF-8'); ?>">
                             <div class="mb-3">
                                 <label class="form-label">New password</label>
-                                <input type="password" name="password" class="form-control" minlength="6" required>
+                                <input type="password" name="password" class="form-control" minlength="8" maxlength="72" placeholder="At least 8 characters" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Confirm password</label>
-                                <input type="password" name="password_confirm" class="form-control" minlength="6" required>
+                                <input type="password" name="password_confirm" class="form-control" minlength="8" maxlength="72" required>
                             </div>
                             <button type="submit" class="btn btn-primary w-100 py-2">Update password</button>
                         </form>
