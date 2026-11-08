@@ -376,7 +376,8 @@ FROM orders WHERE status IN ('Processing', 'Shipped', 'Delivered');
 
 INSERT INTO order_events (order_id, type, actor_type, actor_id, payload, created_at)
 SELECT o.id, 'fulfilled', 'staff', IF(MOD(o.id, 2) = 0, 3, 2),
-    JSON_OBJECT('partial', FALSE, 'items', (SELECT JSON_ARRAYAGG(JSON_OBJECT('item_id', i.id, 'name', i.product_name, 'quantity', i.quantity)) FROM order_items i WHERE i.order_id = o.id)),
+    -- GROUP_CONCAT instead of JSON_ARRAYAGG so the seed also runs on MariaDB 10.4 (XAMPP)
+    CONCAT('{"partial":false,"items":[', (SELECT GROUP_CONCAT(JSON_OBJECT('item_id', i.id, 'name', i.product_name, 'quantity', i.quantity) SEPARATOR ',') FROM order_items i WHERE i.order_id = o.id), ']}'),
     s.shipped_at - INTERVAL 90 MINUTE
 FROM orders o JOIN order_shipments s ON s.order_id = o.id;
 
