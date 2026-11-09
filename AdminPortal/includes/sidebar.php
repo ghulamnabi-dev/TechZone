@@ -67,7 +67,7 @@ $settingsPages = ['settings.php'];
 
     <?php if (can('settings.write') || can('activity.view')): ?>
     <div class="sidebar-foot">
-        <a class="nav-link<?= in_array($currentPage, $settingsPages, true) ? ' active' : '' ?>" href="<?= $e(admin_url('manage/settings.php')) ?>">
+        <a class="nav-link<?= in_array($currentPage, $settingsPages, true) ? ' active' : '' ?>" href="<?= $e(admin_url('manage/settings.php' . (can('settings.write') ? '' : '?tab=activity'))) ?>"<?= in_array($currentPage, $settingsPages, true) ? ' aria-current="page"' : '' ?>>
             <i class="fas fa-gear" aria-hidden="true"></i>
             <span class="nav-label">Settings</span>
         </a>

@@ -67,6 +67,17 @@
 
 **Admin data grids.** Orders, products, customers, categories, reviews, messages and promotions are AG Grid Community tables themed to the admin's dark tokens: per-column filters and sorting, a quick search, 10/25/50/100 paging, column order/width/sort remembered per browser (with a reset), CSV export of the current view, and bulk actions on checked rows — change order status, activate/deactivate or delete products, approve/reject reviews, mark messages read. Bulk actions call the same CSRF-protected endpoints one row at a time and report progress. On phones the grid scrolls inside its card with the key column and the row actions pinned.
 
+## The back-office
+
+The admin is modelled on how shop staff actually work, not on CRUD tables (design contract: [`docs/ADMIN.md`](docs/ADMIN.md)):
+
+- **Orders are pages with a timeline.** Confirm → record payment → fulfil (partial allowed) → ship with courier and tracking → deliver, or cancel with a reason and automatic restock. Every step is an `order_events` row with the actor; customers see the same timeline on their order page and on the public **Track your order** page.
+- **Stock is a ledger.** `inventory_adjustments` is the only way stock changes (received, sold, returned, damaged, correction, cancelled order); the Inventory page shows levels, days of cover and the adjustment history.
+- **Roles are enforced server-side.** Owner / Manager / Staff capabilities in `core/permissions.php`; the UI hides what you cannot do, the APIs return 403.
+- **Everything is attributable.** `audit_log` records who changed what with before/after diffs; the Activity page filters and exports it.
+- **Settings that real stores have:** store details, shipping zones with free-over thresholds (used by checkout), payment method toggles, staff accounts with roles.
+- **Product editor, customer profiles, discount builder** as full pages with a contextual save bar; **⌘K** global search; notifications for new orders, payments, low stock, pending reviews.
+
 ## Architecture
 
 No framework, by design: the project shows what the plumbing looks like when you write it yourself. A shared `core/` holds everything security-relevant and is included by both front-ends, so a fix lands once.

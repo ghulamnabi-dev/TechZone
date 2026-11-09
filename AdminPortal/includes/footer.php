@@ -6,7 +6,7 @@ if (!function_exists('admin_url')) {
 }
 $tzE = $tzE ?? static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
-<!-- ⌘K search (results are a navigation stub until the search API lands in phase 2c) -->
+<!-- ⌘K search: api/search.php + recent searches + jump-to pages (assets/js/common.js initCommandPalette) -->
 <div class="cmdk" id="cmdk" hidden>
     <div class="cmdk-backdrop" data-cmdk-close></div>
     <div class="cmdk-panel" role="dialog" aria-modal="true" aria-labelledby="cmdkLabel">

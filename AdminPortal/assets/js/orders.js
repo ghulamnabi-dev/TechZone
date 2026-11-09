@@ -1,261 +1,246 @@
+/* TechZone admin — orders list: tabs with counts, AG Grid, bulk "Mark as …". Row click opens the order page. */
 var orders = [];
-var orderDetailsModalInstance = null;
-var updateStatusModalInstance = null;
-
 var ordersGrid = null;
-var ORDER_STATUS_LIST = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
+var ordTab = 'open';
+var ordLoaded = false;
+
+var ORD_TABS = {
+    open: function (o) { return o.status !== 'Delivered' && o.status !== 'Cancelled'; },
+    unfulfilled: function (o) { return o.status !== 'Cancelled' && o.fulfillment_status !== 'fulfilled'; },
+    unpaid: function (o) { return o.status !== 'Cancelled' && o.payment_status === 'pending'; },
+    completed: function (o) { return o.status === 'Delivered'; },
+    cancelled: function (o) { return o.status === 'Cancelled'; },
+    all: function () { return true; }
+};
+var ORD_EMPTY = {
+    open: 'No open orders. New orders appear here the moment they’re placed.',
+    unfulfilled: 'No unfulfilled orders. New orders appear here the moment they’re placed.',
+    unpaid: 'No payments to collect.',
+    completed: 'No delivered orders yet.',
+    cancelled: 'No cancelled orders.',
+    all: 'No orders yet.'
+};
 
 function paymentLabel(method) {
     var m = String(method || 'cash_on_delivery');
     if (m === 'cash_on_delivery') return 'Cash on delivery';
     if (m === 'jazzcash') return 'JazzCash';
     if (m === 'easypaisa') return 'Easypaisa';
-    return m.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+    if (m === 'bank_transfer') return 'Bank transfer';
+    return m.replace(/_/g, ' ').replace(/\b\w/g, function (l) { return l.toUpperCase(); });
 }
 
-/** PUT one order's status through the wrapped fetch (adds X-CSRF-Token). Resolves true/false. */
-function putOrderStatus(id, status) {
+/** POST one staff action ({id, action, …}) through the wrapped fetch (adds X-CSRF-Token). Resolves true/false. */
+function postOrderAction(id, action, extra) {
+    var body = Object.assign({ id: parseInt(id, 10), action: action }, extra || {});
     return fetch(adminUrl('api/orders.php'), {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: parseInt(id, 10), status: status })
-    }).then(function(r) { return r.json(); }).then(function(d) { return !!d.success; });
+        body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); }).then(function (d) { return !!d.success; }, function () { return false; });
 }
 
-window.onload = function() {
-    var orderDetailsModalElement = document.getElementById('orderDetailsModal');
-    var updateStatusModalElement = document.getElementById('updateStatusModal');
-    if (orderDetailsModalElement && typeof bootstrap !== 'undefined') {
-        orderDetailsModalInstance = bootstrap.Modal.getOrCreateInstance(orderDetailsModalElement);
+/* ---- cell renderers (DOM + textContent only) ---- */
+function ordEl(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = String(text);
+    return n;
+}
+function ordOrderCell(p) {
+    var o = p.data || {};
+    var w = ordEl('div', 'txt grid-stack');
+    w.appendChild(ordEl('div', 'cell-main id-cell', '#' + o.id));
+    var n = parseInt(o.items_count, 10) || 0;
+    w.appendChild(ordEl('div', 'cell-sub', n + (n === 1 ? ' item' : ' items')));
+    return w;
+}
+function ordPaymentCell(p) {
+    var o = p.data || {};
+    var w = ordEl('div', 'ord-paycell');
+    var pill = document.createElement('span');
+    pill.innerHTML = statusPill(o.payment_status);
+    w.appendChild(pill.firstChild);
+    w.appendChild(ordEl('span', 'cell-sub', paymentLabel(o.payment_method)));
+    return w;
+}
+
+function ordSetTab(tab, push) {
+    if (!ORD_TABS[tab]) tab = 'open';
+    ordTab = tab;
+    document.querySelectorAll('#orderTabs [data-tab]').forEach(function (b) {
+        var on = b.getAttribute('data-tab') === tab;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if (push) {
+        try {
+            var u = new URL(location.href);
+            u.searchParams.set('tab', tab);
+            history.replaceState(null, '', u.toString());
+        } catch (e) { /* ignore */ }
     }
-    if (updateStatusModalElement && typeof bootstrap !== 'undefined') {
-        updateStatusModalInstance = bootstrap.Modal.getOrCreateInstance(updateStatusModalElement);
+    ordRender();
+}
+
+function ordRender() {
+    if (!ordersGrid || !ordLoaded) return;
+    Object.keys(ORD_TABS).forEach(function (k) {
+        var c = document.querySelector('[data-count="' + k + '"]');
+        if (c) c.textContent = formatNumber(orders.filter(ORD_TABS[k]).length);
+    });
+    var rows = orders.filter(ORD_TABS[ordTab]);
+    ordersGrid.api.setGridOption('localeText', { noRowsToShow: ORD_EMPTY[ordTab], noMatchingRows: 'Nothing matches this search.' });
+    ordersGrid.api.setGridOption('overlayNoRowsTemplate', '<div class="grid-empty"><span class="empty-state-icon"><i class="fas fa-inbox"></i></span><div>' + escapeHtml(ORD_EMPTY[ordTab]) + '</div></div>');
+    ordersGrid.setRows(rows);
+}
+
+/** Bulk cancel: ask once for the reason. Resolves the reason text, or null when dismissed. */
+function ordAskCancelReason(rows) {
+    return new Promise(function (resolve) {
+        var m = document.getElementById('bulkCancelModal');
+        var form = document.getElementById('bulkCancelForm');
+        var sel = document.getElementById('bulkCancelReason');
+        var other = document.getElementById('bulkCancelOther');
+        var wrap = document.getElementById('bulkCancelOtherWrap');
+        var units = rows.reduce(function (s, o) { return s + (parseInt(o.items_count, 10) || 0); }, 0);
+        document.getElementById('bulkCancelText').textContent = 'Cancelling ' + rows.length + (rows.length === 1 ? ' order' : ' orders') +
+            ' restocks ' + units + (units === 1 ? ' item' : ' items') + '. Shipped or delivered orders are skipped.';
+        sel.value = 'Customer request';
+        other.value = '';
+        wrap.hidden = true;
+        other.classList.remove('is-invalid');
+        sel.onchange = function () { wrap.hidden = sel.value !== 'Other'; if (!wrap.hidden) other.focus(); };
+        var done = false;
+        var modal = bootstrap.Modal.getOrCreateInstance(m);
+        form.onsubmit = function (e) {
+            e.preventDefault();
+            var reason = sel.value;
+            if (reason === 'Other') {
+                if (!other.value.trim()) { other.classList.add('is-invalid'); other.focus(); return; }
+                reason = 'Other: ' + other.value.trim();
+            }
+            done = true;
+            modal.hide();
+            resolve(reason);
+        };
+        m.addEventListener('hidden.bs.modal', function h() {
+            m.removeEventListener('hidden.bs.modal', h);
+            if (!done) resolve(null);
+        });
+        modal.show();
+    });
+}
+
+window.onload = function () {
+    var params = new URLSearchParams(location.search);
+    ordTab = ORD_TABS[params.get('tab')] ? params.get('tab') : 'open';
+
+    var BULK = [
+        { label: 'Confirmed', value: 'confirm', skip: function (o) { return o.status !== 'Pending'; } },
+        { label: 'Fulfilled', value: 'fulfil', skip: function (o) { return o.fulfillment_status === 'fulfilled'; } },
+        { label: 'Delivered', value: 'deliver', skip: function (o) { return o.status === 'Delivered'; } }
+    ];
+    var DONE = { confirm: 'confirmed', fulfil: 'fulfilled', deliver: 'marked delivered' };
+
+    var bulkActions = !tzCan('orders.fulfil') ? [] : [{
+        label: 'Mark as', icon: 'fa-check-double',
+        menu: BULK.map(function (b) { return { label: b.label, value: b.value }; }),
+        progress: 'Updating',
+        perRow: function (o, action) {
+            var b = BULK.filter(function (x) { return x.value === action; })[0];
+            if (o.status === 'Cancelled') return false;
+            return b && b.skip(o) ? true : postOrderAction(o.id, action);
+        },
+        done: function (ok, failed, action) {
+            return ok + ' ' + (ok === 1 ? 'order' : 'orders') + ' ' + (DONE[action] || 'updated') + (failed ? ', ' + failed + ' could not be changed' : '');
+        }
+    }];
+    if (tzCan('orders.cancel')) {
+        bulkActions.push({
+            label: 'Cancel…', icon: 'fa-ban', tone: 'danger',
+            before: function (rows) { return ordAskCancelReason(rows); },
+            progress: 'Cancelling',
+            perRow: function (o, reason) {
+                if (o.status === 'Cancelled') return true;
+                if (o.status === 'Shipped' || o.status === 'Delivered') return false;
+                return postOrderAction(o.id, 'cancel', { reason: reason });
+            },
+            done: function (ok, failed) {
+                return ok + ' ' + (ok === 1 ? 'order' : 'orders') + ' cancelled' + (failed ? ', ' + failed + ' skipped (already shipped)' : '');
+            }
+        });
     }
 
     ordersGrid = createAdminGrid(document.getElementById('ordersTable'), {
-        storageKey: 'tz.grid.orders.v1',
+        storageKey: 'tz.grid.orders.v2',
         noun: ['order', 'orders'],
-        emptyText: 'No orders match these filters.',
+        emptyText: ORD_EMPTY[ordTab],
         exportName: 'orders',
         toolbar: { search: '#orderSearch', count: '#orderCount', exportBtn: '#ordersExport', resetBtn: '#ordersReset' },
         selectable: true,
         columns: [
-            { field: 'id', headerName: 'Order', kind: 'id', width: 104, mobileWidth: 96 },
-            { field: 'customer_name', headerName: 'Customer', kind: 'stack', flex: 1, minWidth: 210,
-              cellRendererParams: { sub: function(o) { return [o.city, o.customer_email].filter(Boolean).join(' · '); } },
-              getQuickFilterText: function(p) { var o = p.data; return [o.customer_name, o.customer_email, o.customer_phone, o.city, '#' + o.id].join(' '); },
-              csvValue: function(o) { return o.customer_name; } },
+            { field: 'id', headerName: 'Order', kind: 'id', width: 112, mobileWidth: 100, cellRenderer: ordOrderCell,
+              getQuickFilterText: function (p) { return '#' + p.data.id + ' ' + p.data.id; } },
+            { field: 'customer_name', headerName: 'Customer', kind: 'stack', flex: 1, minWidth: 200,
+              cellRendererParams: { sub: function (o) { return o.city || ''; } },
+              getQuickFilterText: function (p) { var o = p.data; return [o.customer_name, o.customer_email, o.customer_phone, o.city].join(' '); },
+              csvValue: function (o) { return o.customer_name; } },
             { field: 'city', headerName: 'City', kind: 'muted', width: 130, hide: true },
-            { field: 'customer_email', headerName: 'Email', kind: 'muted', width: 200, hide: true },
-            { field: 'order_date', headerName: 'Date', kind: 'date', width: 136, sort: 'desc' },
-            { field: 'payment_method', headerName: 'Payment', kind: 'muted', width: 170,
-              valueGetter: function(p) { return paymentLabel(p.data.payment_method); } },
-            { field: 'status', headerName: 'Status', kind: 'status', width: 140 },
-            { field: 'total', headerName: 'Total', kind: 'money', width: 140 }
+            { field: 'customer_phone', headerName: 'Phone', kind: 'muted', width: 140, hide: true },
+            { field: 'order_date', headerName: 'Date', kind: 'date', width: 130, sort: 'desc' },
+            { field: 'payment_status', headerName: 'Payment', kind: 'status', width: 176, cellRenderer: ordPaymentCell,
+              getQuickFilterText: function (p) { return p.data.payment_status + ' ' + paymentLabel(p.data.payment_method); },
+              csvValue: function (o) { return o.payment_status + ' (' + paymentLabel(o.payment_method) + ')'; } },
+            { field: 'fulfillment_status', headerName: 'Fulfilment', kind: 'status', width: 132 },
+            { field: 'status', headerName: 'Status', kind: 'status', width: 128 },
+            { field: 'total', headerName: 'Total', kind: 'money', width: 130 }
         ],
-        rowActions: function(o) {
-            return [
-                { icon: 'fa-eye', label: 'View order', attrs: 'data-view-order="' + parseInt(o.id, 10) + '"' },
-                { icon: 'fa-arrows-rotate', label: 'Update status', attrs: 'data-update-order="' + parseInt(o.id, 10) + '"' }
-            ];
+        rowActions: function (o) {
+            return [{ icon: 'fa-arrow-right', label: 'Open order #' + o.id, attrs: 'data-open-order="' + parseInt(o.id, 10) + '"' }];
         },
-        onRowOpen: function(o) { showOrderDetails(o.id); },
-        bulkActions: [{
-            label: 'Mark as', icon: 'fa-arrows-rotate',
-            menu: ORDER_STATUS_LIST.filter(function(s) { return s !== 'Cancelled' || tzCan('orders.cancel'); }).map(function(s) { return { label: s, value: s }; }),
-            progress: 'Updating',
-            perRow: function(o, status) { return o.status === status ? true : putOrderStatus(o.id, status); },
-            done: function(ok, failed) {
-                return ok + ' ' + (ok === 1 ? 'order' : 'orders') + ' updated' + (failed ? ', ' + failed + ' failed' : '');
-            }
-        }],
-        onBulkDone: function() { loadOrders(); }
+        onRowOpen: function (o) { location.href = adminUrl('manage/order.php?id=' + parseInt(o.id, 10)); },
+        bulkActions: bulkActions,
+        onBulkDone: function () { loadOrders(); }
     });
-    ordersGrid.bindSelect('#statusFilter', 'status', function(v) { return { filterType: 'text', type: 'equals', filter: v }; });
 
-    loadOrders();
+    document.getElementById('ordersTable').addEventListener('click', function (e) {
+        var v = e.target.closest('[data-open-order]');
+        if (v) location.href = adminUrl('manage/order.php?id=' + parseInt(v.getAttribute('data-open-order'), 10));
+    });
+    document.getElementById('orderTabs').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-tab]');
+        if (b) ordSetTab(b.getAttribute('data-tab'), true);
+    });
 
-    var detailsUpdateBtn = document.getElementById('orderDetailsUpdateBtn');
-    if (detailsUpdateBtn) {
-        detailsUpdateBtn.onclick = function() {
-            var id = this.getAttribute('data-order-id');
-            if (!id) return;
-            if (orderDetailsModalInstance) orderDetailsModalInstance.hide();
-            openStatusModal(id);
-        };
+    var q = params.get('q');
+    if (q) {
+        var s = document.getElementById('orderSearch');
+        s.value = q;
+        ordersGrid.api.setGridOption('quickFilterText', q);
+        if (!params.get('tab')) ordTab = 'all';
     }
-
-    document.getElementById('ordersTable').addEventListener('click', function(e) {
-        var v = e.target.closest('[data-view-order]');
-        if (v) { showOrderDetails(v.getAttribute('data-view-order')); return; }
-        var u = e.target.closest('[data-update-order]');
-        if (u) openStatusModal(u.getAttribute('data-update-order'));
-    });
-
-    document.getElementById('updateStatusForm').onsubmit = function(e) {
-        e.preventDefault();
-        handleStatusUpdate();
-    };
+    ordSetTab(ordTab, false);
+    loadOrders();
 };
 
 function loadOrders() {
-    // all orders once; search / status filtering happens in the grid (quick filter + filter model)
     return fetch(adminUrl('api/orders.php'))
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-        if (data.success) {
-            orders = data.orders || [];
-            ordersGrid.setRows(orders);
-        } else {
-            ordersGrid.setRows([]);
-            showNotification(data.message || 'Could not load orders', 'error');
-        }
-    })
-    .catch(function() {
-        ordersGrid.setRows([]);
-        showNotification('Could not load orders', 'error');
-    });
-}
-
-function showOrderDetails(orderId) {
-    fetch(adminUrl('api/orders.php?id=' + orderId))
-    .then(function(response) {
-        return response.json();
-    })
-    .then(function(data) {
-        if (data.success && data.order) {
-            var order = data.order;
-            var items = order.items || [];
-            
-            var itemsHtml = '';
-            for (var i = 0; i < items.length; i++) {
-                itemsHtml += '<tr>';
-                itemsHtml += '<td><div class="cell-main" style="font-weight:500">' + escapeHtml(items[i].product_name) + '</div>' +
-                    ((items[i].size || items[i].color) ? '<div class="cell-sub">' + escapeHtml([items[i].size, items[i].color].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>';
-                itemsHtml += '<td class="num">' + formatNumber(items[i].quantity) + '</td>';
-                itemsHtml += '<td class="num">' + formatPKR(items[i].price) + '</td>';
-                itemsHtml += '<td class="num">' + formatPKR(items[i].subtotal) + '</td>';
-                itemsHtml += '</tr>';
-            }
-            if (!items.length) itemsHtml = emptyRow(4, 'No line items');
-
-            var html = '<div class="detail-grid mb-4">';
-            html += '<div class="detail-card"><h6 class="form-section-title">Order</h6><dl class="kv">';
-            html += '<dt>Order</dt><dd class="tabular">#' + escapeHtml(order.id) + '</dd>';
-            html += '<dt>Placed</dt><dd>' + formatDateTime(order.order_date) + '</dd>';
-            html += '<dt>Status</dt><dd>' + statusPill(order.status) + '</dd>';
-            html += '<dt>Payment</dt><dd>' + escapeHtml(paymentLabel(order.payment_method)) + '</dd>';
-            if (order.promo_code) html += '<dt>Promo code</dt><dd><span class="code-chip">' + escapeHtml(order.promo_code) + '</span></dd>';
-            html += '</dl></div>';
-            html += '<div class="detail-card"><h6 class="form-section-title">Customer</h6><dl class="kv">';
-            html += '<dt>Name</dt><dd>' + escapeHtml(order.customer_name) + '</dd>';
-            html += '<dt>Email</dt><dd>' + escapeHtml(order.customer_email) + '</dd>';
-            html += '<dt>Phone</dt><dd class="tabular">' + escapeHtml(order.customer_phone) + '</dd>';
-            html += '<dt>City</dt><dd>' + escapeHtml(order.city) + '</dd>';
-            if (order.address || order.shipping_address) html += '<dt>Address</dt><dd>' + escapeHtml(order.address || order.shipping_address) + '</dd>';
-            html += '</dl></div></div>';
-            html += '<h6 class="form-section-title">Items</h6>';
-            html += '<div class="detail-card p-0" style="overflow:hidden"><div class="table-scroll"><table class="table mini-table mb-0"><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Subtotal</th></tr></thead>';
-            html += '<tbody>' + itemsHtml + '</tbody></table></div></div>';
-            html += '<div class="totals"><span>Total</span><strong>' + formatPKR(order.total) + '</strong></div>';
-
-            document.getElementById('orderDetailsTitle').textContent = 'Order #' + order.id;
-            var upd = document.getElementById('orderDetailsUpdateBtn');
-            if (upd) upd.setAttribute('data-order-id', order.id);
-            document.getElementById('orderDetailsContent').innerHTML = html;
-            
-            // Use existing modal instance or create one
-            if (!orderDetailsModalInstance) {
-                var modalElement = document.getElementById('orderDetailsModal');
-                orderDetailsModalInstance = bootstrap.Modal.getInstance(modalElement) || 
-                                           new bootstrap.Modal(modalElement);
-            }
-            
-            // Show modal - z-index is handled by common.js
-            orderDetailsModalInstance.show();
-        }
-    });
-}
-
-function openStatusModal(orderId) {
-    orderId = parseInt(orderId);
-    for (var i = 0; i < orders.length; i++) {
-        if (parseInt(orders[i].id) == orderId) {
-            document.getElementById('updateOrderId').value = orderId;
-            var lbl = document.getElementById('updateOrderLabel');
-            if (lbl) lbl.textContent = '#' + orderId;
-            document.getElementById('newStatus').value = orders[i].status;
-            
-            // Use existing modal instance or create one
-            if (!updateStatusModalInstance) {
-                var modalElement = document.getElementById('updateStatusModal');
-                updateStatusModalInstance = bootstrap.Modal.getInstance(modalElement) || 
-                                           new bootstrap.Modal(modalElement);
-            }
-            
-            // Show modal - z-index is handled by common.js
-            updateStatusModalInstance.show();
-            
-            return;
-        }
-    }
-    showNotification('Order not found', 'error');
-}
-
-function handleStatusUpdate() {
-    var orderId = document.getElementById('updateOrderId').value;
-    var newStatus = document.getElementById('newStatus').value;
-    
-    if (!orderId || !newStatus) {
-        showNotification('Please select a status', 'error');
-        return;
-    }
-    
-    var data = {
-        id: parseInt(orderId),
-        status: newStatus
-    };
-    
-    fetch(adminUrl('api/orders.php'), {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-    })
-    .then(function(response) {
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-        return response.json();
-    })
-    .then(function(data) {
-        if (data.success) {
-            if (typeof showNotification === 'function') {
-                showNotification('Order status updated successfully', 'success');
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            ordLoaded = true;
+            if (data.success) {
+                orders = data.orders || [];
             } else {
-                alert('Order status updated successfully');
+                orders = [];
+                showNotification(data.message || 'Could not load orders', 'error');
             }
-            var modalElement = document.getElementById('updateStatusModal');
-            if (updateStatusModalInstance) {
-                updateStatusModalInstance.hide();
-            } else {
-                var modal = bootstrap.Modal.getInstance(modalElement);
-                if (modal) {
-                    modal.hide();
-                }
-            }
-            loadOrders();
-        } else {
-            if (typeof showNotification === 'function') {
-                showNotification(data.message || 'Failed to update status', 'error');
-            } else {
-                alert(data.message || 'Failed to update status');
-            }
-        }
-    })
-    .catch(function(error) {
-        console.error('Error:', error);
-        showNotification('Error updating order status. Please try again.', 'error');
-    });
+            ordRender();
+        })
+        .catch(function () {
+            ordLoaded = true;
+            orders = [];
+            ordRender();
+            showNotification('Could not load orders', 'error');
+        });
 }

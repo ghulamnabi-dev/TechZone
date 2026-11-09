@@ -60,7 +60,7 @@ var STATUS_TONE = {
     // orders (customer-facing status)
     pending: 'warn', processing: 'info', shipped: 'info', delivered: 'ok', cancelled: 'danger',
     // payment / fulfilment axes
-    paid: 'ok', unpaid: 'warn', refunded: 'neutral', unfulfilled: 'warn', partial: 'info', fulfilled: 'ok',
+    paid: 'ok', unpaid: 'warn', refunded: 'info', unfulfilled: 'warn', partial: 'info', fulfilled: 'ok',
     // catalogue
     active: 'ok', draft: 'neutral', archived: 'neutral', inactive: 'neutral',
     // reviews / messages / discounts
@@ -237,6 +237,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
     applyCaps(document);
     initCommandPalette();
+    initNotifications();
     initShortcuts();
     // ⌘ on Apple keyboards, Ctrl elsewhere
     if (!/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
@@ -326,8 +327,10 @@ function initSaveBar(form, opts) {
 }
 
 /* ==========================================================================
-   ⌘K command palette. Phase 1: navigation + "search in …" stubs. A page or the
-   phase-2 search API can register live results with tzSearch.provider = fn(q) -> Promise<[{group,label,hint,icon,href}]>.
+   ⌘K command palette (docs/ADMIN.md "⌘K"). Typing searches api/search.php (debounced 150 ms):
+   orders by #, customer name or phone; products by name or SKU; customers by name, email or phone.
+   Empty input shows recent searches (localStorage) and "Jump to" pages. ↑↓ move, Enter opens, Esc closes.
+   Pages may still add their own results with tzSearch.provider = fn(q) -> Promise<[{group,label,sub,icon,href}]>.
    ========================================================================== */
 var tzSearch = { provider: null, open: null, close: null };
 function initCommandPalette() {
@@ -336,25 +339,56 @@ function initCommandPalette() {
     var input = document.getElementById('cmdkInput');
     var list = document.getElementById('cmdkList');
     var url = function (p) { return adminUrl('manage/' + p); };
+    var RECENT_KEY = 'tz.cmdk.recent';
+    var settingsHref = tzCan('settings.write') ? url('settings.php') : url('settings.php?tab=activity');
     var PAGES = [
-        { label: 'Home', icon: 'fa-house', href: url('dashboard.php'), keys: 'home dashboard' },
-        { label: 'Orders', icon: 'fa-inbox', href: url('orders.php'), hint: 'G O', keys: 'orders sales' },
-        { label: 'Products', icon: 'fa-tag', href: url('products.php'), hint: 'G P', keys: 'products catalogue catalog' },
+        { label: 'Home', icon: 'fa-house', href: url('dashboard.php'), hint: 'G H', keys: 'home dashboard today' },
+        { label: 'Orders', icon: 'fa-inbox', href: url('orders.php'), hint: 'G O', keys: 'orders sales fulfil', jump: true },
+        { label: 'Products', icon: 'fa-tag', href: url('products.php'), hint: 'G P', keys: 'products catalogue catalog', jump: true },
+        { label: 'Customers', icon: 'fa-user-group', href: url('customers.php'), hint: 'G C', keys: 'customers people', jump: true },
+        { label: 'Settings', icon: 'fa-gear', href: settingsHref, keys: 'settings store shipping payments staff activity', cap: ['settings.write', 'activity.view'], jump: true },
         { label: 'Categories', icon: 'fa-folder', href: url('categories.php'), keys: 'categories' },
         { label: 'Inventory', icon: 'fa-boxes-stacked', href: url('inventory.php'), keys: 'inventory stock low' },
-        { label: 'Customers', icon: 'fa-user-group', href: url('customers.php'), hint: 'G C', keys: 'customers people' },
         { label: 'Discounts', icon: 'fa-percent', href: url('promotions.php'), keys: 'discounts promotions promo codes coupons' },
         { label: 'Reviews', icon: 'fa-star', href: url('reviews.php'), keys: 'reviews ratings moderation' },
         { label: 'Messages', icon: 'fa-envelope', href: url('contact_messages.php'), keys: 'messages inbox contact' },
         { label: 'Analytics', icon: 'fa-chart-simple', href: url('analytics.php'), keys: 'analytics reports sales' },
-        { label: 'Settings', icon: 'fa-gear', href: url('settings.php'), keys: 'settings store shipping payments staff activity', cap: ['settings.write', 'activity.view'] },
+        { label: 'Shipping zones', icon: 'fa-truck', href: url('settings.php?tab=shipping'), keys: 'shipping zones rates delivery', cap: ['shipping.write'] },
+        { label: 'Staff & roles', icon: 'fa-user-shield', href: url('settings.php?tab=staff'), keys: 'staff team roles invite', cap: ['staff.manage'] },
+        { label: 'Activity log', icon: 'fa-clock-rotate-left', href: url('settings.php?tab=activity'), keys: 'activity audit log history', cap: ['activity.view'] },
         { label: 'Profile', icon: 'fa-user', href: url('profile.php'), keys: 'profile account password' }
     ].filter(function (p) { return !p.cap || p.cap.some(tzCan); });
     var items = [];
     var sel = 0;
     var seq = 0;
+    var timer = 0;
+    var lastQ = '';
 
-    function render(groups) {
+    function recent(add) {
+        var r = [];
+        try { r = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch (e) { r = []; }
+        if (!Array.isArray(r)) r = [];
+        if (add) {
+            add = String(add).trim().slice(0, 80);
+            if (!add) return r;
+            r = [add].concat(r.filter(function (x) { return String(x).toLowerCase() !== add.toLowerCase(); })).slice(0, 5);
+            try { localStorage.setItem(RECENT_KEY, JSON.stringify(r)); } catch (e) { /* private mode */ }
+        }
+        return r.filter(function (x) { return typeof x === 'string' && x; });
+    }
+    /** escaped text with the query's matches in <mark> */
+    function hl(text, q) {
+        text = String(text == null ? '' : text);
+        q = String(q || '').replace(/^#/, '').trim();
+        if (!q) return escapeHtml(text);
+        var lower = text.toLowerCase(), ql = q.toLowerCase(), out = '', i = 0, j;
+        while ((j = lower.indexOf(ql, i)) !== -1) {
+            out += escapeHtml(text.slice(i, j)) + '<mark>' + escapeHtml(text.slice(j, j + q.length)) + '</mark>';
+            i = j + q.length;
+        }
+        return out + escapeHtml(text.slice(i));
+    }
+    function render(groups, q, note) {
         items = [];
         var html = '';
         groups.forEach(function (g) {
@@ -363,11 +397,18 @@ function initCommandPalette() {
             g.items.forEach(function (it) {
                 var i = items.length;
                 items.push(it);
-                html += '<a class="cmdk-item" role="option" id="cmdk-opt-' + i + '" data-i="' + i + '" href="' + escapeHtml(it.href) + '" aria-selected="false">' +
-                    '<i class="fas ' + escapeHtml(it.icon || 'fa-arrow-right') + '" aria-hidden="true"></i><span>' + escapeHtml(it.label) + '</span>' +
-                    (it.hint ? '<span class="hint">' + escapeHtml(it.hint) + '</span>' : '') + '</a>';
+                var meta = '';
+                if (it.status) meta += statusPill(it.status);
+                if (it.money != null) meta += '<span class="srch-money tabular">' + formatPKR(it.money) + '</span>';
+                if (it.hint) meta += '<span class="hint">' + escapeHtml(it.hint) + '</span>';
+                html += '<a class="cmdk-item' + (it.sub ? ' srch-two' : '') + '" role="option" id="cmdk-opt-' + i + '" data-i="' + i + '" href="' + escapeHtml(it.href || '#') + '" aria-selected="false">' +
+                    '<i class="fas ' + escapeHtml(it.icon || 'fa-arrow-right') + '" aria-hidden="true"></i>' +
+                    '<span class="srch-text"><span class="srch-label">' + (it.raw ? escapeHtml(it.label) : hl(it.label, q)) + '</span>' +
+                    (it.sub ? '<span class="srch-sub">' + hl(it.sub, q) + '</span>' : '') + '</span>' +
+                    (meta ? '<span class="srch-meta">' + meta + '</span>' : '') + '</a>';
             });
         });
+        if (note) html = '<div class="srch-note">' + escapeHtml(note) + '</div>' + html;
         list.innerHTML = html || '<div class="cmdk-empty">No matches. Try an order number, a SKU or a customer\'s phone.</div>';
         select(Math.min(sel, Math.max(0, items.length - 1)));
     }
@@ -379,33 +420,72 @@ function initCommandPalette() {
             if (on) { a.scrollIntoView({ block: 'nearest' }); input.setAttribute('aria-activedescendant', a.id); }
         });
     }
+    function fallbacks(q) {
+        var enc = encodeURIComponent(q);
+        return [
+            { label: 'Search orders for “' + q + '”', icon: 'fa-inbox', href: url('orders.php?q=' + enc), raw: true },
+            { label: 'Search products for “' + q + '”', icon: 'fa-tag', href: url('products.php?q=' + enc), raw: true },
+            { label: 'Search customers for “' + q + '”', icon: 'fa-user-group', href: url('customers.php?q=' + enc), raw: true }
+        ];
+    }
+    function pagesFor(q) {
+        var ql = q.toLowerCase();
+        return PAGES.filter(function (p) { return (p.label + ' ' + p.keys).toLowerCase().indexOf(ql) !== -1; });
+    }
+    function idle() {
+        var r = recent().map(function (x) { return { label: x, icon: 'fa-clock-rotate-left', fill: x, href: '#', raw: true }; });
+        sel = 0;
+        render([
+            { title: 'Recent searches', items: r },
+            { title: 'Jump to', items: PAGES.filter(function (p) { return p.jump; }) },
+            { title: 'Pages', items: PAGES.filter(function (p) { return !p.jump; }) }
+        ], '');
+    }
     function update() {
         var q = input.value.trim();
-        var ql = q.toLowerCase();
-        var pages = PAGES.filter(function (p) { return !ql || (p.label + ' ' + p.keys).toLowerCase().indexOf(ql) !== -1; });
-        var groups = [];
-        if (q) {
-            var enc = encodeURIComponent(q);
-            var num = /^#?\d+$/.test(q) ? q.replace('#', '') : null;
-            var search = [];
-            if (num) search.push({ label: 'Order #' + num, icon: 'fa-receipt', href: url('order.php?id=' + num), hint: 'Open order' });
-            search.push({ label: 'Search orders for “' + q + '”', icon: 'fa-inbox', href: url('orders.php?q=' + enc) });
-            search.push({ label: 'Search products for “' + q + '”', icon: 'fa-tag', href: url('products.php?q=' + enc) });
-            search.push({ label: 'Search customers for “' + q + '”', icon: 'fa-user-group', href: url('customers.php?q=' + enc) });
-            groups.push({ title: 'Search', items: search });
-        }
-        groups.push({ title: q ? 'Pages' : 'Go to', items: pages });
-        sel = 0;
-        render(groups);
-        if (q && typeof tzSearch.provider === 'function') {
-            var my = ++seq;
-            tzSearch.provider(q).then(function (res) {
-                if (my !== seq || !res || !res.length) return;
-                var byGroup = {};
-                res.forEach(function (r) { (byGroup[r.group || 'Results'] = byGroup[r.group || 'Results'] || []).push(r); });
-                render(Object.keys(byGroup).map(function (k) { return { title: k, items: byGroup[k] }; }).concat(groups));
-            }).catch(function () {});
-        }
+        clearTimeout(timer);
+        if (!q) { lastQ = ''; seq++; idle(); return; }
+        var pages = pagesFor(q);
+        // keep what is on screen while typing; show pages + a searching hint on the first keystroke
+        if (!lastQ) { sel = 0; render([{ title: 'Pages', items: pages }], q, 'Searching…'); }
+        timer = setTimeout(function () { run(q, pages); }, 150);
+    }
+    function run(q, pages) {
+        var my = ++seq;
+        var api = fetch(adminUrl('api/search.php?q=' + encodeURIComponent(q)), { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .catch(function () { return { success: false }; });
+        var extra = typeof tzSearch.provider === 'function' ? Promise.resolve(tzSearch.provider(q)).catch(function () { return []; }) : Promise.resolve([]);
+        Promise.all([api, extra]).then(function (res) {
+            if (my !== seq) return;
+            var d = res[0] || {}, g = d.groups || {};
+            var groups = [];
+            groups.push({ title: 'Orders', items: (g.orders || []).map(function (o) {
+                return { label: o.label, sub: o.sub, icon: 'fa-receipt', href: o.href, status: o.status, money: o.total };
+            }) });
+            groups.push({ title: 'Products', items: (g.products || []).map(function (p) {
+                return { label: p.label, sub: p.sub, icon: 'fa-tag', href: p.href, status: p.status === 'active' ? null : p.status, money: p.price };
+            }) });
+            groups.push({ title: 'Customers', items: (g.customers || []).map(function (c) {
+                return { label: c.label, sub: c.sub, icon: 'fa-user', href: c.href };
+            }) });
+            var byGroup = {};
+            (res[1] || []).forEach(function (r) { (byGroup[r.group || 'Results'] = byGroup[r.group || 'Results'] || []).push(r); });
+            Object.keys(byGroup).forEach(function (k) { groups.push({ title: k, items: byGroup[k] }); });
+            var found = groups.some(function (x) { return x.items.length; });
+            groups.push({ title: 'Pages', items: pages });
+            groups.push({ title: found ? 'More' : 'Search in', items: fallbacks(q) });
+            if (q !== lastQ) sel = 0;
+            lastQ = q;
+            render(groups, q, d.success === false ? 'Search is unavailable right now. Pages still work.' : (found ? '' : 'No orders, products or customers match “' + q + '”.'));
+        });
+    }
+    function activate(it) {
+        if (!it) return;
+        if (it.fill) { input.value = it.fill; update(); input.focus(); return; }
+        var q = input.value.trim();
+        if (q) recent(q);
+        location.href = it.href;
     }
     var lastFocus = null;
     function open(prefill) {
@@ -414,12 +494,15 @@ function initCommandPalette() {
         root.hidden = false;
         document.body.style.overflow = 'hidden';
         input.value = prefill || '';
+        lastQ = '';
         update();
         setTimeout(function () { input.focus(); }, 0);
     }
     function close() {
         if (root.hidden) return;
         root.hidden = true;
+        clearTimeout(timer);
+        seq++;
         document.body.style.overflow = '';
         if (lastFocus && lastFocus.focus) lastFocus.focus();
     }
@@ -429,7 +512,7 @@ function initCommandPalette() {
     input.addEventListener('keydown', function (e) {
         if (e.key === 'ArrowDown') { e.preventDefault(); if (items.length) select((sel + 1) % items.length); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); if (items.length) select((sel - 1 + items.length) % items.length); }
-        else if (e.key === 'Enter') { e.preventDefault(); if (items[sel]) location.href = items[sel].href; }
+        else if (e.key === 'Enter') { e.preventDefault(); activate(items[sel]); }
         else if (e.key === 'Escape') { e.preventDefault(); close(); }
         else if (e.key === 'Tab') { e.preventDefault(); }
     });
@@ -437,10 +520,86 @@ function initCommandPalette() {
         var a = e.target.closest('.cmdk-item');
         if (a && +a.getAttribute('data-i') !== sel) select(+a.getAttribute('data-i'));
     });
+    list.addEventListener('click', function (e) {
+        var a = e.target.closest('.cmdk-item');
+        if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+        e.preventDefault();
+        activate(items[+a.getAttribute('data-i')]);
+    });
     root.addEventListener('click', function (e) { if (e.target.closest('[data-cmdk-close]')) close(); });
     document.addEventListener('click', function (e) {
         if (e.target.closest('[data-search-open]')) { e.preventDefault(); open(); }
     });
+}
+
+/* ==========================================================================
+   🔔 Notifications (api/notifications.php, computed live). Opening the menu loads the list and
+   marks everything in it as seen for this session, so the badge clears until something new appears.
+   The badge refreshes every 60 s while the tab is visible.
+   ========================================================================== */
+function initNotifications() {
+    var wrap = document.getElementById('ntf');
+    var bell = document.getElementById('ntfBell');
+    var badge = document.getElementById('ntfBadge');
+    var listEl = document.getElementById('ntfList');
+    var seenBtn = document.getElementById('ntfSeen');
+    if (!wrap || !bell || !listEl) return;
+    var api = adminUrl('api/notifications.php');
+    function setBadge(n) {
+        n = +n || 0;
+        badge.hidden = n <= 0;
+        badge.textContent = n > 99 ? '99+' : String(n);
+        bell.setAttribute('aria-label', 'Notifications' + (n ? ' (' + n + ' new)' : ''));
+    }
+    function ago(v) {
+        var d = parseDate(v);
+        if (!d) return '';
+        var s = Math.max(0, (Date.now() - d.getTime()) / 1000);
+        if (s < 60) return 'just now';
+        if (s < 3600) return Math.floor(s / 60) + ' min ago';
+        if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+        return formatDate(d);
+    }
+    function render(d) {
+        var items = (d && d.items) || [];
+        if (!items.length) {
+            listEl.innerHTML = '<div class="notif-empty ntf-empty"><i class="fas fa-circle-check" aria-hidden="true"></i>You\'re all caught up. New orders, payments and stock alerts show up here.</div>';
+        } else {
+            listEl.innerHTML = items.map(function (it) {
+                return '<a class="notif-item' + (it.unseen ? ' ntf-new' : '') + '" href="' + escapeHtml(it.href) + '" data-ntf-kind="' + escapeHtml(it.kind) + '">' +
+                    '<span class="notif-icon tone-' + escapeHtml(it.tone) + '"><i class="fas ' + escapeHtml(it.icon) + '"></i></span>' +
+                    '<span class="notif-text"><strong>' + escapeHtml(it.title) + '</strong><small>' + escapeHtml(it.sub) +
+                    (it.latest && (it.kind === 'orders' || it.kind === 'payments') ? ' · latest ' + escapeHtml(ago(it.latest)) : '') + '</small></span>' +
+                    (it.unseen ? '<span class="ntf-count" title="New since you last looked">' + it.unseen + ' new</span>' : '') + '</a>';
+            }).join('');
+        }
+        if (seenBtn) seenBtn.hidden = !(d && d.unseen);
+    }
+    function load() {
+        return fetch(api, { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (d) {
+            if (!d || !d.success) throw new Error('bad');
+            setBadge(d.unseen);
+            return d;
+        });
+    }
+    function markSeen() {
+        return fetch(api, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: '{"seen":1}' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (d && d.success) { setBadge(d.unseen); if (seenBtn) seenBtn.hidden = true; } return d; })
+            .catch(function () {});
+    }
+    wrap.addEventListener('show.bs.dropdown', function () {
+        load().then(function (d) {
+            render(d);
+            if (d.unseen) setTimeout(markSeen, 600);   // the "new" tags stay visible for this opening
+        }).catch(function () {
+            listEl.innerHTML = '<div class="notif-empty">Couldn\'t load notifications. Try again in a moment.</div>';
+        });
+    });
+    if (seenBtn) seenBtn.addEventListener('click', function () {
+        markSeen().then(function () { listEl.querySelectorAll('.ntf-new').forEach(function (a) { a.classList.remove('ntf-new'); }); listEl.querySelectorAll('.ntf-count').forEach(function (c) { c.remove(); }); });
+    });
+    setInterval(function () { if (!document.hidden) load().catch(function () {}); }, 60000);
 }
 
 /* ==========================================================================

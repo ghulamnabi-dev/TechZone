@@ -21,7 +21,7 @@ $tzF = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
             <div class="col-6 col-lg-3">
                 <h2 class="site-footer__title">Help</h2>
                 <ul class="site-footer__list">
-                    <li><a href="<?php echo $tzF(site_url('about.php#how-to-order')); ?>">How to order</a></li>
+                    <li><a href="<?php echo $tzF(site_url('track.php')); ?>">Track your order</a></li>
                     <li><a href="<?php echo $tzF(site_url('about.php#shipping')); ?>">Shipping</a></li>
                     <li><a href="<?php echo $tzF(site_url('about.php#returns')); ?>">Returns</a></li>
                     <li><a href="<?php echo $tzF(site_url('about.php#warranty')); ?>">Warranty</a></li>

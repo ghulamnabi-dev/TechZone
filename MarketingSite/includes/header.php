@@ -194,8 +194,15 @@ $tzE = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 <body class="<?php echo $tzIsHome ? 'page-home' : ''; ?>">
 <a class="skip-link" href="#main">Skip to content</a>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><linearGradient id="tzHalf"><stop offset="50%" stop-color="#15181e"/><stop offset="50%" stop-color="#d7dae0"/></linearGradient></defs></svg>
-<?php if ($tzIsHome): ?>
-<div class="promo-bar"><div class="container">Cash on delivery across Pakistan. Free delivery on orders over Rs 5,000.</div></div>
+<?php
+// Store notice from Settings → Store (core/settings.php); empty hides the bar
+if ($tzIsHome) {
+    require_once __DIR__ . '/../../core/settings.php';
+    $tzNotice = trim((string) setting('store_notice', store_setting_defaults()['store_notice']));
+}
+?>
+<?php if ($tzIsHome && $tzNotice !== ''): ?>
+<div class="promo-bar"><div class="container"><?php echo $tzE($tzNotice); ?></div></div>
 <?php endif; ?>
 
 <header class="site-header">

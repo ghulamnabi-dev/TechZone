@@ -61,6 +61,130 @@ function product_input(): array
     return [$name, $description, $price, $categoryId, $inventory, $sold, $isActive];
 }
 
+
+/** Editable columns of the product page (manage/product.php), in audit order. */
+const PRODUCT_EDITOR_FIELDS = ['name', 'category_id', 'sku', 'description', 'price', 'compare_at_price', 'cost_price',
+    'low_stock_threshold', 'status', 'seo_title', 'seo_description'];
+
+/**
+ * Validate the product page's JSON body. Collects every problem so the page can show them
+ * inline under each field (validation_problem()).
+ *
+ * @return array normalised values keyed by PRODUCT_EDITOR_FIELDS (+ 'inventory' on create)
+ */
+function product_editor_input(PDO $conn, array $d, ?int $id): array
+{
+    $errors = [];
+    $money = static function ($v, bool $nullable) {
+        if ($v === null || $v === '') {
+            return $nullable ? null : false;
+        }
+        $n = v_num($v, 0, 999999999);
+        return $n === null ? false : round($n, 2);
+    };
+
+    $out = [];
+    $out['name'] = v_str($d['name'] ?? '', 200, false);
+    if ($out['name'] === null) {
+        $errors['name'] = 'Give the product a name (up to 200 characters).';
+    }
+    $cat = $d['category_id'] ?? '';
+    $out['category_id'] = ($cat === '' || $cat === null) ? null : v_id($cat);
+    if ($out['category_id'] === 0) {
+        $errors['category_id'] = 'Choose a category from the list.';
+    } elseif ($out['category_id'] !== null) {
+        $st = $conn->prepare('SELECT COUNT(*) FROM categories WHERE id = ?');
+        $st->execute([$out['category_id']]);
+        if (!(int) $st->fetchColumn()) {
+            $errors['category_id'] = 'That category no longer exists.';
+        }
+    }
+    $sku = v_str($d['sku'] ?? '', 40);
+    if ($sku === null || ($sku !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9._\-]*$/', $sku))) {
+        $errors['sku'] = 'SKU may use letters, numbers, dots and dashes (up to 40).';
+    } else {
+        $sku = strtoupper($sku);
+        if ($sku !== '') {
+            $st = $conn->prepare('SELECT id FROM products WHERE sku = ? AND id <> ?');
+            $st->execute([$sku, $id ?? 0]);
+            if ($st->fetchColumn()) {
+                $errors['sku'] = "SKU $sku is already used by another product.";
+            }
+        }
+    }
+    $out['sku'] = $sku === '' ? null : $sku;
+    $out['description'] = v_str($d['description'] ?? '', 20000);
+    if ($out['description'] === null) {
+        $errors['description'] = 'Description is too long (20,000 characters at most).';
+    }
+    $out['price'] = $money($d['price'] ?? null, false);
+    if ($out['price'] === false) {
+        $errors['price'] = 'Enter a price in rupees (0 or more).';
+    }
+    $out['compare_at_price'] = $money($d['compare_at_price'] ?? null, true);
+    if ($out['compare_at_price'] === false) {
+        $errors['compare_at_price'] = 'Enter a number, or leave it empty.';
+    } elseif ($out['compare_at_price'] !== null && $out['price'] !== false && $out['compare_at_price'] <= $out['price']) {
+        $errors['compare_at_price'] = 'Compare-at price must be higher than the price, or empty.';
+    }
+    $out['cost_price'] = $money($d['cost_price'] ?? null, true);
+    if ($out['cost_price'] === false) {
+        $errors['cost_price'] = 'Enter a number, or leave it empty.';
+    }
+    $out['low_stock_threshold'] = v_int(($d['low_stock_threshold'] ?? '') === '' ? 5 : $d['low_stock_threshold'], 0, 100000);
+    if ($out['low_stock_threshold'] === null) {
+        $errors['low_stock_threshold'] = 'Use a whole number from 0 to 100,000.';
+    }
+    $out['status'] = v_enum($d['status'] ?? 'draft', ['draft', 'active', 'archived']);
+    if ($out['status'] === null) {
+        $errors['status'] = 'Choose Draft, Active or Archived.';
+    }
+    $out['seo_title'] = v_str($d['seo_title'] ?? '', 200);
+    if ($out['seo_title'] === null) {
+        $errors['seo_title'] = 'Keep the page title under 200 characters (60 shows in search).';
+    }
+    $out['seo_description'] = v_str($d['seo_description'] ?? '', 320);
+    if ($out['seo_description'] === null) {
+        $errors['seo_description'] = 'Keep the meta description under 320 characters.';
+    }
+    $out['seo_title'] = $out['seo_title'] === '' ? null : $out['seo_title'];
+    $out['seo_description'] = $out['seo_description'] === '' ? null : $out['seo_description'];
+    if ($id === null) {
+        $out['inventory'] = v_int(($d['inventory'] ?? '') === '' ? 0 : $d['inventory'], 0, 1000000);
+        if ($out['inventory'] === null) {
+            $errors['inventory'] = 'Opening stock must be a whole number (0 or more).';
+        }
+    }
+    if ($errors) {
+        validation_problem($errors);
+    }
+    return $out;
+}
+
+/** Sales and rating figures for the product page's Insights card. */
+function product_insights(PDO $conn, int $id): array
+{
+    $st = $conn->prepare("SELECT COALESCE(SUM(i.quantity), 0) AS units, COALESCE(SUM(i.subtotal), 0) AS revenue, COUNT(DISTINCT i.order_id) AS orders,
+            COALESCE(SUM(CASE WHEN o.order_date >= NOW() - INTERVAL 30 DAY THEN i.quantity ELSE 0 END), 0) AS units_30d,
+            MAX(o.order_date) AS last_sold_at
+        FROM order_items i JOIN orders o ON o.id = i.order_id
+        WHERE i.product_id = ? AND o.status <> 'Cancelled'");
+    $st->execute([$id]);
+    $s = $st->fetch(PDO::FETCH_ASSOC);
+    $st = $conn->prepare("SELECT COUNT(*) AS n, AVG(rating) AS avg FROM reviews WHERE product_id = ? AND status = 'Approved'");
+    $st->execute([$id]);
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    return [
+        'units' => (int) $s['units'],
+        'revenue' => (float) $s['revenue'],
+        'orders' => (int) $s['orders'],
+        'units_30d' => (int) $s['units_30d'],
+        'last_sold_at' => $s['last_sold_at'],
+        'reviews' => (int) $r['n'],
+        'avg_rating' => $r['avg'] !== null ? round((float) $r['avg'], 1) : null,
+    ];
+}
+
 checkLogin(true);
 json_headers();
 
@@ -78,6 +202,7 @@ try {
                 json_response(['success' => false, 'message' => 'Product not found'], 404);
             }
             $product['imagelink'] = product_imagelink_for_client($product['imagelink'] ?? '');
+            $product['insights'] = product_insights($conn, (int) $product['id']);
             json_response(['success' => true, 'product' => $product]);
         }
 
@@ -96,6 +221,104 @@ try {
     // Writes: products.write; DELETE additionally products.delete (owner only)
     if ($method !== 'GET') {
         require_can($method === 'DELETE' ? 'products.delete' : 'products.write');
+    }
+
+
+    // ---- product page (manage/product.php): JSON create / update, image-only upload ----
+    $isJsonBody = stripos((string) ($_SERVER['CONTENT_TYPE'] ?? ''), 'json') !== false;
+    if (($method === 'PUT' || $method === 'POST') && $isJsonBody) {
+        enforce_csrf_json();
+        $data = request_json();
+        $id = $method === 'PUT' ? v_id($data['id'] ?? 0) : null;
+        if ($method === 'PUT' && $id === 0) {
+            json_error('Product ID is required for update', 422);
+        }
+        $existing = null;
+        if ($id !== null) {
+            $st = $conn->prepare('SELECT ' . implode(', ', PRODUCT_EDITOR_FIELDS) . ' FROM products WHERE id = ?');
+            $st->execute([$id]);
+            $existing = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$existing) {
+                json_error('Product not found', 404);
+            }
+        }
+        $in = product_editor_input($conn, $data, $id);
+        $isActive = $in['status'] === 'active' ? 1 : 0;
+        $conn->beginTransaction();
+        try {
+            if ($id === null) {
+                $opening = $in['inventory'];
+                unset($in['inventory']);
+                $cols = array_keys($in);
+                $st = $conn->prepare('INSERT INTO products (' . implode(', ', $cols) . ', is_active, inventory, sold, imagelink) VALUES ('
+                    . implode(', ', array_fill(0, count($cols), '?')) . ', ?, 0, 0, NULL)');
+                $st->execute([...array_values($in), $isActive]);
+                $id = (int) $conn->lastInsertId();
+                if ($in['sku'] === null) {
+                    $in['sku'] = sprintf('TZ-%04d', $id);
+                    $conn->prepare('UPDATE products SET sku = ? WHERE id = ? AND sku IS NULL')->execute([$in['sku'], $id]);
+                }
+                if ($opening > 0) {
+                    adjust_inventory($conn, $id, null, $opening, 'received', 'Opening stock', (int) $_SESSION['admin_id']);
+                }
+                audit('product.create', 'product', $id, "Created {$in['sku']} {$in['name']}" . ($in['status'] !== 'active' ? " as {$in['status']}" : ''),
+                    null, ['price' => $in['price'], 'status' => $in['status'], 'inventory' => $opening]);
+                $conn->commit();
+                json_response(['success' => true, 'message' => 'Product created', 'id' => $id, 'product_id' => $id]);
+            }
+            if ($in['sku'] === null) {
+                $in['sku'] = $existing['sku'] ?: sprintf('TZ-%04d', $id);
+            }
+            $sets = implode(', ', array_map(static fn($c) => "$c = ?", array_keys($in)));
+            $conn->prepare("UPDATE products SET $sets, is_active = ? WHERE id = ?")->execute([...array_values($in), $isActive, $id]);
+            $norm = static fn($v) => $v === null ? null : (is_float($v) ? number_format($v, 2, '.', '') : (string) $v);
+            [$before, $after] = audit_diff($existing, array_map($norm, $in));
+            foreach (['description', 'seo_description'] as $long) {
+                if (array_key_exists($long, $after)) {
+                    $before[$long] = '…';
+                    $after[$long] = '…';
+                }
+            }
+            if ($after) {
+                $verb = isset($after['status']) && count($after) === 1 ? ['active' => 'Activated', 'draft' => 'Moved to draft', 'archived' => 'Archived'][$in['status']] : 'Updated';
+                audit(isset($after['status']) && count($after) === 1 ? 'product.status' : 'product.update', 'product', $id,
+                    "$verb {$in['sku']} {$in['name']}" . ($verb === 'Updated' ? ' (' . implode(', ', array_keys($after)) . ')' : ''), $before, $after);
+            }
+            $conn->commit();
+        } catch (Throwable $e) {
+            if ($conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if ($e instanceof PDOException && $e->getCode() === '23000') {
+                validation_problem(['sku' => 'That SKU is already used by another product.']);
+            }
+            throw $e;
+        }
+        json_response(['success' => true, 'message' => $after ? 'Product saved' : 'No changes to save', 'id' => $id, 'changed' => array_keys($after)]);
+    }
+
+    // POST action=image: replace the product's one image (manage/product.php media card)
+    if ($method === 'POST' && ($_POST['action'] ?? '') === 'image') {
+        enforce_csrf_json();
+        $id = v_id($_POST['id'] ?? 0);
+        $st = $conn->prepare('SELECT imagelink, name, sku FROM products WHERE id = ?');
+        $st->execute([$id]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            json_error('Product not found', 404);
+        }
+        try {
+            $imagelink = 'uploads/' . store_uploaded_image('image', $uploadDir);
+        } catch (UploadException $e) {
+            validation_problem(['image' => $e->getMessage()]);
+        }
+        $conn->prepare('UPDATE products SET imagelink = ? WHERE id = ?')->execute([$imagelink, $id]);
+        audit('product.update', 'product', $id, 'Replaced the image of ' . trim(($row['sku'] ?? '') . ' ' . $row['name']), ['imagelink' => $row['imagelink']], ['imagelink' => $imagelink]);
+        $old = (string) ($row['imagelink'] ?? '');
+        if ($old !== '' && strpos($old, 'uploads/') === 0) {
+            delete_upload_if_unused($conn, $old, $uploadDir);
+        }
+        json_response(['success' => true, 'message' => 'Image replaced', 'imagelink' => product_imagelink_for_client($imagelink)]);
     }
 
     // UPDATE - POST with _method=PUT (multipart, so image uploads work)

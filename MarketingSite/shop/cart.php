@@ -447,7 +447,9 @@ if ($final_total < 0) $final_total = 0;
                         <?php if ($discount > 0): ?>
                             <div class="is-discount"><dt>Discount (<?php echo $h($_SESSION['applied_promo_code']); ?>)</dt><dd>&minus;<?php echo format_pkr($discount); ?></dd></div>
                         <?php endif; ?>
-                        <?php if ($quote === null): ?>
+                        <?php if ($free_shipping_code): ?>
+                            <div class="is-discount"><dt>Shipping (<?php echo $h($_SESSION['applied_promo_code']); ?>)</dt><dd>Free</dd></div>
+                        <?php elseif ($quote === null): ?>
                             <div><dt>Shipping</dt><dd>Calculated at checkout</dd></div>
                         <?php else: ?>
                             <div><dt>Shipping<?php if ($quote['zone']): ?> · <?php echo $h($quote['zone']['name']); ?><?php endif; ?></dt><dd><?php echo $shipping > 0 ? format_pkr($shipping) : 'Free'; ?></dd></div>

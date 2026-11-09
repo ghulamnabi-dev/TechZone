@@ -11,7 +11,7 @@
  *       rowActions:  function (row) { return [{ icon, label, attrs, tone }] },
  *       onRowOpen:   function (row) {},                        // row click / Enter
  *       selectable:  true,                                     // checkbox column + bulk bar
- *       bulkActions: [{ label, icon, tone, menu:[{label,value}], confirm, perRow(row, value) -> Promise<bool>, done(ok, failed, value) -> string }],
+ *       bulkActions: [{ label, icon, tone, menu:[{label,value}], confirm, before(rows, value) -> Promise<value|null>, perRow(row, value) -> Promise<bool>, done(ok, failed, value) -> string }],
  *       onBulkDone:  function () {},                           // usually reloads data
  *       onSelectionChange: function (rows) {}
  *   });
@@ -418,6 +418,10 @@
                 var value = vIdx != null ? a.menu[+vIdx].value : undefined;
                 var rows = selectedRows();
                 var go = function () { runBulk(a, rows, value); };
+                if (a.before) {   // before(rows, value) -> Promise<value | null>: ask for input first (e.g. a reason); null aborts
+                    Promise.resolve(a.before(rows, value)).then(function (v) { if (v != null) runBulk(a, rows, v); });
+                    return;
+                }
                 if (a.confirm) {
                     var msg = typeof a.confirm === 'function' ? a.confirm(rows, value) : a.confirm;
                     showConfirm(msg, go, a.confirmLabel || a.label);

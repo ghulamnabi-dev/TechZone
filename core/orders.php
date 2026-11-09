@@ -391,13 +391,15 @@ function order_confirm(PDO $conn, int $orderId, ?int $adminId = null): array
  *
  * @param float|null  $amount defaults to the order total
  * @param string|null $method defaults to the order's payment_method
+ * @param string|null $reference transaction id / receipt number (kept on the timeline event)
  * @return array the updated order row
  * @throws OrderActionException when cancelled or already paid
  */
-function order_record_payment(PDO $conn, int $orderId, ?float $amount = null, ?string $method = null, ?int $adminId = null): array
+function order_record_payment(PDO $conn, int $orderId, ?float $amount = null, ?string $method = null, ?int $adminId = null, ?string $reference = null): array
 {
     $adminId = order_actor($adminId);
-    return order_tx($conn, function () use ($conn, $orderId, $amount, $method, $adminId): array {
+    $reference = $reference !== null && trim($reference) !== '' ? mb_substr(trim($reference), 0, 80) : null;
+    return order_tx($conn, function () use ($conn, $orderId, $amount, $method, $adminId, $reference): array {
         $order = order_lock($conn, $orderId);
         order_assert_open($order, 'paid');
         if ($order['payment_status'] !== 'pending') {
@@ -406,7 +408,11 @@ function order_record_payment(PDO $conn, int $orderId, ?float $amount = null, ?s
         $amount = $amount ?? (float) $order['total'];
         $method = $method ?? $order['payment_method'];
         $conn->prepare("UPDATE orders SET payment_status = 'paid' WHERE id = ?")->execute([$orderId]);
-        order_event($conn, $orderId, 'payment_recorded', ['amount' => round($amount, 2), 'method' => $method], 'staff', $adminId);
+        $payload = ['amount' => round($amount, 2), 'method' => $method];
+        if ($reference !== null) {
+            $payload['reference'] = $reference;
+        }
+        order_event($conn, $orderId, 'payment_recorded', $payload, 'staff', $adminId);
         audit('order.payment', 'order', $orderId, 'Recorded payment of Rs ' . number_format($amount, 0) . " on order #$orderId",
             ['payment_status' => 'pending'], ['payment_status' => 'paid', 'amount' => round($amount, 2), 'method' => $method]);
         return order_get($conn, $orderId);
@@ -652,4 +658,151 @@ function order_set_status(PDO $conn, int $orderId, string $target, ?int $adminId
         }
         return order_get($conn, $orderId);
     });
+}
+
+/**
+ * Correct the courier / tracking number of the open shipment (until it is delivered).
+ * Writes a timeline entry (type note, payload.tracking_update) so the customer sees the new number.
+ *
+ * @return array the updated order row
+ * @throws OrderActionException when the order has no open shipment or nothing changed
+ */
+function order_update_shipment(PDO $conn, int $orderId, string $courier, ?string $tracking, ?int $adminId = null): array
+{
+    $adminId = order_actor($adminId);
+    $courier = mb_substr(trim($courier), 0, 60);
+    $tracking = $tracking !== null && trim($tracking) !== '' ? mb_substr(trim($tracking), 0, 80) : null;
+    if ($courier === '') {
+        throw new OrderActionException('Choose a courier.');
+    }
+    return order_tx($conn, function () use ($conn, $orderId, $courier, $tracking, $adminId): array {
+        $order = order_lock($conn, $orderId);
+        order_assert_open($order, 'updated');
+        $st = $conn->prepare('SELECT id, courier, tracking_number FROM order_shipments WHERE order_id = ? AND delivered_at IS NULL ORDER BY shipped_at DESC, id DESC LIMIT 1');
+        $st->execute([$orderId]);
+        $ship = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$ship) {
+            throw new OrderActionException("Order #$orderId has no shipment that can still be changed.");
+        }
+        if ($ship['courier'] === $courier && (string) $ship['tracking_number'] === (string) $tracking) {
+            throw new OrderActionException('Nothing changed.');
+        }
+        $conn->prepare('UPDATE order_shipments SET courier = ?, tracking_number = ? WHERE id = ?')->execute([$courier, $tracking, (int) $ship['id']]);
+        order_event($conn, $orderId, 'note', [
+            'tracking_update' => true,
+            'shipment_id_ref' => (int) $ship['id'],
+            'courier' => $courier,
+            'tracking' => $tracking,
+            'body' => 'Tracking updated: ' . $courier . ($tracking !== null ? ' · ' . $tracking : ''),
+        ], 'staff', $adminId);
+        audit('order.tracking', 'order', $orderId, "Updated tracking on order #$orderId",
+            ['courier' => $ship['courier'], 'tracking' => $ship['tracking_number']], ['courier' => $courier, 'tracking' => $tracking]);
+        return order_get($conn, $orderId);
+    });
+}
+
+/**
+ * Which staff operations the order's STATE allows (roles are checked separately with can()).
+ *
+ * @return array{confirm:bool,payment:bool,fulfil:bool,ship:bool,deliver:bool,cancel:bool,tracking:bool,note:bool}
+ */
+function order_allowed_actions(array $order): array
+{
+    $cancelled = $order['cancelled_at'] !== null || $order['status'] === 'Cancelled';
+    $status = $order['status'];
+    $beforeShip = !$cancelled && in_array($status, ['Pending', 'Processing'], true);
+    return [
+        'confirm' => !$cancelled && $status === 'Pending',
+        'payment' => !$cancelled && $order['payment_status'] === 'pending',
+        'fulfil' => $beforeShip && $order['fulfillment_status'] !== 'fulfilled',
+        'ship' => $beforeShip,
+        'deliver' => !$cancelled && $status === 'Shipped',
+        'cancel' => $beforeShip,
+        'tracking' => !$cancelled && $status === 'Shipped',
+        'note' => true,
+    ];
+}
+
+/**
+ * Everything the staff order page needs in one read: the order row, line items (with product
+ * image, SKU and fulfilled quantity), shipping zone, shipments, the latest payment record,
+ * customer profile + stats, internal notes (newest first), the timeline (oldest first),
+ * units a cancellation would restock and the state-allowed actions.
+ */
+function order_detail(PDO $conn, int $orderId): ?array
+{
+    $order = order_get($conn, $orderId);
+    if (!$order) {
+        return null;
+    }
+
+    $st = $conn->prepare('SELECT oi.id, oi.product_id, oi.product_name, oi.price, oi.quantity, oi.fulfilled_qty, oi.subtotal, oi.size, oi.color,
+            p.imagelink, p.sku
+        FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? ORDER BY oi.id');
+    $st->execute([$orderId]);
+    $items = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $zone = null;
+    if ($order['shipping_zone_id'] !== null) {
+        $st = $conn->prepare('SELECT id, name FROM shipping_zones WHERE id = ?');
+        $st->execute([(int) $order['shipping_zone_id']]);
+        $zone = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    $st = $conn->prepare('SELECT id, courier, tracking_number, shipped_at, delivered_at FROM order_shipments WHERE order_id = ? ORDER BY shipped_at, id');
+    $st->execute([$orderId]);
+    $shipments = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $st = $conn->prepare("SELECT e.payload, e.created_at, a.name AS actor_name FROM order_events e
+        LEFT JOIN admins a ON e.actor_type = 'staff' AND a.id = e.actor_id
+        WHERE e.order_id = ? AND e.type = 'payment_recorded' ORDER BY e.created_at DESC, e.id DESC LIMIT 1");
+    $st->execute([$orderId]);
+    $payRow = $st->fetch(PDO::FETCH_ASSOC);
+    $payment = null;
+    if ($payRow) {
+        $p = json_decode((string) $payRow['payload'], true) ?: [];
+        $payment = ['amount' => (float) ($p['amount'] ?? 0), 'method' => $p['method'] ?? null, 'reference' => $p['reference'] ?? null,
+            'at' => $payRow['created_at'], 'by' => $payRow['actor_name']];
+    }
+
+    $customer = null;
+    if ($order['customer_id'] !== null) {
+        $st = $conn->prepare('SELECT id, name, email, phone, city, address, created_at FROM customers WHERE id = ?');
+        $st->execute([(int) $order['customer_id']]);
+        $customer = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($customer) {
+            $st = $conn->prepare("SELECT COUNT(*) AS orders_count, COALESCE(SUM(CASE WHEN status <> 'Cancelled' THEN total ELSE 0 END), 0) AS lifetime_value
+                FROM orders WHERE customer_id = ?");
+            $st->execute([(int) $order['customer_id']]);
+            $stats = $st->fetch(PDO::FETCH_ASSOC);
+            $customer['orders_count'] = (int) $stats['orders_count'];
+            $customer['lifetime_value'] = (float) $stats['lifetime_value'];
+        }
+    }
+
+    $st = $conn->prepare('SELECT n.id, n.body, n.created_at, n.admin_id, a.name AS admin_name, a.role AS admin_role
+        FROM order_notes n LEFT JOIN admins a ON a.id = n.admin_id WHERE n.order_id = ? ORDER BY n.created_at DESC, n.id DESC');
+    $st->execute([$orderId]);
+    $notes = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $restock = 0;
+    foreach ($items as $it) {
+        if ($it['product_id'] !== null) {
+            $restock += (int) $it['quantity'];
+        }
+    }
+
+    return [
+        'order' => $order,
+        'items' => $items,
+        'zone' => $zone,
+        'shipments' => $shipments,
+        'shipment' => $shipments ? $shipments[count($shipments) - 1] : null,
+        'payment' => $payment,
+        'customer' => $customer,
+        'notes' => $notes,
+        'timeline' => order_timeline($conn, $orderId),
+        'restock_units' => $restock,
+        'allowed' => order_allowed_actions($order),
+    ];
 }

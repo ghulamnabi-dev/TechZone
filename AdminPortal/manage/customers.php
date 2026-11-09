@@ -22,23 +22,5 @@ require_once __DIR__ . '/../includes/header.php';
     <div id="customersTable" aria-label="Customers"></div>
 </div>
 
-<!-- Customer Details Modal -->
-<div class="modal fade" id="customerDetailsModal" tabindex="-1" aria-labelledby="customerDetailsTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="customerDetailsTitle">Customer</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="customerDetailsContent">
-                Loading…
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script src="<?php echo htmlspecialchars(admin_url('assets/js/customers.js'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/js/customers.js'); ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

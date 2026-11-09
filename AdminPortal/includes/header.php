@@ -41,7 +41,9 @@ try {
 } catch (PDOException $e) {
     log_exception($e, 'admin-shell-counts');
 }
-$tzBellCount = $tzCounts['unfulfilled'] + $tzCounts['pending_reviews'] + $tzCounts['low_stock'] + $tzCounts['new_messages'];
+// Bell badge = notifications not yet seen this session (core/notifications.php; the dropdown loads api/notifications.php)
+require_once __DIR__ . '/../../core/notifications.php';
+$tzBellCount = admin_notifications($conn)['unseen'];
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
@@ -82,32 +84,15 @@ $tzBellCount = $tzCounts['unfulfilled'] + $tzCounts['pending_reviews'] + $tzCoun
             </button>
         </div>
         <div class="admin-header-right">
-            <div class="dropdown">
-                <button type="button" class="topbar-icon" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notifications<?= $tzBellCount ? ' (' . $tzBellCount . ')' : '' ?>">
+            <div class="dropdown ntf" id="ntf">
+                <button type="button" class="topbar-icon" id="ntfBell" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true"
+                        aria-label="Notifications<?= $tzBellCount ? ' (' . $tzBellCount . ' new)' : '' ?>">
                     <i class="fas fa-bell"></i>
-                    <?php if ($tzBellCount > 0): ?><span class="topbar-dot" aria-hidden="true"></span><?php endif; ?>
+                    <span class="ntf-badge" id="ntfBadge"<?= $tzBellCount ? '' : ' hidden' ?> aria-hidden="true"><?= $tzBellCount > 99 ? '99+' : (int) $tzBellCount ?></span>
                 </button>
-                <div class="dropdown-menu dropdown-menu-end notif-menu">
-                    <div class="notif-head"><strong>Notifications</strong><span class="meta">Live counts</span></div>
-                    <div class="notif-list">
-                        <?php
-                        $tzNotes = [];
-                        if ($tzCounts['unfulfilled']) $tzNotes[] = ['fa-box', 'info', $tzCounts['unfulfilled'] . ' order' . ($tzCounts['unfulfilled'] === 1 ? '' : 's') . ' to fulfil', $tzCounts['today_orders'] . ' placed today', 'manage/orders.php'];
-                        if ($tzCounts['unpaid']) $tzNotes[] = ['fa-money-bill-wave', 'warn', $tzCounts['unpaid'] . ' payment' . ($tzCounts['unpaid'] === 1 ? '' : 's') . ' to collect', 'Cash on delivery and JazzCash', 'manage/orders.php'];
-                        if ($tzCounts['low_stock']) $tzNotes[] = ['fa-triangle-exclamation', 'danger', $tzCounts['low_stock'] . ' product' . ($tzCounts['low_stock'] === 1 ? '' : 's') . ' low on stock', 'At or below the threshold', 'manage/inventory.php'];
-                        if ($tzCounts['pending_reviews']) $tzNotes[] = ['fa-star', 'neutral', $tzCounts['pending_reviews'] . ' review' . ($tzCounts['pending_reviews'] === 1 ? '' : 's') . ' awaiting approval', 'Moderation queue', 'manage/reviews.php'];
-                        if ($tzCounts['new_messages']) $tzNotes[] = ['fa-envelope', 'neutral', $tzCounts['new_messages'] . ' new message' . ($tzCounts['new_messages'] === 1 ? '' : 's'), 'Contact form', 'manage/contact_messages.php'];
-                        ?>
-                        <?php if (!$tzNotes): ?>
-                            <div class="notif-empty">You're all caught up.</div>
-                        <?php endif; ?>
-                        <?php foreach ($tzNotes as [$icon, $tone, $title, $sub, $href]): ?>
-                            <a class="notif-item" href="<?= $tzE(admin_url($href)) ?>">
-                                <span class="notif-icon tone-<?= $tone ?>"><i class="fas <?= $icon ?>"></i></span>
-                                <span class="notif-text"><strong><?= $tzE($title) ?></strong><small><?= $tzE($sub) ?></small></span>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
+                <div class="dropdown-menu dropdown-menu-end notif-menu ntf-menu" aria-labelledby="ntfBell">
+                    <div class="notif-head"><strong>Notifications</strong><button type="button" class="ntf-seen" id="ntfSeen" hidden>Mark all as seen</button></div>
+                    <div class="notif-list" id="ntfList" aria-live="polite"><div class="notif-empty">Loading…</div></div>
                 </div>
             </div>
             <div class="dropdown">

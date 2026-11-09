@@ -39,6 +39,20 @@ $customer_address = $customer_data['address'] ?? '';
         $stmt->execute([$order_id]);
         $order_items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Tracking: latest shipment, customer-facing timeline, shipping zone
+require_once __DIR__ . '/../../core/events.php';
+$stmt = $conn->prepare("SELECT courier, tracking_number, shipped_at, delivered_at FROM order_shipments WHERE order_id = ? ORDER BY shipped_at DESC, id DESC LIMIT 1");
+$stmt->execute([$order_id]);
+$trkShipment = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+$trkTimeline = order_customer_timeline($conn, $order_id);
+$trkOrder = $order;
+$zoneName = null;
+if (!empty($order['shipping_zone_id'])) {
+    $stmt = $conn->prepare("SELECT name FROM shipping_zones WHERE id = ?");
+    $stmt->execute([(int) $order['shipping_zone_id']]);
+    $zoneName = $stmt->fetchColumn() ?: null;
+}
+
 // Check which products have been reviewed by this customer
 $reviewed_products = [];
 if (count($order_items) > 0) {
@@ -61,8 +75,6 @@ if ($order['status'] == 'Pending' || $order['status'] == 'Processing') {
 } else {
     $estimatedDelivery = null; // Already delivered
 }
-$statusSteps = ['Pending' => 1, 'Processing' => 2, 'Shipped' => 3, 'Delivered' => 4];
-$completedSteps = $statusSteps[$order['status']] ?? 1;
 $paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'JazzCash'];
 ?>
 <div class="container page">
@@ -80,11 +92,7 @@ $paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'Jazz
 
     <div class="row g-4 g-lg-5">
         <div class="col-lg-8">
-            <ol class="progress-steps" aria-label="Order progress">
-                <?php foreach (['Order placed', 'Processing', 'Shipped', 'Delivered'] as $n => $label): ?>
-                    <li class="<?php echo $completedSteps >= $n + 1 ? 'is-done' : ''; ?>"><?php echo $label; ?></li>
-                <?php endforeach; ?>
-            </ol>
+            <?php include __DIR__ . '/../includes/order-track.php'; ?>
 
             <div class="table-wrap">
                 <table class="data-table">
@@ -119,6 +127,20 @@ $paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'Jazz
                         <?php endforeach; ?>
                     </tbody>
                     <tfoot>
+                        <tr class="trk-foot-row">
+                            <th scope="row" colspan="3" class="num">Subtotal</th>
+                            <td class="num"><?php echo format_pkr($order['subtotal'] ?? $order['total']); ?></td>
+                        </tr>
+                        <tr class="trk-foot-row">
+                            <th scope="row" colspan="3" class="num">Shipping<?php echo $zoneName ? ' (' . $h($zoneName) . ')' : ''; ?></th>
+                            <td class="num"><?php echo (float) ($order['shipping_fee'] ?? 0) > 0 ? format_pkr($order['shipping_fee']) : 'Free'; ?></td>
+                        </tr>
+                        <?php if ((float) ($order['discount_amount'] ?? 0) > 0): ?>
+                        <tr class="trk-foot-row">
+                            <th scope="row" colspan="3" class="num">Discount<?php echo !empty($order['promo_code']) ? ' (' . $h($order['promo_code']) . ')' : ''; ?></th>
+                            <td class="num">−<?php echo format_pkr($order['discount_amount']); ?></td>
+                        </tr>
+                        <?php endif; ?>
                         <tr>
                             <th scope="row" colspan="3" class="num">Total</th>
                             <td class="num price"><?php echo format_pkr($order['total']); ?></td>
@@ -159,6 +181,10 @@ $paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'Jazz
                 <dl class="summary__rows summary__rows--stack">
                     <?php if (isset($order['payment_method'])): ?>
                         <div><dt>Payment</dt><dd><?php echo $h($paymentMethods[$order['payment_method']] ?? 'Other'); ?></dd></div>
+                    <?php endif; ?>
+                    <div><dt>Shipping</dt><dd><?php echo $h(($zoneName ?: 'Standard') . ' · ' . ((float) ($order['shipping_fee'] ?? 0) > 0 ? format_pkr($order['shipping_fee']) : 'Free')); ?></dd></div>
+                    <?php if ($trkShipment && $trkShipment['courier'] !== ''): ?>
+                        <div><dt>Courier</dt><dd><?php echo $h($trkShipment['courier']); ?><?php if (!empty($trkShipment['tracking_number'])): ?><br><span class="trk-mono"><?php echo $h($trkShipment['tracking_number']); ?></span><?php endif; ?></dd></div>
                     <?php endif; ?>
                     <div><dt>Name</dt><dd><?php echo $h($order['customer_name']); ?></dd></div>
                     <div><dt>Email</dt><dd><?php echo $h($order['customer_email']); ?></dd></div>

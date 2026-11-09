@@ -51,6 +51,15 @@ INSERT INTO settings (setting_key, value, updated_by) VALUES
 ('cod_enabled', 'true', 1),
 ('jazzcash_enabled', 'true', 1),
 ('low_stock_threshold', '5', 1);
+-- Settings → Store / Payments (phase 2c)
+INSERT INTO settings (setting_key, value, updated_by) VALUES
+('store_legal_name', '"TechZone Traders"', 1),
+('store_whatsapp', '"+92 300 8243966"', 1),
+('store_city', '"Lahore"', 1),
+('store_hours', '"Mon–Sat 11:00–21:00 · Sunday closed"', 1),
+('store_notice', '"Cash on delivery across Pakistan. Free delivery on orders over Rs 5,000."', 1),
+('cod_limit', '0', 1),
+('jazzcash_merchant_id', '""', 1);
 
 -- Shipping zones (a city in no zone ships at the default zone's rate)
 INSERT INTO shipping_zones (id, name, cities, is_default, sort_order) VALUES

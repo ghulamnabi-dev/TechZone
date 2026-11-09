@@ -74,5 +74,16 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<section class="panel mt-4 act-panel act-mine" aria-labelledby="myActivityTitle">
+    <div class="panel-head">
+        <h2 class="panel-title" id="myActivityTitle">Your recent activity</h2>
+        <span class="panel-sub">The last 10 changes you made · click one for details</span>
+        <span class="spacer"></span>
+        <a class="btn btn-sm btn-secondary" id="myActivityMore" hidden href="<?= htmlspecialchars(admin_url('manage/settings.php?tab=activity&actor=' . (int) $_SESSION['admin_id']), ENT_QUOTES, 'UTF-8') ?>">All your activity</a>
+    </div>
+    <div class="act-list" id="myActivity" aria-live="polite"><div class="set-loading">Loading…</div></div>
+</section>
+
+<script src="<?= $tzAsset('assets/js/activity.js') ?>"></script>
 <script src="<?php echo htmlspecialchars(admin_url('assets/js/profile.js'), ENT_QUOTES, 'UTF-8'); ?>?v=<?php echo (int) filemtime(__DIR__ . '/../assets/js/profile.js'); ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

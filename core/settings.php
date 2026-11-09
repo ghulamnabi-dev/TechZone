@@ -59,9 +59,10 @@ function setting(string $key, $default = null)
  *
  * @param string $key   max 64 chars
  * @param mixed  $value any JSON-encodable value
+ * @param bool   $mask  record "••••1234" instead of the values in audit_log (merchant ids, keys)
  * @throws RuntimeException when no database connection is available
  */
-function set_setting(string $key, $value): void
+function set_setting(string $key, $value, bool $mask = false): void
 {
     $conn = $GLOBALS['conn'] ?? null;
     if (!$conn instanceof PDO) {
@@ -74,6 +75,70 @@ function set_setting(string $key, $value): void
     $st->execute([substr($key, 0, 64), json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $adminId]);
     settings_all(true);
     if ($old !== $value) {
-        audit('setting.update', 'setting', $key, 'Changed ' . str_replace('_', ' ', $key), [$key => $old], [$key => $value]);
+        $show = $mask ? 'setting_mask' : static fn($v) => $v;
+        audit('setting.update', 'setting', $key, 'Changed ' . str_replace('_', ' ', $key), [$key => $show($old)], [$key => $show($value)]);
     }
+}
+
+/** "••••4821" for secrets shown back to the owner or written to the audit log; null/'' stay as they are. */
+function setting_mask($value): ?string
+{
+    $v = (string) ($value ?? '');
+    if ($v === '') {
+        return $value === null ? null : '';
+    }
+    return '••••' . (strlen($v) > 4 ? substr($v, -4) : '');
+}
+
+/**
+ * Store-details keys edited on Settings → Store, with their defaults (used when the row is missing).
+ *
+ * @return array<string, mixed>
+ */
+function store_setting_defaults(): array
+{
+    return [
+        'store_name' => 'TechZone',
+        'store_legal_name' => '',
+        'store_phone' => '',
+        'store_whatsapp' => '',
+        'store_email' => '',
+        'store_address' => '',
+        'store_city' => 'Lahore',
+        'store_hours' => '',
+        'low_stock_threshold' => 5,
+        'currency' => 'PKR',
+        'store_notice' => 'Cash on delivery across Pakistan. Free delivery on orders over Rs 5,000.',
+    ];
+}
+
+/**
+ * Payment methods for a checkout of $total (Settings → Payments).
+ *
+ * cod_limit (Rs, 0 = no limit) caps cash on delivery; a method that is switched off is not offered,
+ * one over the limit is offered disabled with a reason. Used by the storefront checkout for both the
+ * radio list and the server-side check.
+ *
+ * @return array<string, array{label:string, enabled:bool, available:bool, reason:?string}>
+ */
+function payment_options(float $total): array
+{
+    $codLimit = (float) setting('cod_limit', 0);
+    $cod = (bool) setting('cod_enabled', true);
+    $jazz = (bool) setting('jazzcash_enabled', true);
+    $overLimit = $codLimit > 0 && $total > $codLimit;
+    return [
+        'cash_on_delivery' => [
+            'label' => 'Cash on delivery',
+            'enabled' => $cod,
+            'available' => $cod && !$overLimit,
+            'reason' => $cod && $overLimit ? 'Available on orders up to Rs ' . number_format($codLimit) : null,
+        ],
+        'jazzcash' => [
+            'label' => 'JazzCash',
+            'enabled' => $jazz,
+            'available' => $jazz,
+            'reason' => null,
+        ],
+    ];
 }

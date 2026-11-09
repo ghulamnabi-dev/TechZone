@@ -129,3 +129,15 @@ function v_phone(mixed $value): ?string
     }
     return ($value === '' || preg_match('/^03\d{2}-\d{7}$/', $value)) ? $value : null;
 }
+
+/**
+ * Stop with 422 and a field map the admin forms render inline under each input:
+ * {"success":false,"message":"…","errors":{"price":"Price must be …"}}.
+ *
+ * @param array<string,string> $errors field name => message
+ */
+function validation_problem(array $errors, ?string $message = null): never
+{
+    $message ??= count($errors) === 1 ? (string) reset($errors) : 'Please fix the highlighted fields.';
+    json_response(['success' => false, 'message' => $message, 'errors' => $errors], 422);
+}
