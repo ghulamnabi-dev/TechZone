@@ -1,6 +1,14 @@
 <?php
 $pageTitle = 'Home';
 $pageSubtitle = 'Today at TechZone and what needs doing';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
+if (is_seller()) {
+    // Seller portal home: their sales, orders to fulfil, low stock and the next payout
+    $pageSubtitle = 'Your sales on TechZone and what needs doing';
+    require __DIR__ . '/../includes/seller-home.php';
+    return;
+}
 require_once __DIR__ . '/../includes/header.php';
 $hu = static fn(string $p): string => htmlspecialchars(admin_url($p), ENT_QUOTES, 'UTF-8');
 ?>

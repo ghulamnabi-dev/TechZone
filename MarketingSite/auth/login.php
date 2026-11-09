@@ -18,30 +18,33 @@ if ($requestedRedirect === 'checkout') {
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="auth">
-    <div class="auth__panel">
-        <h1>Sign in</h1>
-        <p class="auth__lead">Use the email and password for your TechZone account.</p>
-                    <div id="errorMessage" class="alert alert-danger d-none"></div>
-                    <div id="successMessage" class="alert alert-success d-none"></div>
+<div class="auth-shell">
+<div class="auth-wrap">
+    <a class="auth-mark t-wordmark t-wordmark--mark" href="<?php echo htmlspecialchars(site_url('index.php'), ENT_QUOTES, 'UTF-8'); ?>">TechZone</a>
+    <div class="auth-panel">
+        <h1 class="auth-title">Sign in</h1>
+        <p class="auth-lead">Use the email and password for your TechZone account.</p>
+                    <div id="errorMessage" class="alert alert-danger pg-alert pg-alert--error d-none"></div>
+                    <div id="successMessage" class="alert alert-success pg-alert pg-alert--ok d-none"></div>
                     
                         <form id="loginForm" novalidate>
-                            <div class="mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="text" class="form-control" id="email" name="email" placeholder="Enter your email">
+                            <div class="field">
+                                <label class="field__label" for="email">Email</label>
+                                <input type="text" class="field__input" id="email" name="email" placeholder="Enter your email">
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Password</label>
-                                <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password">
+                            <div class="field">
+                                <label class="field__label" for="password">Password</label>
+                                <input type="password" class="field__input" id="password" name="password" placeholder="Enter your password">
                             </div>
-                            <button type="submit" class="btn btn-ink w-100">Sign in</button>
+                            <button type="submit" class="btn--primary btn--block">Sign in</button>
                         </form>
                         
-                        <div class="auth__foot">
-                            <p class="mb-0">New to TechZone? <a href="<?php echo htmlspecialchars(site_url('auth/signup.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Create one</a></p>
-                            <p class="mb-0 mt-2"><a href="<?php echo htmlspecialchars(site_url('auth/forgot_password.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Forgot password?</a></p>
+                        <div class="auth-foot">
+                            <p class="mb-0">New to TechZone? <a href="<?php echo htmlspecialchars(site_url('auth/signup.php'), ENT_QUOTES, 'UTF-8'); ?>" class="pg-link">Create one</a></p>
+                            <p class="mb-0 mt-2"><a href="<?php echo htmlspecialchars(site_url('auth/forgot_password.php'), ENT_QUOTES, 'UTF-8'); ?>" class="pg-link">Forgot password?</a></p>
                         </div>
     </div>
+</div>
 </div>
 <script src="<?php echo htmlspecialchars(marketing_script_url('form-validation.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 <script>

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../core/validation.php';
 checkLogin(true);
 json_headers();
 // Any write needs products.write (core/permissions.php); reads are open to every role.
+// Seller accounts: every read and write is limited to options of their own products (assert_product_owned).
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     require_can('products.write');
 }
@@ -61,6 +62,7 @@ try {
         if (!isset($_GET['product_id'])) {
             json_error('Product ID required', 422);
         }
+        assert_product_owned(v_id($_GET['product_id']), 404);
         $stmt = $conn->prepare("SELECT * FROM product_variations WHERE product_id = ? ORDER BY variation_type, display_order");
         $stmt->execute([v_id($_GET['product_id'])]);
         json_response(['success' => true, 'variations' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
@@ -72,6 +74,7 @@ try {
     if ($method === 'POST' && !$isUpdate) {
         enforce_csrf_json();
         $productId = v_id($_POST['product_id'] ?? 0);
+        assert_product_owned($productId);
         $type = v_enum($_POST['variation_type'] ?? '', ['size', 'color']);
         $value = v_str($_POST['variation_value'] ?? '', 100);
         [$price, $inventory, $active, $default, $order] = variation_numbers($_POST);
@@ -129,6 +132,7 @@ try {
         if (!$variation) {
             json_error('Variation not found', 404);
         }
+        assert_product_owned((int) $variation['product_id']);
 
         if ($value !== $variation['variation_value']) {
             $check = $conn->prepare("SELECT id FROM product_variations WHERE product_id = ? AND variation_type = ? AND variation_value = ? AND id != ?");
@@ -167,6 +171,7 @@ try {
         if (!$variation) {
             json_error('Variation not found', 404);
         }
+        assert_product_owned((int) $variation['product_id']);
 
         $count = $conn->prepare("SELECT COUNT(*) FROM product_variations WHERE product_id = ? AND variation_type = ?");
         $count->execute([$variation['product_id'], $variation['variation_type']]);

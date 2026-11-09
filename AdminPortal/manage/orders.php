@@ -1,15 +1,24 @@
 <?php
 $pageTitle = 'Orders';
 $useGrid = true;
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
+$ordSeller = is_seller();
+if ($ordSeller) {
+    $pageSubtitle = 'Orders that contain your products. You see and fulfil only your own items.';
+}
 require_once __DIR__ . '/../includes/header.php';
 $ordTabs = [
     'open' => 'Open',
-    'unfulfilled' => 'Unfulfilled',
+    'unfulfilled' => $ordSeller ? 'To fulfil' : 'Unfulfilled',
     'unpaid' => 'Unpaid',
     'completed' => 'Completed',
     'cancelled' => 'Cancelled',
     'all' => 'All',
 ];
+if ($ordSeller) {
+    unset($ordTabs['unpaid']);   // payment is TechZone's side; sellers never see it
+}
 ?>
 <link rel="stylesheet" href="<?= $tzAsset('assets/css/orders.css') ?>">
 
@@ -24,7 +33,7 @@ $ordTabs = [
     <div class="toolbar grid-toolbar">
         <label class="search mb-0">
             <i class="fas fa-magnifying-glass"></i>
-            <input type="search" class="form-control" id="orderSearch" placeholder="Search order #, customer, phone, city…" aria-label="Search orders">
+            <input type="search" class="form-control" id="orderSearch" placeholder="<?= $ordSeller ? 'Search order # or customer…' : 'Search order #, customer, phone, city…' ?>" aria-label="Search orders">
         </label>
         <div class="end">
             <span class="grid-count" id="orderCount" aria-live="polite">Loading…</span>

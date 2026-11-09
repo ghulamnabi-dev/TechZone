@@ -26,7 +26,8 @@ if ($locked > 0) {
 }
 
 try {
-    $stmt = $conn->prepare("SELECT id, username, name, password, role, is_active FROM admins WHERE email = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT a.id, a.username, a.name, a.password, a.role, a.is_active, a.seller_id, s.status AS seller_status
+        FROM admins a LEFT JOIN sellers s ON s.id = a.seller_id WHERE a.email = ? LIMIT 1");
     $stmt->execute([$email]);
     $admin = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 
@@ -38,6 +39,9 @@ try {
     // Checked only after the password, so a wrong guess cannot tell whether an account is disabled.
     if ((int) $admin['is_active'] !== 1) {
         json_error('This account has been deactivated. Ask the store owner to restore access.', 403);
+    }
+    if ($admin['role'] === 'seller' && (($admin['seller_status'] ?? null) === 'suspended' || empty($admin['seller_id']))) {
+        json_error('This shop is suspended on TechZone, so its account cannot sign in. Contact TechZone to restore it.', 403);
     }
 
     if (password_needs_rehash($admin['password'], PASSWORD_DEFAULT)) {

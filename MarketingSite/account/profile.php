@@ -112,121 +112,49 @@ if ($error === '' && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['chan
 }
 
 require_once __DIR__ . '/../includes/header.php';
+require_once __DIR__ . '/../includes/pages.php';
+$h = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
+<div class="container pg-page acct">
+    <?php echo pg_account_head('profile', 'Your account', $h($customer['email']) . ', member since ' . $h(date('F Y', strtotime($customer['created_at'])))); ?>
 
-<div class="container page">
-    <div class="page-title">
-        <h1>Your account</h1>
-        <span class="page-title__count"><?php echo htmlspecialchars($customer['email']); ?></span>
-    </div>
-    
     <?php if ($error): ?>
-        <div class="alert alert-danger alert-dismissible fade show">
-            <?php echo htmlspecialchars($error); ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
+        <div class="pg-alert pg-alert--error alert-danger" role="alert"><?php echo $h($error); ?></div>
     <?php endif; ?>
-    
     <?php if ($success): ?>
-        <div class="alert alert-success alert-dismissible fade show">
-            <?php echo htmlspecialchars($success); ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
+        <div class="pg-alert pg-alert--ok alert-success" role="status"><?php echo $h($success); ?></div>
     <?php endif; ?>
-    
-    <div class="row g-4">
-        <div class="col-lg-8">
-            <section class="panel mb-4">
-                <h2 class="panel__title">Profile</h2>
-                <div>
-                    <form method="POST">
-                        <?= csrf_field() ?>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label" for="pf_name">Full name</label>
-                                <input type="text" class="form-control" id="pf_name" name="name" value="<?php echo htmlspecialchars($customer['name']); ?>" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label" for="pf_email">Email</label>
-                                <input type="email" class="form-control" id="pf_email" name="email" value="<?php echo htmlspecialchars($customer['email']); ?>" required>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label" for="pf_phone">Phone</label>
-                                <input type="tel" class="form-control" id="pf_phone" name="phone" value="<?php echo htmlspecialchars($customer['phone'] ?? ''); ?>">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label" for="pf_city">City</label>
-                                <input type="text" class="form-control" id="pf_city" name="city" value="<?php echo htmlspecialchars($customer['city'] ?? ''); ?>">
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="pf_address">Address</label>
-                            <textarea class="form-control" id="pf_address" name="address" rows="3"><?php echo htmlspecialchars($customer['address'] ?? ''); ?></textarea>
-                        </div>
-                        <button type="submit" name="update_profile" class="btn btn-ink">Save changes</button>
-                    </form>
+
+    <div class="acct-grid">
+        <section class="acct-panel" aria-labelledby="pf-title">
+            <h2 class="acct-panel__title" id="pf-title">Profile and delivery address</h2>
+            <p class="acct-panel__sub">Checkout fills these in for you.</p>
+            <form method="POST" class="pg-form">
+                <?= csrf_field() ?>
+                <div class="pg-form__row">
+                    <div class="field"><label class="field__label" for="pf_name">Full name</label><input type="text" class="field__input" id="pf_name" name="name" value="<?php echo $h($customer['name']); ?>" autocomplete="name" required></div>
+                    <div class="field"><label class="field__label" for="pf_email">Email</label><input type="email" class="field__input" id="pf_email" name="email" value="<?php echo $h($customer['email']); ?>" autocomplete="email" required></div>
                 </div>
-            </section>
-            
-            <section class="panel">
-                <h2 class="panel__title">Change password</h2>
-                <div>
-                    <form method="POST">
-                        <?= csrf_field() ?>
-                        <div class="mb-3">
-                            <label class="form-label" for="pf_current_password">Current password</label>
-                            <input type="password" class="form-control" id="pf_current_password" name="current_password" required autocomplete="current-password">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="pf_new_password">New password</label>
-                            <input type="password" class="form-control" id="pf_new_password" name="new_password" required minlength="8" maxlength="72" autocomplete="new-password">
-                            <p class="form-hint">At least 8 characters</p>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="pf_confirm_password">Confirm new password</label>
-                            <input type="password" class="form-control" id="pf_confirm_password" name="confirm_password" required minlength="8" maxlength="72" autocomplete="new-password">
-                        </div>
-                        <button type="submit" name="change_password" class="btn btn-ink">Change password</button>
-                    </form>
+                <div class="pg-form__row">
+                    <div class="field"><label class="field__label" for="pf_phone">Mobile number</label><input type="tel" class="field__input" id="pf_phone" name="phone" value="<?php echo $h($customer['phone'] ?? ''); ?>" placeholder="0300-1234567" autocomplete="tel"></div>
+                    <div class="field"><label class="field__label" for="pf_city">City</label><input type="text" class="field__input" id="pf_city" name="city" value="<?php echo $h($customer['city'] ?? ''); ?>" autocomplete="address-level2"></div>
                 </div>
-            </section>
-        </div>
-        
-        <div class="col-lg-4">
-            <section class="panel mb-4">
-                <h2 class="panel__title">Account</h2>
-                <div>
-                    <div class="mb-3">
-                        <small class="text-muted d-block mb-1">Member since</small>
-                        <p class="mb-0"><strong><?php echo date('F Y', strtotime($customer['created_at'])); ?></strong></p>
-                    </div>
-                    <hr>
-                    <div class="d-grid gap-2">
-                        <a href="<?php echo htmlspecialchars(site_url('account/orders.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-line">Order history</a>
-                        <a href="<?php echo htmlspecialchars(site_url('shop/cart.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-line">Cart</a>
-                    </div>
-                </div>
-            </section>
-            
-            <?php if (!empty($customer['phone']) || !empty($customer['city']) || !empty($customer['address'])): ?>
-            <section class="panel">
-                <h2 class="panel__title">Delivery address</h2>
-                <div>
-                    <?php if (!empty($customer['phone'])): ?>
-                        <p class="mb-2"><?php echo htmlspecialchars($customer['phone']); ?></p>
-                    <?php endif; ?>
-                    <?php if (!empty($customer['city'])): ?>
-                        <p class="mb-2"><?php echo htmlspecialchars($customer['city']); ?></p>
-                    <?php endif; ?>
-                    <?php if (!empty($customer['address'])): ?>
-                        <p class="mb-0"><?php echo nl2br(htmlspecialchars($customer['address'])); ?></p>
-                    <?php endif; ?>
-                </div>
-            </section>
-            <?php endif; ?>
-        </div>
+                <div class="field"><label class="field__label" for="pf_address">Address</label><textarea class="field__input" id="pf_address" name="address" rows="3" autocomplete="street-address"><?php echo $h($customer['address'] ?? ''); ?></textarea></div>
+                <div><button type="submit" name="update_profile" class="btn--primary">Save changes</button></div>
+            </form>
+        </section>
+
+        <section class="acct-panel" aria-labelledby="pw-title">
+            <h2 class="acct-panel__title" id="pw-title">Change password</h2>
+            <p class="acct-panel__sub">You stay signed in on this device.</p>
+            <form method="POST" class="pg-form">
+                <?= csrf_field() ?>
+                <div class="field"><label class="field__label" for="pf_current_password">Current password</label><input type="password" class="field__input" id="pf_current_password" name="current_password" required autocomplete="current-password"></div>
+                <div class="field"><label class="field__label" for="pf_new_password">New password</label><input type="password" class="field__input" id="pf_new_password" name="new_password" required minlength="8" maxlength="72" autocomplete="new-password"><span class="field__hint">At least 8 characters.</span></div>
+                <div class="field"><label class="field__label" for="pf_confirm_password">Confirm new password</label><input type="password" class="field__input" id="pf_confirm_password" name="confirm_password" required minlength="8" maxlength="72" autocomplete="new-password"></div>
+                <div><button type="submit" name="change_password" class="btn--secondary">Change password</button></div>
+            </form>
+        </section>
     </div>
 </div>
 

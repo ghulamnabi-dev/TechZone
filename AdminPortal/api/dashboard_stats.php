@@ -9,6 +9,10 @@
  *    top_products [{id, name, units, revenue}] last 30 days
  *    recent_orders, recent_activity (null when the role cannot see the activity log)
  * Cancelled orders never count towards revenue.
+ *
+ * Seller accounts get their own home instead (seller_home: their lines only):
+ *    sales {today, d7, d30: {revenue, orders, units}}, to_fulfil {count, orders:[…]}, low_stock [{id,name,sku,inventory,threshold}],
+ *    payout {due:{date, net, gross, commission, weeks}, this_week, paid_total, paid_last}, recent_orders, daily [{date, revenue}]
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
@@ -17,6 +21,44 @@ checkLogin(true);
 json_headers();
 
 try {
+    $sid = current_seller_id();
+    if ($sid !== null) {
+        require_once __DIR__ . '/../../core/marketplace.php';
+        $today = marketplace_today($conn);
+        $sales = [
+            'today' => seller_sales_since($conn, $sid, $today),
+            'd7' => seller_sales_since($conn, $sid, date('Y-m-d', strtotime($today . ' -6 day'))),
+            'd30' => seller_sales_since($conn, $sid, date('Y-m-d', strtotime($today . ' -29 day'))),
+        ];
+        $toFulfil = seller_orders_to_fulfil($conn, $sid);
+        $st = $conn->prepare("SELECT id, name, sku, inventory, low_stock_threshold AS threshold FROM products
+            WHERE seller_id = ? AND status <> 'archived' AND inventory <= low_stock_threshold ORDER BY inventory, name LIMIT 8");
+        $st->execute([$sid]);
+        $low = $st->fetchAll(PDO::FETCH_ASSOC);
+        $st = $conn->prepare("SELECT DATE(o.order_date) AS d, SUM(i.subtotal) AS revenue FROM order_items i JOIN products p ON p.id = i.product_id JOIN orders o ON o.id = i.order_id
+            WHERE p.seller_id = ? AND o.cancelled_at IS NULL AND o.order_date >= ? GROUP BY DATE(o.order_date)");
+        $st->execute([$sid, date('Y-m-d', strtotime($today . ' -29 day'))]);
+        $byDay = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $byDay[$r['d']] = (float) $r['revenue'];
+        }
+        $daily = [];
+        for ($i = 29; $i >= 0; $i--) {
+            $d = date('Y-m-d', strtotime($today . ' -' . $i . ' day'));
+            $daily[] = ['date' => $d, 'revenue' => $byDay[$d] ?? 0.0];
+        }
+        json_response([
+            'success' => true,
+            'seller_home' => true,
+            'sales' => $sales,
+            'to_fulfil' => ['count' => count($toFulfil)],
+            'low_stock' => $low,
+            'payout' => seller_payout_summary($conn, $sid),
+            'recent_orders' => array_slice(seller_orders_list($conn, $sid, null, '', 6), 0, 6),
+            'daily' => $daily,
+        ]);
+    }
+
     $t = $conn->query("SELECT
             SUM(order_date >= CURDATE()) AS orders_today,
             COALESCE(SUM(CASE WHEN order_date >= CURDATE() THEN total END), 0) AS revenue_today,

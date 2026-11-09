@@ -76,7 +76,8 @@ function order_event_label(string $type, array $payload): string
         case 'fulfilled':
             return !empty($payload['partial']) ? 'Items partially fulfilled' : 'Items fulfilled';
         case 'shipped':
-            $label = 'Shipped' . (!empty($payload['courier']) ? ' with ' . $payload['courier'] : '');
+            // a marketplace seller's own shipment names the seller ("Shipped by Gamers Den PK with TCS")
+            $label = 'Shipped' . (!empty($payload['seller_name']) ? ' by ' . $payload['seller_name'] : '') . (!empty($payload['courier']) ? ' with ' . $payload['courier'] : '');
             return $label . (!empty($payload['tracking']) ? ' · ' . $payload['tracking'] : '');
         case 'shipment':
             return 'Shipment created with ' . ($payload['courier'] ?? 'courier') . (!empty($payload['tracking']) ? ' · ' . $payload['tracking'] : '');

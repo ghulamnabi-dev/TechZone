@@ -327,21 +327,29 @@ function order_actor(?int $adminId): ?int
  */
 function order_sync_status(PDO $conn, int $orderId): string
 {
+    // TechZone shipments (seller_id NULL) cover the whole order. Marketplace sellers ship their own lines
+    // (order_shipments.seller_id); those count only once every line is covered: the order has no TechZone
+    // lines and every seller on it has shipped.
     $st = $conn->prepare("SELECT o.cancelled_at, o.fulfillment_status, o.status,
-            (SELECT COUNT(*) FROM order_shipments s WHERE s.order_id = o.id) AS shipments,
-            (SELECT COUNT(*) FROM order_shipments s WHERE s.order_id = o.id AND s.delivered_at IS NOT NULL) AS delivered,
-            (SELECT COUNT(*) FROM order_events e WHERE e.order_id = o.id AND e.type = 'confirmed') AS confirmed
+            (SELECT COUNT(*) FROM order_shipments s WHERE s.order_id = o.id AND s.seller_id IS NULL) AS shipments,
+            (SELECT COUNT(*) FROM order_shipments s WHERE s.order_id = o.id AND s.seller_id IS NULL AND s.delivered_at IS NOT NULL) AS delivered,
+            (SELECT COUNT(*) FROM order_events e WHERE e.order_id = o.id AND e.type = 'confirmed') AS confirmed,
+            (SELECT COUNT(*) FROM order_items i LEFT JOIN products p ON p.id = i.product_id WHERE i.order_id = o.id AND COALESCE(p.seller_id, 1) = 1) AS house_lines,
+            (SELECT COUNT(DISTINCT p.seller_id) FROM order_items i JOIN products p ON p.id = i.product_id WHERE i.order_id = o.id AND p.seller_id > 1) AS sellers,
+            (SELECT COUNT(DISTINCT s.seller_id) FROM order_shipments s WHERE s.order_id = o.id AND s.seller_id IS NOT NULL) AS seller_shipped,
+            (SELECT COUNT(*) FROM order_shipments s WHERE s.order_id = o.id AND s.seller_id IS NOT NULL AND s.delivered_at IS NULL) AS seller_open
         FROM orders o WHERE o.id = ?");
     $st->execute([$orderId]);
     $r = $st->fetch(PDO::FETCH_ASSOC);
     if (!$r) {
         throw new OrderActionException('Order #' . $orderId . ' was not found.');
     }
+    $sellersCovered = (int) $r['house_lines'] === 0 && (int) $r['sellers'] > 0 && (int) $r['seller_shipped'] >= (int) $r['sellers'];
     if ($r['cancelled_at'] !== null) {
         $status = 'Cancelled';
-    } elseif ((int) $r['delivered'] > 0) {
+    } elseif ((int) $r['delivered'] > 0 || ($sellersCovered && (int) $r['shipments'] === 0 && (int) $r['seller_open'] === 0)) {
         $status = 'Delivered';
-    } elseif ((int) $r['shipments'] > 0) {
+    } elseif ((int) $r['shipments'] > 0 || $sellersCovered) {
         $status = 'Shipped';
     } elseif ((int) $r['confirmed'] > 0 || $r['fulfillment_status'] !== 'unfulfilled') {
         $status = 'Processing';
@@ -526,7 +534,8 @@ function order_deliver(PDO $conn, int $orderId, ?int $adminId = null): array
             $st->execute([$orderId]);
             $shipmentId = $st->fetchColumn();
         }
-        $conn->prepare('UPDATE order_shipments SET delivered_at = NOW() WHERE id = ?')->execute([(int) $shipmentId]);
+        // every open shipment of the order arrives with it (TechZone's and any marketplace seller's own)
+        $conn->prepare('UPDATE order_shipments SET delivered_at = NOW() WHERE order_id = ? AND (id = ? OR delivered_at IS NULL)')->execute([$orderId, (int) $shipmentId]);
         order_event($conn, $orderId, 'delivered', ['shipment_id' => (int) $shipmentId], 'staff', $adminId);
 
         $fresh = order_get($conn, $orderId);
@@ -737,8 +746,8 @@ function order_detail(PDO $conn, int $orderId): ?array
     }
 
     $st = $conn->prepare('SELECT oi.id, oi.product_id, oi.product_name, oi.price, oi.quantity, oi.fulfilled_qty, oi.subtotal, oi.size, oi.color,
-            p.imagelink, p.sku
-        FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? ORDER BY oi.id');
+            p.imagelink, p.sku, COALESCE(p.seller_id, 1) AS seller_id, sl.name AS seller_name
+        FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id LEFT JOIN sellers sl ON sl.id = p.seller_id WHERE oi.order_id = ? ORDER BY oi.id');
     $st->execute([$orderId]);
     $items = $st->fetchAll(PDO::FETCH_ASSOC);
 
@@ -749,7 +758,8 @@ function order_detail(PDO $conn, int $orderId): ?array
         $zone = $st->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    $st = $conn->prepare('SELECT id, courier, tracking_number, shipped_at, delivered_at FROM order_shipments WHERE order_id = ? ORDER BY shipped_at, id');
+    $st = $conn->prepare('SELECT s.id, s.courier, s.tracking_number, s.shipped_at, s.delivered_at, s.seller_id, sl.name AS seller_name
+        FROM order_shipments s LEFT JOIN sellers sl ON sl.id = s.seller_id WHERE s.order_id = ? ORDER BY s.shipped_at, s.id');
     $st->execute([$orderId]);
     $shipments = $st->fetchAll(PDO::FETCH_ASSOC);
 

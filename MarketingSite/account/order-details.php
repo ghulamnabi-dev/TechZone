@@ -35,7 +35,7 @@ $customer_data = $stmt->fetch(PDO::FETCH_ASSOC);
 $customer_address = $customer_data['address'] ?? '';
 
         // Get order items with product images
-        $stmt = $conn->prepare("SELECT oi.*, p.imagelink FROM order_items oi LEFT JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?");
+        $stmt = $conn->prepare("SELECT oi.*, p.imagelink, p.category_id FROM order_items oi LEFT JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?");
         $stmt->execute([$order_id]);
         $order_items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -77,88 +77,54 @@ if ($order['status'] == 'Pending' || $order['status'] == 'Processing') {
 }
 $paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'JazzCash'];
 ?>
-<div class="container page">
-    <nav aria-label="Breadcrumb">
-        <ol class="crumbs">
-            <li><a href="<?php echo $h(site_url('account/orders.php')); ?>">Orders</a></li>
-            <li aria-current="page">#<?php echo (int) $order['id']; ?></li>
-        </ol>
-    </nav>
-    <div class="page-title">
-        <h1>Order #<?php echo (int) $order['id']; ?></h1>
-        <span class="status status--<?php echo $h(strtolower((string) $order['status'])); ?>"><span class="status__dot" aria-hidden="true"></span><?php echo $h($order['status']); ?></span>
-    </div>
-    <p class="muted mb-4">Placed on <?php echo date('j F Y, g:i A', strtotime($order['order_date'])); ?></p>
+<?php require_once __DIR__ . '/../includes/pages.php'; ?>
+<div class="container pg-page acct acct-order-page">
+    <ol class="pg-crumbs">
+        <li><a href="<?php echo $h(site_url('account/orders.php')); ?>">Orders</a></li>
+        <li aria-current="page">#<?php echo (int) $order['id']; ?></li>
+    </ol>
+    <header class="acct-ohead">
+        <h1 class="pg-title">Order #<?php echo (int) $order['id']; ?></h1>
+        <?php echo pg_status_pill((string) $order['status']); ?>
+        <p class="acct-ohead__date">Placed <?php echo date('j F Y, g:i a', strtotime($order['order_date'])); ?></p>
+    </header>
 
-    <div class="row g-4 g-lg-5">
-        <div class="col-lg-8">
+    <div class="acct-ogrid">
+        <div class="acct-omain">
             <?php include __DIR__ . '/../includes/order-track.php'; ?>
 
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th scope="col">Product</th>
-                            <th scope="col" class="num">Qty</th>
-                            <th scope="col" class="num hide-sm">Price</th>
-                            <th scope="col" class="num">Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($order_items as $item): ?>
-                            <tr>
-                                <td>
-                                    <div class="item-cell">
-                                        <?php if (!empty($item['imagelink'])): ?>
-                                            <span class="item-cell__img"><img src="<?php echo $h(getProductImagePath($item['imagelink'])); ?>" alt="" width="56" height="56" loading="lazy"></span>
-                                        <?php endif; ?>
-                                        <span>
-                                            <a class="strong-link" href="<?php echo $h(site_url('shop/product-details.php?id=' . (int) $item['product_id'])); ?>"><?php echo $h($item['product_name']); ?></a>
-                                            <?php if (!empty($item['size']) || !empty($item['color'])): ?>
-                                                <small class="d-block muted"><?php echo !empty($item['size']) ? 'Size: ' . $h($item['size']) : ''; ?><?php echo !empty($item['size']) && !empty($item['color']) ? ', ' : ''; ?><?php echo !empty($item['color']) ? 'Colour: ' . $h($item['color']) : ''; ?></small>
-                                            <?php endif; ?>
-                                        </span>
-                                    </div>
-                                </td>
-                                <td class="num"><?php echo (int) $item['quantity']; ?></td>
-                                <td class="num hide-sm"><?php echo format_pkr($item['price']); ?></td>
-                                <td class="num price"><?php echo format_pkr($item['subtotal']); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                    <tfoot>
-                        <tr class="trk-foot-row">
-                            <th scope="row" colspan="3" class="num">Subtotal</th>
-                            <td class="num"><?php echo format_pkr($order['subtotal'] ?? $order['total']); ?></td>
-                        </tr>
-                        <tr class="trk-foot-row">
-                            <th scope="row" colspan="3" class="num">Shipping<?php echo $zoneName ? ' (' . $h($zoneName) . ')' : ''; ?></th>
-                            <td class="num"><?php echo (float) ($order['shipping_fee'] ?? 0) > 0 ? format_pkr($order['shipping_fee']) : 'Free'; ?></td>
-                        </tr>
-                        <?php if ((float) ($order['discount_amount'] ?? 0) > 0): ?>
-                        <tr class="trk-foot-row">
-                            <th scope="row" colspan="3" class="num">Discount<?php echo !empty($order['promo_code']) ? ' (' . $h($order['promo_code']) . ')' : ''; ?></th>
-                            <td class="num">−<?php echo format_pkr($order['discount_amount']); ?></td>
-                        </tr>
-                        <?php endif; ?>
-                        <tr>
-                            <th scope="row" colspan="3" class="num">Total</th>
-                            <td class="num price"><?php echo format_pkr($order['total']); ?></td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
+            <h2 class="acct-panel__title acct-items-title">Items</h2>
+            <ul class="acct-items">
+                <?php foreach ($order_items as $item): ?>
+                    <li class="acct-item">
+                        <span class="acct-item__media"><?php echo render_product_media(['id' => $item['product_id'], 'imagelink' => $item['imagelink'] ?? null, 'name' => $item['product_name'], 'category_id' => $item['category_id'] ?? null], ['width' => 64, 'tile' => 'sm']); ?></span>
+                        <span class="acct-item__info">
+                            <a class="acct-item__name" href="<?php echo $h(site_url('shop/product-details.php?id=' . (int) $item['product_id'])); ?>"><?php echo $h($item['product_name']); ?></a>
+                            <span class="acct-item__meta"><?php echo (int) $item['quantity']; ?> &times; <?php echo format_pkr($item['price']); ?><?php if (!empty($item['size'])): ?>, size <?php echo $h($item['size']); ?><?php endif; ?><?php if (!empty($item['color'])): ?>, colour <?php echo $h($item['color']); ?><?php endif; ?></span>
+                        </span>
+                        <span class="acct-item__total"><?php echo format_pkr($item['subtotal']); ?></span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <dl class="acct-totals">
+                <div><dt>Subtotal</dt><dd><?php echo format_pkr($order['subtotal'] ?? $order['total']); ?></dd></div>
+                <div><dt>Shipping<?php echo $zoneName ? ', ' . $h($zoneName) : ''; ?></dt><dd><?php echo (float) ($order['shipping_fee'] ?? 0) > 0 ? format_pkr($order['shipping_fee']) : 'Free'; ?></dd></div>
+                <?php if ((float) ($order['discount_amount'] ?? 0) > 0): ?>
+                    <div class="is-saving"><dt>Discount<?php echo !empty($order['promo_code']) ? ' (' . $h($order['promo_code']) . ')' : ''; ?></dt><dd>&minus;<?php echo format_pkr($order['discount_amount']); ?></dd></div>
+                <?php endif; ?>
+                <div class="acct-totals__total"><dt>Total</dt><dd><?php echo format_pkr($order['total']); ?></dd></div>
+            </dl>
 
-            <section class="panel mt-4">
-                <h2 class="panel__title">Review what you bought</h2>
-                <p class="muted">Reviews appear on the product page after a quick check.</p>
-                <ul class="review-targets">
+            <section class="acct-reviews" aria-labelledby="rv-title">
+                <h2 class="acct-panel__title" id="rv-title">Review what you bought</h2>
+                <p class="acct-panel__sub">Reviews appear on the product page after a quick check.</p>
+                <ul class="acct-review-list">
                     <?php foreach ($order_items as $item):
                         $is_reviewed = in_array($item['product_id'], $reviewed_products);
                     ?>
                         <li>
-                            <span><?php echo $h($item['product_name']); ?><?php if ($is_reviewed): ?> <small class="muted">Reviewed</small><?php endif; ?></span>
-                            <button type="button" class="btn btn-line btn-sm-tz"
+                            <span><?php echo $h($item['product_name']); ?><?php if ($is_reviewed): ?> <small class="pg-muted">Reviewed</small><?php endif; ?></span>
+                            <button type="button" class="btn--secondary acct-btn-sm"
                                     data-bs-toggle="modal"
                                     data-bs-target="#reviewModal"
                                     onclick="openReviewModal(<?php echo (int) $item['product_id']; ?>, <?php echo htmlspecialchars(json_encode((string) $item['product_name'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, <?php echo $is_reviewed ? 'true' : 'false'; ?>)">
@@ -170,21 +136,21 @@ $paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'Jazz
             </section>
         </div>
 
-        <div class="col-lg-4">
-            <div class="summary">
-                <h2 class="summary__title">Delivery</h2>
+        <aside class="acct-oside">
+            <div class="acct-panel">
+                <h2 class="acct-panel__title">Delivery</h2>
                 <?php if ($estimatedDelivery): ?>
-                    <p class="summary__big">Expected by <?php echo $estimatedDelivery->format('j F Y'); ?></p>
+                    <p class="acct-oside__big">Expected by <?php echo $estimatedDelivery->format('j F'); ?></p>
                 <?php elseif ($order['status'] == 'Delivered'): ?>
-                    <p class="summary__big">Delivered</p>
+                    <p class="acct-oside__big">Delivered</p>
                 <?php endif; ?>
-                <dl class="summary__rows summary__rows--stack">
+                <dl class="acct-dl">
                     <?php if (isset($order['payment_method'])): ?>
                         <div><dt>Payment</dt><dd><?php echo $h($paymentMethods[$order['payment_method']] ?? 'Other'); ?></dd></div>
                     <?php endif; ?>
-                    <div><dt>Shipping</dt><dd><?php echo $h(($zoneName ?: 'Standard') . ' · ' . ((float) ($order['shipping_fee'] ?? 0) > 0 ? format_pkr($order['shipping_fee']) : 'Free')); ?></dd></div>
+                    <div><dt>Shipping</dt><dd><?php echo $h(($zoneName ?: 'Standard') . ', ' . ((float) ($order['shipping_fee'] ?? 0) > 0 ? format_pkr($order['shipping_fee']) : 'free')); ?></dd></div>
                     <?php if ($trkShipment && $trkShipment['courier'] !== ''): ?>
-                        <div><dt>Courier</dt><dd><?php echo $h($trkShipment['courier']); ?><?php if (!empty($trkShipment['tracking_number'])): ?><br><span class="trk-mono"><?php echo $h($trkShipment['tracking_number']); ?></span><?php endif; ?></dd></div>
+                        <div><dt>Courier</dt><dd><?php echo $h($trkShipment['courier']); ?><?php if (!empty($trkShipment['tracking_number'])): ?><br><span class="pg-num"><?php echo $h($trkShipment['tracking_number']); ?></span><?php endif; ?></dd></div>
                     <?php endif; ?>
                     <div><dt>Name</dt><dd><?php echo $h($order['customer_name']); ?></dd></div>
                     <div><dt>Email</dt><dd><?php echo $h($order['customer_email']); ?></dd></div>
@@ -199,11 +165,11 @@ $paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'Jazz
                     <?php foreach ($order_items as $item): ?>
                         <input type="hidden" name="reorder[<?php echo (int) $item['product_id']; ?>]" value="<?php echo (int) $item['quantity']; ?>">
                     <?php endforeach; ?>
-                    <button type="submit" name="reorder_submit" value="1" class="btn btn-ink w-100">Reorder these items</button>
+                    <button type="submit" name="reorder_submit" value="1" class="btn--primary btn--block">Reorder these items</button>
                 </form>
-                <a href="<?php echo $h(site_url('account/orders.php')); ?>" class="btn btn-line w-100 mt-2">Back to orders</a>
+                <p class="acct-oside__help">A problem with a part? <a href="<?php echo $h(site_url('help/warranty.php')); ?>">Start a warranty claim</a> or see <a href="<?php echo $h(site_url('help/returns.php')); ?>">returns</a>.</p>
             </div>
-        </div>
+        </aside>
     </div>
 </div>
 
@@ -212,7 +178,7 @@ $paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'Jazz
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="reviewModalLabel">Write a Review</h5>
+                <h5 class="modal-title" id="reviewModalLabel">Write a review</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="reviewForm">
@@ -234,13 +200,13 @@ $paymentMethods = ['cash_on_delivery' => 'Cash on delivery', 'jazzcash' => 'Jazz
                     </div>
                     
                     <div class="mb-3">
-                        <label for="review_comment" class="form-label">Your Review</label>
-                        <textarea class="form-control" id="review_comment" name="comment" rows="4" placeholder="Share your experience with this product..."></textarea>
+                        <label for="review_comment" class="form-label">Your review</label>
+                        <textarea class="form-control field__input" id="review_comment" name="comment" rows="4" placeholder="Share your experience with this product..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-line" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-ink">Submit review</button>
+                    <button type="button" class="btn--secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn--primary">Submit review</button>
                 </div>
             </form>
         </div>
@@ -263,7 +229,7 @@ function openReviewModal(productId, productName, isReviewed) {
     });
     
     // Update modal title
-    document.getElementById('reviewModalLabel').textContent = isReviewed ? 'Update Review' : 'Write a Review';
+    document.getElementById('reviewModalLabel').textContent = isReviewed ? 'Update review' : 'Write a review';
 }
 
 // Star rating interaction
@@ -353,7 +319,7 @@ function showThankYouMessage() {
                         </div>
                         <h2 class="h4 mb-3">Thanks for your review</h2>
                         <p class="text-muted mb-4">It will appear on the product page once it has been checked.</p>
-                        <button type="button" class="btn btn-ink" data-bs-dismiss="modal" onclick="location.reload()">Close</button>
+                        <button type="button" class="btn--primary" data-bs-dismiss="modal" onclick="location.reload()">Close</button>
                     </div>
                 </div>
             </div>

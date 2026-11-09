@@ -13,18 +13,25 @@
  *
  * Capabilities (core/permissions.php): confirm/fulfil/deliver -> orders.fulfil, payment -> orders.payment,
  * ship/tracking -> orders.ship, note -> orders.note, cancel -> orders.cancel.
+ *
+ * Seller accounts (core/marketplace.php): GET lists only orders containing their products (their units and
+ * subtotal only, no contact or payment fields); GET ?id= answers 404 for any other order and returns
+ * seller_order_detail() (their lines, name + city, their shipments, notes and a filtered timeline);
+ * POST allows only fulfil (their lines), ship (their lines, a seller shipment) and note; PUT is refused.
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
 require_once __DIR__ . '/../../core/security.php';
 require_once __DIR__ . '/../../core/validation.php';
 require_once __DIR__ . '/../../core/orders.php';
+require_once __DIR__ . '/../../core/marketplace.php';
 
 checkLogin(true);
 json_headers();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $adminId = (int) $_SESSION['admin_id'];
+$sellerId = current_seller_id();   // null for TechZone staff
 
 /** Payment methods staff can record (value => label). */
 const ORDER_PAYMENT_METHODS = ['jazzcash' => 'JazzCash', 'cash_on_delivery' => 'Cash on delivery', 'easypaisa' => 'Easypaisa', 'bank_transfer' => 'Bank transfer'];
@@ -52,6 +59,47 @@ function order_status_capability(string $status): string
 
 try {
     // GET - all orders or one order
+    if ($method === 'GET' && $sellerId !== null) {
+        if (isset($_GET['id'])) {
+            $id = v_id($_GET['id']);
+            assert_order_visible($id);
+            $detail = seller_order_detail($conn, $id, $sellerId);
+            if (!$detail) {
+                json_error('Order not found', 404);
+            }
+            foreach ($detail['items'] as &$item) {
+                $item['image'] = order_image_url($item['imagelink'] ?? null);
+                unset($item['imagelink']);
+            }
+            unset($item);
+            $can = ['fulfil' => can('orders.fulfil'), 'ship' => can('orders.ship'), 'note' => can('orders.note')];
+            $actions = ['confirm' => false, 'payment' => false, 'deliver' => false, 'cancel' => false, 'tracking' => false];
+            foreach ($detail['allowed'] as $k => $ok) {
+                $actions[$k] = $ok && ($can[$k] ?? false);
+            }
+            json_response([
+                'success' => true,
+                'seller_view' => true,
+                'seller' => $detail['seller'],
+                'order' => $detail['order'],
+                'items' => $detail['items'],
+                'zone' => null,
+                'shipment' => $detail['shipment'],
+                'shipments' => $detail['shipments'],
+                'payment' => null,
+                'customer' => $detail['customer'],
+                'notes' => $detail['notes'],
+                'timeline' => $detail['timeline'],
+                'restock_units' => 0,
+                'actions' => $actions,
+                'couriers' => ['TCS', 'Leopards', 'M&P'],
+            ]);
+        }
+        $status = v_enum($_GET['status'] ?? '', ORDER_STATUSES);
+        $search = v_str($_GET['search'] ?? '', 100) ?? '';
+        json_response(['success' => true, 'seller_view' => true, 'orders' => seller_orders_list($conn, $sellerId, $status, $search)]);
+    }
+
     if ($method === 'GET') {
         if (isset($_GET['id'])) {
             $id = v_id($_GET['id']);
@@ -119,6 +167,9 @@ try {
 
     // PUT - legacy status change (JSON body: id, status)
     if ($method === 'PUT') {
+        if ($sellerId !== null) {
+            json_error("Seller accounts can't change an order's status. Fulfil or ship your items from the order page.", 403);
+        }
         enforce_csrf_json();
         $data = request_json();
         $id = v_id($data['id'] ?? 0);
@@ -153,6 +204,46 @@ try {
             'confirm' => 'orders.fulfil', 'fulfil' => 'orders.fulfil', 'deliver' => 'orders.fulfil',
             'payment' => 'orders.payment', 'ship' => 'orders.ship', 'tracking' => 'orders.ship', 'note' => 'orders.note', 'cancel' => 'orders.cancel',
         ][$action]);
+
+        // Sellers: only fulfil / ship / note, only on orders with their products, only their lines
+        if ($sellerId !== null) {
+            if (!in_array($action, ['fulfil', 'ship', 'note'], true)) {
+                json_error("Seller accounts can't do this. TechZone confirms orders, records payments and handles cancellations.", 403);
+            }
+            assert_order_visible($id);
+            switch ($action) {
+                case 'fulfil':
+                    $items = null;
+                    if (isset($data['items']) && is_array($data['items'])) {
+                        $items = [];
+                        foreach ($data['items'] as $itemId => $qty) {
+                            $items[(int) $itemId] = (int) $qty;
+                        }
+                    }
+                    seller_order_fulfil($conn, $id, $sellerId, $items, $adminId);
+                    $msg = 'Items fulfilled';
+                    break;
+                case 'ship':
+                    $courier = v_str($data['courier'] ?? '', 60) ?? '';
+                    if ($courier === '') {
+                        json_error('Choose a courier', 422);
+                    }
+                    $shipNote = v_str($data['note'] ?? '', 5000) ?? '';
+                    order_tx($conn, function () use ($conn, $id, $sellerId, $courier, $data, $adminId, $shipNote): void {
+                        seller_order_ship($conn, $id, $sellerId, $courier, v_str($data['tracking'] ?? '', 80), $adminId);
+                        if (trim($shipNote) !== '') {
+                            order_add_note($conn, $id, $shipNote, $adminId);
+                        }
+                    });
+                    $msg = 'Your items shipped';
+                    break;
+                default:
+                    order_add_note($conn, $id, v_str($data['body'] ?? '', 5000) ?? '', $adminId);
+                    $msg = 'Note added';
+            }
+            $detail = seller_order_detail($conn, $id, $sellerId);
+            json_response(['success' => true, 'message' => $msg, 'order' => $detail['order'] ?? null, 'timeline' => $detail['timeline'] ?? []]);
+        }
 
         switch ($action) {
             case 'confirm':
@@ -226,6 +317,8 @@ try {
     }
 
     json_error('Invalid request method', 405);
+} catch (SellerScopeException $e) {
+    json_error($e->getMessage(), 403);
 } catch (OrderActionException | InventoryException $e) {
     json_error($e->getMessage(), 409);
 } catch (PDOException $e) {

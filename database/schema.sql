@@ -29,14 +29,16 @@ CREATE TABLE IF NOT EXISTS admins (
     email       VARCHAR(150) NOT NULL,
     phone       VARCHAR(30)  DEFAULT NULL,
     password    VARCHAR(255) NOT NULL,              -- password_hash()
-    role        ENUM('owner','manager','staff') NOT NULL DEFAULT 'staff',   -- core/permissions.php
+    role        ENUM('owner','manager','staff','seller') NOT NULL DEFAULT 'staff',   -- core/permissions.php
     is_active   TINYINT(1) NOT NULL DEFAULT 1,      -- 0 = cannot sign in
+    seller_id   INT UNSIGNED DEFAULT NULL,          -- role 'seller': the marketplace seller this account works for
     last_login_at DATETIME DEFAULT NULL,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_admins_email (email),
-    UNIQUE KEY uq_admins_username (username)
+    UNIQUE KEY uq_admins_username (username),
+    KEY idx_admins_seller (seller_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
@@ -66,10 +68,16 @@ CREATE TABLE IF NOT EXISTS categories (
     name        VARCHAR(100) NOT NULL,
     description TEXT         DEFAULT NULL,
     image       VARCHAR(255) DEFAULT NULL,
+    parent_id   INT UNSIGNED DEFAULT NULL,          -- taxonomy: "Processors" under "Components"
+    slug        VARCHAR(100) DEFAULT NULL,
+    part_type   ENUM('cpu','motherboard','memory','gpu','psu','case','cooler','storage','other') NOT NULL DEFAULT 'other',  -- PC builder slot
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_categories_name (name)
+    UNIQUE KEY uq_categories_name (name),
+    UNIQUE KEY uq_categories_slug (slug),
+    KEY idx_categories_parent (parent_id),
+    KEY idx_categories_part_type (part_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
@@ -92,10 +100,12 @@ CREATE TABLE IF NOT EXISTS products (
     low_stock_threshold INT NOT NULL DEFAULT 5,
     seo_title   VARCHAR(200) DEFAULT NULL,
     seo_description VARCHAR(320) DEFAULT NULL,
+    seller_id   INT UNSIGNED NOT NULL DEFAULT 1,    -- sellers.id (1 = TechZone, the house); no FK so inserts never depend on seed order
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_products_sku (sku),
+    KEY idx_products_seller (seller_id),
     KEY idx_products_status (status),
     KEY idx_products_category (category_id),
     KEY idx_products_active (is_active),
@@ -345,8 +355,10 @@ CREATE TABLE IF NOT EXISTS order_shipments (
     tracking_number VARCHAR(80)  DEFAULT NULL,
     shipped_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     delivered_at    DATETIME DEFAULT NULL,
+    seller_id       INT UNSIGNED DEFAULT NULL,          -- marketplace seller who shipped their own lines; NULL = TechZone shipped the order
     PRIMARY KEY (id),
     KEY idx_order_shipments_order (order_id),
+    KEY idx_order_shipments_seller (seller_id),
     KEY idx_order_shipments_tracking (tracking_number),
     CONSTRAINT fk_order_shipments_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -457,4 +469,127 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (setting_key),
     CONSTRAINT fk_settings_admin FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- Storefront v2 "The Price Board" (docs/STOREFRONT.md "Data model additions"). All additive.
+-- Existing installs: `php database/migrate.php` adds the new columns and the house seller.
+-- =============================================================================
+
+-- Specs and PC-builder data, one row per key (core/catalog.php, core/builder.php).
+-- Keys per part type are listed in STOREFRONT.md; key_spec_1 / key_spec_2 are the two card hints.
+CREATE TABLE IF NOT EXISTS product_attributes (
+    id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    product_id  INT UNSIGNED NOT NULL,
+    attr_key    VARCHAR(40)  NOT NULL,
+    attr_value  VARCHAR(255) NOT NULL,
+    sort_order  INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_product_attr (product_id, attr_key),
+    KEY idx_product_attr_kv (attr_key, attr_value(40)),
+    CONSTRAINT fk_product_attr_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Weekly rate points; the newest point always equals products.price (core/catalog.php::record_price_point)
+CREATE TABLE IF NOT EXISTS price_history (
+    id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    product_id  INT UNSIGNED NOT NULL,
+    price       DECIMAL(12,2) NOT NULL,
+    recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_price_history_product (product_id, recorded_at),
+    CONSTRAINT fk_price_history_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Marketplace sellers. id 1 = TechZone itself (the house); products.seller_id defaults to it.
+CREATE TABLE IF NOT EXISTS sellers (
+    id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    slug           VARCHAR(80)  NOT NULL,
+    name           VARCHAR(120) NOT NULL,
+    market         VARCHAR(80)  DEFAULT NULL,        -- "Hafeez Centre", "Hall Road"
+    address        VARCHAR(255) DEFAULT NULL,
+    city           VARCHAR(80)  NOT NULL DEFAULT 'Lahore',
+    phone          VARCHAR(30)  DEFAULT NULL,
+    whatsapp       VARCHAR(20)  DEFAULT NULL,        -- digits only, international (923001234567) for wa.me links
+    rating         DECIMAL(2,1) NOT NULL DEFAULT 0.0,
+    about          TEXT DEFAULT NULL,
+    joined_at      DATE DEFAULT NULL,
+    status         ENUM('active','paused','suspended') NOT NULL DEFAULT 'active',
+    commission_pct DECIMAL(5,2) NOT NULL DEFAULT 8.00,
+    created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_sellers_slug (slug),
+    KEY idx_sellers_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- "Sell on TechZone" form (CSRF + throttled). Approving creates a sellers row (seller_id) and a seller account.
+CREATE TABLE IF NOT EXISTS seller_applications (
+    id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    shop_name   VARCHAR(120) NOT NULL,
+    owner_name  VARCHAR(100) NOT NULL,
+    phone       VARCHAR(30)  NOT NULL,
+    email       VARCHAR(150) NOT NULL,
+    market      VARCHAR(80)  DEFAULT NULL,
+    city        VARCHAR(80)  NOT NULL DEFAULT 'Lahore',
+    categories  VARCHAR(255) DEFAULT NULL,           -- comma-separated category names
+    ntn         VARCHAR(20)  DEFAULT NULL,           -- National Tax Number (optional)
+    message     TEXT DEFAULT NULL,
+    status      ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+    review_note VARCHAR(255) DEFAULT NULL,           -- rejection reason shown to staff
+    seller_id   INT UNSIGNED DEFAULT NULL,           -- set on approval
+    reviewed_by INT UNSIGNED DEFAULT NULL,
+    reviewed_at DATETIME DEFAULT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_seller_apps_status (status, created_at),
+    CONSTRAINT fk_seller_apps_admin FOREIGN KEY (reviewed_by) REFERENCES admins(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Weekly seller payout statements that have been paid (core/marketplace.php). Unpaid weeks are computed
+-- on the fly from delivered lines; marking a week paid snapshots gross / commission / net here.
+CREATE TABLE IF NOT EXISTS seller_payouts (
+    id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    seller_id      INT UNSIGNED NOT NULL,
+    week_start     DATE NOT NULL,                    -- Monday; the statement covers Monday..Sunday
+    gross          DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    commission_pct DECIMAL(5,2)  NOT NULL DEFAULT 8.00,
+    commission     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    net            DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    paid_at        DATETIME DEFAULT NULL,
+    reference      VARCHAR(80)  DEFAULT NULL,        -- bank transfer / cheque reference
+    paid_by        INT UNSIGNED DEFAULT NULL,        -- admins.id
+    created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_seller_payouts_week (seller_id, week_start),
+    KEY idx_seller_payouts_paid (paid_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Wishlist: signed-in customers by customer_id. Guests keep theirs in the PHP session
+-- (core/wishlist.php) and it is merged here on sign-in; session_id is kept for reporting only.
+CREATE TABLE IF NOT EXISTS wishlists (
+    id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    customer_id INT UNSIGNED DEFAULT NULL,
+    session_id  VARCHAR(128) DEFAULT NULL,
+    product_id  INT UNSIGNED NOT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_wishlists_customer_product (customer_id, product_id),
+    KEY idx_wishlists_session (session_id),
+    KEY idx_wishlists_product (product_id, created_at),
+    CONSTRAINT fk_wishlists_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wishlists_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Back-in-stock alerts (core/stock_alerts.php); notified_at is set when the email goes out.
+CREATE TABLE IF NOT EXISTS stock_alerts (
+    id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    product_id  INT UNSIGNED NOT NULL,
+    email       VARCHAR(150) NOT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notified_at DATETIME DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_stock_alerts_product_email (product_id, email),
+    KEY idx_stock_alerts_pending (product_id, notified_at),
+    CONSTRAINT fk_stock_alerts_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -6,6 +6,11 @@
 $pageTitle = 'Inventory';
 $pageSubtitle = 'Stock levels, low stock and every adjustment';
 $useGrid = true;
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
+if (is_seller()) {
+    $pageSubtitle = 'Stock of your products. Every change goes through the stock ledger.';
+}
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <?php if (!can('inventory.adjust')): ?>

@@ -1,0 +1,207 @@
+/* ==========================================================================
+   TechZone storefront v2 — design tokens and base components ("The Price Board")
+   Contract: docs/STOREFRONT.md "Brand". Class reference: docs/storefront-components.md.
+   Loaded by includes/header.php BEFORE style.css, so legacy page rules still win
+   until each page is moved over; nothing here restyles an existing page.
+   ========================================================================== */
+
+/* ---------- fonts: Archivo variable (wdth 62–125, wght 100–900), latin, OFL ---------- */
+@font-face {
+    font-family: "Archivo";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    font-stretch: 62% 125%;
+    src: url("../fonts/archivo/archivo-latin-wdth-normal.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+    /* brand */
+    --signal: #FFD400;     /* structural fields, board figures, price tags, focus ring, primary on black */
+    --black: #000000;      /* the board, footer, seller band, primary button on white */
+    --graphite: #1B1D22;   /* body text on white */
+    --paper: #FFFFFF;      /* shopping surfaces */
+    --concrete: #EEF0F2;   /* image wells, inputs, alternating sections */
+    --steel: #5E6672;      /* secondary text */
+    --line: #D9DCE1;       /* hairlines */
+    --drop: #12823B;       /* price went down ▼ */
+    --rise: #C8321E;       /* price went up ▲, errors */
+    --hold: #8A6A00;       /* low stock */
+
+    /* type */
+    --font-display: "Archivo", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+    --font-ui: "Manrope", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    --type-13: .8125rem; --type-15: .9375rem; --type-16: 1rem; --type-20: 1.25rem; --type-24: 1.5rem;
+    --type-32: 2rem; --type-44: 2.75rem; --type-64: 4rem; --type-104: 6.5rem;
+    --wdth-condensed: 75%;
+    --wdth-normal: 100%;
+    --wdth-wide: 125%;
+
+    /* shape */
+    --radius-field: 0;     /* board, bands, structural fields */
+    --radius-card: 10px;   /* cards, image wells */
+    --radius-control: 8px; /* buttons, inputs */
+    --radius-pill: 999px;  /* chips only */
+    --control-h: 48px;
+    --ring-signal: 0 0 0 2px var(--signal), 0 0 0 4px var(--black);
+    --shadow-pop: 0 12px 32px rgba(0, 0, 0, .16);   /* dropdowns and offcanvas only */
+    --ease-out: cubic-bezier(.2, .7, .2, 1);
+}
+
+/* focus: 2px signal ring with a black halo (same geometry as the legacy ring) */
+:focus-visible { outline: none; box-shadow: var(--ring-signal); }
+.focus-ring:focus-visible, .focus-ring:focus-within { outline: none; box-shadow: var(--ring-signal); }
+
+/* ---------- type scale (sentence case; Archivo for display and figures, Manrope for UI) ---------- */
+.t-display, .t-hero, .t-h1, .t-h2, .t-h3, .t-figure, .t-wordmark { font-family: var(--font-display); }
+.t-display { font-size: var(--type-64); font-stretch: var(--wdth-normal); font-weight: 800; letter-spacing: -0.02em; line-height: 1.02; }
+.t-hero    { font-size: var(--type-104); font-stretch: var(--wdth-condensed); font-weight: 850; letter-spacing: -0.02em; line-height: 1.02; }
+.t-h1      { font-size: var(--type-44); font-stretch: var(--wdth-normal); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+.t-h2      { font-size: var(--type-32); font-stretch: var(--wdth-normal); font-weight: 750; letter-spacing: -0.02em; line-height: 1.1; }
+.t-h3      { font-size: var(--type-24); font-stretch: var(--wdth-normal); font-weight: 750; letter-spacing: -0.015em; line-height: 1.15; }
+.t-figure  { font-stretch: var(--wdth-condensed); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0; line-height: 1; }
+.t-wordmark { font-stretch: var(--wdth-wide); font-weight: 800; letter-spacing: .02em; line-height: 1; text-transform: uppercase; }
+.t-wordmark--mark { display: inline-flex; align-items: center; gap: .5em; }
+.t-wordmark--mark::before { content: ""; width: 12px; height: 12px; background: var(--signal); flex: none; }
+.t-body    { font-family: var(--font-ui); font-size: var(--type-16); line-height: 1.55; max-width: 68ch; }
+.t-small   { font-family: var(--font-ui); font-size: var(--type-13); line-height: 1.45; }
+.t-muted   { color: var(--steel); }
+@media (max-width: 767.98px) {
+    .t-display { font-size: var(--type-44); }
+    .t-hero    { font-size: 3.5rem; }   /* 56px */
+    .t-h1      { font-size: var(--type-32); }
+    .t-h2      { font-size: var(--type-24); }
+    .t-h3      { font-size: var(--type-20); }
+}
+
+/* ---------- buttons: modifiers carry the whole style (plain .btn stays Bootstrap/legacy) ---------- */
+.btn--primary, .btn--secondary, .btn--on-black {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: var(--control-h); padding: 0 20px;
+    border: 1.5px solid transparent; border-radius: var(--radius-control);
+    font-family: var(--font-ui); font-size: var(--type-16); font-weight: 700; line-height: 1;
+    text-decoration: none; white-space: nowrap; cursor: pointer;
+    transition: background-color .15s var(--ease-out), color .15s var(--ease-out), border-color .15s var(--ease-out);
+}
+.btn--primary { background: var(--black); color: var(--paper); border-color: var(--black); }
+.btn--primary:hover { background: var(--graphite); border-color: var(--graphite); color: var(--paper); }
+.btn--secondary { background: transparent; color: var(--graphite); border-color: currentColor; }
+.btn--secondary:hover { background: var(--concrete); color: var(--graphite); }
+.btn--on-black { background: var(--signal); color: var(--black); border-color: var(--signal); }
+.btn--on-black:hover { background: var(--paper); border-color: var(--paper); color: var(--black); }
+.btn--primary:disabled, .btn--secondary:disabled, .btn--on-black:disabled,
+.btn--primary[aria-disabled="true"], .btn--secondary[aria-disabled="true"], .btn--on-black[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.btn--block { width: 100%; }
+
+/* ---------- form field ---------- */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field__label { font-family: var(--font-ui); font-size: var(--type-15); font-weight: 600; color: var(--graphite); }
+.field__hint { font-size: var(--type-13); color: var(--steel); }
+.field__error { font-size: var(--type-13); color: var(--rise); }
+.field__input {
+    width: 100%; min-height: var(--control-h); padding: 0 14px;
+    border: 1.5px solid transparent; border-radius: var(--radius-control);
+    background: var(--concrete); color: var(--graphite);
+    font-family: var(--font-ui); font-size: var(--type-16); line-height: 1.3;
+}
+textarea.field__input { padding: 12px 14px; min-height: 120px; resize: vertical; }
+.field__input::placeholder { color: var(--steel); opacity: 1; }
+.field__input:hover { border-color: var(--line); }
+.field__input:focus, .field__input:focus-visible { outline: none; border-color: var(--graphite); background: var(--paper); box-shadow: var(--ring-signal); }
+.field--invalid .field__input { border-color: var(--rise); }
+
+/* ---------- chip (pill; filters, choices). Legacy option chips in style.css override until moved ---------- */
+.chip {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px;
+    border: 1.5px solid var(--line); border-radius: var(--radius-pill); background: var(--paper);
+    font-size: var(--type-15); font-weight: 600; cursor: pointer;
+}
+.chip[aria-pressed="true"], .chip--on { background: var(--black); border-color: var(--black); color: var(--paper); }
+
+/* ---------- price tag (signal; prices and drops only). Moved here from style.css ---------- */
+.price-tag {
+    --tag-point: .78em;
+    position: relative; display: inline-flex; align-items: center;
+    padding: .32em .7em .32em calc(var(--tag-point) + .5em);
+    background: var(--signal); color: var(--black);
+    font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; line-height: 1.15;
+    white-space: nowrap;
+    border-radius: 0 .3em .3em 0;
+    clip-path: polygon(var(--tag-point) 0, 100% 0, 100% 100%, var(--tag-point) 100%, 0 50%);
+    -webkit-mask: radial-gradient(circle at calc(var(--tag-point) * .78) 50%, transparent .14em, #000 calc(.14em + .5px));
+            mask: radial-gradient(circle at calc(var(--tag-point) * .78) 50%, transparent .14em, #000 calc(.14em + .5px));
+}
+.price-tag--sm { font-size: .875rem; }
+.price-tag--md { font-size: 1.75rem; }
+.price-tag--lg { font-size: 2.25rem; }
+.price-tag--figure { font-family: var(--font-display); font-stretch: var(--wdth-condensed); }
+@media (max-width: 575.98px) { .price-tag--lg { font-size: 1.75rem; } }
+
+/* ---------- section header: title left, plain link right, same baseline ---------- */
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.section-head__title {
+    margin: 0; font-family: var(--font-display); font-stretch: var(--wdth-normal);
+    font-size: var(--type-44); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; color: var(--graphite);
+}
+.section-head__link { font-family: var(--font-ui); font-size: var(--type-16); font-weight: 600; color: var(--graphite); white-space: nowrap; }
+@media (max-width: 767.98px) { .section-head__title { font-size: var(--type-32); } }
+
+/* ---------- rate row (board and rates page): name + spec | price | delta | sparkline ---------- */
+.rate-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto 5.5rem; align-items: center; column-gap: 16px;
+    min-height: 52px; padding: 10px 0; border-bottom: 1px solid var(--line);
+    color: inherit; text-decoration: none;
+}
+.rate-row--spark { grid-template-columns: minmax(0, 1fr) auto 5.5rem 64px; }
+.rate-row__name { min-width: 0; font-family: var(--font-ui); font-weight: 600; font-size: var(--type-15); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rate-row__spec { color: var(--steel); font-weight: 500; }
+.rate-row__price { font-family: var(--font-display); font-stretch: var(--wdth-condensed); font-weight: 700; font-variant-numeric: tabular-nums; font-size: var(--type-20); text-align: right; }
+.rate-row--on-black { border-bottom-color: rgba(255, 255, 255, .14); color: var(--paper); }
+.rate-row--on-black .rate-row__spec { color: rgba(255, 255, 255, .62); }
+.rate-row--on-black .rate-row__price { color: var(--signal); }
+a.rate-row:hover .rate-row__name { text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 575.98px) {
+    .rate-row, .rate-row--spark { grid-template-columns: minmax(0, 1fr) auto 4.75rem; column-gap: 10px; }
+    .rate-row--spark .sparkline { display: none; }
+}
+
+/* delta: ▼ drop (green, good for the buyer), ▲ rise (red), — hold */
+.delta { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; font-family: var(--font-display); font-stretch: var(--wdth-condensed); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.delta--drop { color: var(--drop); }
+.delta--rise { color: var(--rise); }
+.delta--hold { color: var(--steel); }
+.delta--drop::before { content: "▼"; font-size: .72em; }
+.delta--rise::before { content: "▲"; font-size: .72em; }
+.delta--hold::before { content: "—"; }
+.rate-row--on-black .delta--drop { color: #4CD07D; }   /* AA on black */
+.rate-row--on-black .delta--rise { color: #FF7A66; }
+.rate-row--on-black .delta--hold { color: rgba(255, 255, 255, .55); }
+
+/* sparkline: inline SVG polyline 64×20, graphite stroke, last point a signal dot */
+.sparkline { display: block; width: 64px; height: 20px; overflow: visible; }
+.sparkline__line { fill: none; stroke: var(--graphite); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.sparkline__dot { fill: var(--signal); stroke: var(--graphite); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.rate-row--on-black .sparkline__line { stroke: rgba(255, 255, 255, .7); }
+.rate-row--on-black .sparkline__dot { stroke: var(--black); }
+
+/* ---------- spec tile: a product without a photo (render_spec_tile()) ---------- */
+.spec-tile {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    padding: 16px; background: var(--concrete); border-radius: var(--radius-card); color: var(--graphite);
+    text-align: center; overflow: hidden;
+}
+.spec-tile .spec-glyph { flex: none; width: min(64px, 40%); height: auto; color: var(--graphite); }
+.spec-tile__name {
+    max-width: 18ch; font-family: var(--font-display); font-stretch: var(--wdth-condensed); font-weight: 600;
+    font-size: var(--type-20); line-height: 1.1; letter-spacing: -0.005em;
+    flex: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.spec-tile--sm { padding: 6px; gap: 0; border-radius: inherit; }
+.spec-tile--sm .spec-glyph { width: 60%; }
+.spec-tile--static { position: relative; inset: auto; aspect-ratio: 1 / 1; }
+
+@media (prefers-reduced-motion: reduce) {
+    .btn--primary, .btn--secondary, .btn--on-black { transition: none; }
+}

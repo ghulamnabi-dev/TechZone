@@ -76,39 +76,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
-<div class="auth">
-    <div class="auth__panel">
-        <h1>Reset your password</h1>
-        <p class="auth__lead">Enter the email, full name and phone number on your account so we can verify it.</p>
+<div class="auth-shell">
+<div class="auth-wrap">
+    <a class="auth-mark t-wordmark t-wordmark--mark" href="<?php echo htmlspecialchars(site_url('index.php'), ENT_QUOTES, 'UTF-8'); ?>">TechZone</a>
+    <div class="auth-panel">
+        <h1 class="auth-title">Reset your password</h1>
+        <p class="auth-lead">Enter the email, full name and phone number on your account so we can verify it.</p>
                         <?php if ($error): ?>
-                            <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+                            <div class="alert alert-danger pg-alert pg-alert--error"><?php echo htmlspecialchars($error); ?></div>
                         <?php endif; ?>
                         <?php if ($message): ?>
-                            <div class="alert alert-success"><?php echo $message; ?></div>
+                            <div class="alert alert-success pg-alert pg-alert--ok"><?php echo $message; ?></div>
                         <?php endif; ?>
 
                         <?php if (!$message): ?>
                         <form method="post" novalidate>
                             <?= csrf_field() ?>
-                            <div class="mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" name="email" class="form-control" placeholder="Your email" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
+                            <div class="field">
+                                <label class="field__label" for="fo_email">Email</label>
+                                <input id="fo_email" type="email" name="email" class="field__input" placeholder="Your email" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Full name</label>
-                                <input type="text" name="name" class="form-control" placeholder="Name as registered" value="<?php echo htmlspecialchars($_POST['name'] ?? ''); ?>" required>
+                            <div class="field">
+                                <label class="field__label" for="fo_name">Full name</label>
+                                <input id="fo_name" type="text" name="name" class="field__input" placeholder="Name as registered" value="<?php echo htmlspecialchars($_POST['name'] ?? ''); ?>" required>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Phone</label>
-                                <input type="text" name="phone" class="form-control" placeholder="e.g. 03xx-xxxxxxx" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>" required>
+                            <div class="field">
+                                <label class="field__label" for="fo_phone">Phone</label>
+                                <input id="fo_phone" type="text" name="phone" class="field__input" placeholder="e.g. 03xx-xxxxxxx" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>" required>
                             </div>
-                            <button type="submit" class="btn btn-ink w-100">Verify & get reset link</button>
+                            <button type="submit" class="btn--primary btn--block">Verify & get reset link</button>
                         </form>
                         <?php endif; ?>
 
-                        <div class="auth__foot">
-                            <a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Back to login</a>
+                        <div class="auth-foot">
+                            <a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="pg-link">Back to login</a>
                         </div>
     </div>
+</div>
 </div>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

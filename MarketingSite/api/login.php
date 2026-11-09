@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../../core/security.php';
 require_once __DIR__ . '/../../core/auth.php';
 require_once __DIR__ . '/../../core/validation.php';
+require_once __DIR__ . '/../../core/wishlist.php';
 
 json_headers();
 
@@ -45,6 +46,7 @@ try {
     $_SESSION['customer_id'] = (int) $customer['id'];
     $_SESSION['customer_name'] = $customer['name'];
     $_SESSION['customer_email'] = $customer['email'];
+    wishlist_merge_session($conn, (int) $customer['id']);   // guest wishlist -> account
 
     json_response([
         'success' => true,

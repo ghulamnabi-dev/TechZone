@@ -1,4 +1,13 @@
 <?php
+/**
+ * Products API (manage/products.php, manage/product.php).
+ *
+ * Seller accounts (core/permissions.php): every read is limited to products.seller_id = their seller
+ * (seller_scope_products_sql); GET ?id= of another seller's product answers 404; every write
+ * (JSON create/update, image, legacy multipart, PATCH) runs assert_product_owned() first (403), and a
+ * product a seller creates is always theirs. Only owner/manager (sellers.manage) can move a product to
+ * another seller (seller_id).
+ */
 ob_start();
 
 require_once __DIR__ . '/../config/database.php';
@@ -10,6 +19,7 @@ require_once __DIR__ . '/../../core/uploads.php';
 require_once __DIR__ . '/../../core/inventory.php';
 require_once __DIR__ . '/../../core/audit.php';
 require_once __DIR__ . '/../../core/settings.php';
+require_once __DIR__ . '/../../core/catalog.php';   // record_price_point(): rate history for the storefront
 
 /** For JSON: browser-ready path; DB still stores uploads/filename */
 function product_imagelink_for_client(?string $link): string
@@ -61,6 +71,9 @@ function product_input(): array
     return [$name, $description, $price, $categoryId, $inventory, $sold, $isActive];
 }
 
+
+/** sellers.id of TechZone itself (products.seller_id default). */
+const HOUSE_SELLER = 1;
 
 /** Editable columns of the product page (manage/product.php), in audit order. */
 const PRODUCT_EDITOR_FIELDS = ['name', 'category_id', 'sku', 'description', 'price', 'compare_at_price', 'cost_price',
@@ -185,17 +198,42 @@ function product_insights(PDO $conn, int $id): array
     ];
 }
 
+/**
+ * seller_id to store for a product: a seller's own id (always); for owner/manager (sellers.manage) the
+ * requested seller when one is sent; null = leave as is (create: the house, TechZone).
+ */
+function product_seller_choice(PDO $conn, array $d): ?int
+{
+    $sid = current_seller_id();
+    if ($sid !== null) {
+        return $sid;
+    }
+    if (!array_key_exists('seller_id', $d) || $d['seller_id'] === '' || $d['seller_id'] === null || !can('sellers.manage')) {
+        return null;
+    }
+    $want = v_id($d['seller_id']);
+    $st = $conn->prepare('SELECT id FROM sellers WHERE id = ?');
+    $st->execute([$want]);
+    if ($want === 0 || !$st->fetchColumn()) {
+        validation_problem(['seller_id' => 'Choose a seller from the list.']);
+    }
+    return $want;
+}
+
 checkLogin(true);
 json_headers();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $uploadDir = __DIR__ . '/../uploads';
+$sellerScope = seller_scope_products_sql('p');
 
 try {
     // GET - all products or one product
     if ($method === 'GET') {
         if (isset($_GET['id'])) {
-            $stmt = $conn->prepare("SELECT p.*, c.name AS category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = ?");
+            assert_product_owned(v_id($_GET['id']), 404);
+            $stmt = $conn->prepare("SELECT p.*, c.name AS category_name, sl.name AS seller_name FROM products p LEFT JOIN categories c ON p.category_id = c.id
+                LEFT JOIN sellers sl ON sl.id = p.seller_id WHERE p.id = ? AND $sellerScope");
             $stmt->execute([v_id($_GET['id'])]);
             $product = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$product) {
@@ -206,7 +244,8 @@ try {
             json_response(['success' => true, 'product' => $product]);
         }
 
-        $stmt = $conn->query("SELECT p.*, c.name AS category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id ORDER BY p.id DESC");
+        $stmt = $conn->query("SELECT p.*, c.name AS category_name, sl.name AS seller_name FROM products p LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN sellers sl ON sl.id = p.seller_id WHERE $sellerScope ORDER BY p.id DESC");
         $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($products as &$row) {
             $row['imagelink'] = product_imagelink_for_client($row['imagelink'] ?? '');
@@ -235,7 +274,8 @@ try {
         }
         $existing = null;
         if ($id !== null) {
-            $st = $conn->prepare('SELECT ' . implode(', ', PRODUCT_EDITOR_FIELDS) . ' FROM products WHERE id = ?');
+            assert_product_owned($id);
+            $st = $conn->prepare('SELECT ' . implode(', ', PRODUCT_EDITOR_FIELDS) . ', seller_id FROM products WHERE id = ?');
             $st->execute([$id]);
             $existing = $st->fetch(PDO::FETCH_ASSOC);
             if (!$existing) {
@@ -243,6 +283,12 @@ try {
             }
         }
         $in = product_editor_input($conn, $data, $id);
+        $sellerChoice = product_seller_choice($conn, $data);
+        if ($id === null) {
+            $in['seller_id'] = $sellerChoice ?? HOUSE_SELLER;
+        } elseif ($sellerChoice !== null && current_seller_id() === null) {
+            $in['seller_id'] = $sellerChoice;   // owner/manager moved the product to another seller
+        }
         $isActive = $in['status'] === 'active' ? 1 : 0;
         $conn->beginTransaction();
         try {
@@ -261,8 +307,9 @@ try {
                 if ($opening > 0) {
                     adjust_inventory($conn, $id, null, $opening, 'received', 'Opening stock', (int) $_SESSION['admin_id']);
                 }
+                record_price_point($conn, $id, (float) $in['price']);
                 audit('product.create', 'product', $id, "Created {$in['sku']} {$in['name']}" . ($in['status'] !== 'active' ? " as {$in['status']}" : ''),
-                    null, ['price' => $in['price'], 'status' => $in['status'], 'inventory' => $opening]);
+                    null, ['price' => $in['price'], 'status' => $in['status'], 'inventory' => $opening, 'seller_id' => $in['seller_id']]);
                 $conn->commit();
                 json_response(['success' => true, 'message' => 'Product created', 'id' => $id, 'product_id' => $id]);
             }
@@ -271,7 +318,11 @@ try {
             }
             $sets = implode(', ', array_map(static fn($c) => "$c = ?", array_keys($in)));
             $conn->prepare("UPDATE products SET $sets, is_active = ? WHERE id = ?")->execute([...array_values($in), $isActive, $id]);
+            record_price_point($conn, $id, (float) $in['price']);   // no-op when the price is unchanged
             $norm = static fn($v) => $v === null ? null : (is_float($v) ? number_format($v, 2, '.', '') : (string) $v);
+            if (!isset($in['seller_id'])) {
+                unset($existing['seller_id']);
+            }
             [$before, $after] = audit_diff($existing, array_map($norm, $in));
             foreach (['description', 'seo_description'] as $long) {
                 if (array_key_exists($long, $after)) {
@@ -301,6 +352,7 @@ try {
     if ($method === 'POST' && ($_POST['action'] ?? '') === 'image') {
         enforce_csrf_json();
         $id = v_id($_POST['id'] ?? 0);
+        assert_product_owned($id);
         $st = $conn->prepare('SELECT imagelink, name, sku FROM products WHERE id = ?');
         $st->execute([$id]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
@@ -329,6 +381,7 @@ try {
         if ($id === 0) {
             json_error('Product ID is required for update', 422);
         }
+        assert_product_owned($id);
         [$name, $description, $price, $categoryId, $inventory, $sold, $isActive] = product_input();
 
         $stmt = $conn->prepare("SELECT name, description, price, category_id, imagelink, inventory, sold, is_active, status, sku FROM products WHERE id = ?");
@@ -361,6 +414,7 @@ try {
             }
             $stmt = $conn->prepare("UPDATE products SET name = ?, description = ?, price = ?, category_id = ?, imagelink = ?, sold = ?, is_active = ?, status = ? WHERE id = ?");
             $stmt->execute([$name, $description, $price, $categoryId, $imagelink, $sold, $isActive, $status, $id]);
+            record_price_point($conn, $id, (float) $price);
             [$before, $after] = audit_diff($existing, [
                 'name' => $name, 'description' => $description, 'price' => number_format((float) $price, 2, '.', ''),
                 'category_id' => $categoryId, 'imagelink' => $imagelink, 'inventory' => $inventory, 'sold' => $sold, 'status' => $status,
@@ -405,14 +459,16 @@ try {
         // Created with 0 stock; the opening quantity goes through the ledger as 'received'.
         $conn->beginTransaction();
         try {
-            $stmt = $conn->prepare("INSERT INTO products (name, description, price, category_id, imagelink, inventory, sold, is_active, status, low_stock_threshold) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)");
-            $stmt->execute([$name, $description, $price, $categoryId, $imagelink, $sold, $isActive, $isActive === 1 ? 'active' : 'draft', (int) setting('low_stock_threshold', 5)]);
+            $stmt = $conn->prepare("INSERT INTO products (name, description, price, category_id, imagelink, inventory, sold, is_active, status, low_stock_threshold, seller_id) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)");
+            $stmt->execute([$name, $description, $price, $categoryId, $imagelink, $sold, $isActive, $isActive === 1 ? 'active' : 'draft', (int) setting('low_stock_threshold', 5),
+                product_seller_choice($conn, $_POST) ?? HOUSE_SELLER]);
             $productId = (int) $conn->lastInsertId();
             $sku = sprintf('TZ-%04d', $productId);
             $conn->prepare("UPDATE products SET sku = ? WHERE id = ? AND sku IS NULL")->execute([$sku, $productId]);
             if ($inventory > 0) {
                 adjust_inventory($conn, $productId, null, $inventory, 'received', 'Opening stock', (int) $_SESSION['admin_id']);
             }
+            record_price_point($conn, $productId, (float) $price);
             audit('product.create', 'product', $productId, "Created $sku $name", null, ['price' => $price, 'inventory' => $inventory, 'status' => $isActive === 1 ? 'active' : 'draft']);
             $conn->commit();
         } catch (Throwable $e) {
@@ -469,6 +525,7 @@ try {
         if ($id === 0 || $isActive === null) {
             json_error('Invalid request', 422);
         }
+        assert_product_owned($id);
         $stmt = $conn->prepare("SELECT name, sku, status FROM products WHERE id = ?");
         $stmt->execute([$id]);
         $cur = $stmt->fetch(PDO::FETCH_ASSOC);

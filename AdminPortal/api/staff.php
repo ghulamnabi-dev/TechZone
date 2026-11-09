@@ -25,7 +25,9 @@ const STAFF_ROLES = ['owner', 'manager', 'staff'];
 
 function staff_list(PDO $conn): array
 {
+    // seller accounts are managed with their shop on the Sellers page (manage/seller.php)
     $rows = $conn->query('SELECT id, name, username, email, phone, role, is_active, last_login_at, created_at FROM admins
+        WHERE role <> \'seller\'
         ORDER BY is_active DESC, FIELD(role, \'owner\', \'manager\', \'staff\'), name')->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as &$r) {
         $r['id'] = (int) $r['id'];
@@ -156,6 +158,10 @@ try {
     if (!$t) {
         $conn->rollBack();
         json_error('Team member not found', 404);
+    }
+    if ($t['role'] === 'seller') {
+        $conn->rollBack();
+        json_error('Seller accounts are managed with their shop on the Sellers page.', 409);
     }
     $message = 'Nothing changed';
     if (array_key_exists('role', $data)) {

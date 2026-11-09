@@ -1,6 +1,11 @@
 <?php
 $pageTitle = 'Products';
 require_once __DIR__ . '/../config/paths.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
+if (is_seller()) {
+    $pageSubtitle = 'Your listings on TechZone. Only you and TechZone staff can edit them.';
+}
 $pageActions = '<a class="btn btn-primary" id="addProductBtn" href="' . htmlspecialchars(admin_url('manage/product.php?new=1'), ENT_QUOTES, 'UTF-8') . '" data-cap="products.write"><i class="fas fa-plus"></i> Add product</a>';
 $useGrid = true;
 require_once __DIR__ . '/../includes/header.php';

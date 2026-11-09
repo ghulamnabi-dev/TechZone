@@ -6,6 +6,9 @@
  *   products   by name or SKU
  *   customers  by name, email or phone
  * -> {success, q, groups:{orders:[…], products:[…], customers:[…]}}
+ *
+ * Seller accounts: orders only when they contain the seller's products (by # or customer name; no phone,
+ * the sub-line shows city + date + their subtotal), products only their own, customers never.
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
@@ -28,6 +31,42 @@ $join = static fn(array $parts): string => implode(' · ', array_filter(array_ma
 $phoneSql = static fn(string $col): string => "REPLACE(REPLACE(COALESCE($col, ''), '-', ''), ' ', '')";
 
 try {
+    $sid = current_seller_id();
+    if ($sid !== null) {
+        require_once __DIR__ . '/../../core/marketplace.php';
+        $st = $conn->prepare("SELECT o.id, o.customer_name, o.city, o.status, o.order_date, SUM(i.subtotal) AS mine
+            FROM orders o JOIN order_items i ON i.order_id = o.id JOIN products p ON p.id = i.product_id
+            WHERE p.seller_id = ? AND (o.customer_name LIKE ? OR o.id = ?)
+            GROUP BY o.id, o.customer_name, o.city, o.status, o.order_date ORDER BY (o.id = ?) DESC, o.order_date DESC LIMIT 5");
+        $st->execute([$sid, $like, $num, $num]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $groups['orders'][] = [
+                'id' => (int) $r['id'],
+                'label' => 'Order #' . $r['id'] . ' · ' . $r['customer_name'],
+                'sub' => $join([$r['city'] ?? '', date('j M Y', strtotime($r['order_date']))]),
+                'total' => (float) $r['mine'],
+                'status' => $r['status'],
+                'href' => admin_url('manage/order.php?id=' . (int) $r['id']),
+            ];
+        }
+        $st = $conn->prepare("SELECT p.id, p.name, p.sku, p.price, p.inventory, p.status, c.name AS category
+            FROM products p LEFT JOIN categories c ON c.id = p.category_id
+            WHERE p.seller_id = ? AND (p.name LIKE ? OR p.sku LIKE ?)
+            ORDER BY (p.sku = ?) DESC, (p.status = 'archived'), p.sold DESC, p.name LIMIT 5");
+        $st->execute([$sid, $like, $like, $q]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $groups['products'][] = [
+                'id' => (int) $r['id'],
+                'label' => $r['name'],
+                'sub' => $join([$r['sku'] ?? '', $r['category'] ?? '', (int) $r['inventory'] . ' in stock']),
+                'price' => (float) $r['price'],
+                'status' => $r['status'],
+                'href' => admin_url('manage/product.php?id=' . (int) $r['id']),
+            ];
+        }
+        json_response(['success' => true, 'q' => $q, 'groups' => $groups]);
+    }
+
     // Orders: exact id first, then name / phone matches, newest first
     $where = ['o.customer_name LIKE ?'];
     $params = [$like];

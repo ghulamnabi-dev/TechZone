@@ -225,6 +225,18 @@ kbd {
 }
 .role-badge.role-owner { background: #fff4c2; color: #6b5200; }
 .role-badge.role-manager { background: var(--info-bg); color: var(--info); }
+.role-badge.role-seller { background: var(--ok-bg); color: var(--ok); }
+/* seller portal: the shop name with a Seller badge in the topbar */
+.seller-chip { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--surface); color: var(--ink); font-weight: 600; font-size: 13px; max-width: 280px; text-decoration: none; }
+.seller-chip:hover { background: var(--canvas); color: var(--ink); }
+.seller-chip:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.seller-chip i { color: var(--ink-3); font-size: 12px; }
+.seller-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+@media (max-width: 767.98px) {
+    .seller-chip { max-width: 168px; padding: 0 8px; gap: 6px; }
+    .seller-chip i { display: none; }
+}
 
 .account-menu { min-width: 240px; }
 .account-head { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 4px; }

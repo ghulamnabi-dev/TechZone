@@ -6,19 +6,33 @@
  */
 require_once __DIR__ . '/../config/paths.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/auth.php';
 require_once __DIR__ . '/../../core/orders.php';
+checkLogin();
 $recordId = isset($_GET['id']) ? max(0, (int) $_GET['id']) : 0;
 $ordRow = null;
+$ordSeller = is_seller();
 try {
     $ordRow = $recordId > 0 ? order_get($conn, $recordId) : null;
+    if ($ordRow && $ordSeller) {
+        // a seller only ever opens orders containing their products (same rule as api/orders.php)
+        $st = $conn->prepare('SELECT 1 FROM order_items i JOIN products p ON p.id = i.product_id WHERE i.order_id = ? AND p.seller_id = ? LIMIT 1');
+        $st->execute([$recordId, (int) current_seller_id()]);
+        if (!$st->fetchColumn()) {
+            $ordRow = null;
+        }
+    }
 } catch (PDOException $e) {
     log_exception($e, 'order-page');
+}
+if (!$ordRow && $ordSeller) {
+    http_response_code(404);
 }
 $navActive = 'orders.php';
 $pageTitle = $ordRow ? 'Order #' . $recordId : 'Order not found';
 $pageBack = ['href' => admin_url('manage/orders.php'), 'label' => 'Orders'];
 if ($ordRow) {
-    $pageSubtitle = 'Placed ' . date('j M Y, H:i', strtotime((string) $ordRow['order_date'])) . ' · Storefront';
+    $pageSubtitle = 'Placed ' . date('j M Y, H:i', strtotime((string) $ordRow['order_date'])) . ($ordSeller ? ' · Showing your items only' : ' · Storefront');
     $pageActions = '<div class="ord-actions" id="ordActions" aria-label="Order actions"></div>';
 }
 require_once __DIR__ . '/../includes/header.php';
@@ -47,6 +61,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div id="ordItems" class="ord-items"><div class="ord-loading">Loading…</div></div>
         </section>
 
+        <?php if (!$ordSeller): ?>
         <section class="panel ord-card" aria-labelledby="ordPayTitle">
             <div class="panel-head">
                 <h2 class="panel-title" id="ordPayTitle">Payment</h2>
@@ -56,6 +71,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="panel-body" id="ordPayment"></div>
         </section>
+        <?php endif; ?>
 
         <section class="panel ord-card" aria-labelledby="ordShipTitle">
             <div class="panel-head">
@@ -83,11 +99,11 @@ require_once __DIR__ . '/../includes/header.php';
         </section>
 
         <section class="panel ord-card" aria-labelledby="ordNotesTitle">
-            <div class="panel-head"><h2 class="panel-title" id="ordNotesTitle">Notes</h2><span class="panel-sub">Staff only</span></div>
+            <div class="panel-head"><h2 class="panel-title" id="ordNotesTitle">Notes</h2><span class="panel-sub"><?= $ordSeller ? 'Your shop and TechZone' : 'Staff only' ?></span></div>
             <div class="panel-body">
                 <form id="ordNoteForm" class="ord-note-form" data-cap="orders.note" novalidate>
                     <label class="visually-hidden" for="ordNoteBody">Add a note</label>
-                    <textarea class="form-control" id="ordNoteBody" rows="3" maxlength="5000" placeholder="Add a note for the team…"></textarea>
+                    <textarea class="form-control" id="ordNoteBody" rows="3" maxlength="5000" placeholder="<?= $ordSeller ? 'Add a note for TechZone…' : 'Add a note for the team…' ?>"></textarea>
                     <div class="ord-note-foot"><span class="ord-meta">Customers never see notes.</span><button type="submit" class="btn btn-secondary btn-sm">Add note</button></div>
                 </form>
                 <ul class="ord-notes" id="ordNotes"></ul>
@@ -101,6 +117,7 @@ require_once __DIR__ . '/../includes/header.php';
     </aside>
 </div>
 
+<?php if (!$ordSeller): ?>
 <!-- Record payment -->
 <div class="modal fade" id="ordPayModal" tabindex="-1" aria-labelledby="ordPayModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -132,6 +149,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php endif; ?>
 <!-- Fulfil (partial allowed) -->
 <div class="modal fade" id="ordFulfilModal" tabindex="-1" aria-labelledby="ordFulfilTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -192,6 +210,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php if (!$ordSeller): ?>
 <!-- Cancel -->
 <div class="modal fade" id="ordCancelModal" tabindex="-1" aria-labelledby="ordCancelTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -224,5 +243,6 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php endif; ?>
 <script src="<?= $tzAsset('assets/js/order.js') ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

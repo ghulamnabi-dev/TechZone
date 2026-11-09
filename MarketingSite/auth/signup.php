@@ -10,56 +10,59 @@ $pageTitle = 'Sign Up';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="auth">
-    <div class="auth__panel">
-        <h1>Create an account</h1>
-        <p class="auth__lead">Track orders, reorder parts and review what you bought.</p>
-                    <div id="errorMessage" class="alert alert-danger d-none"></div>
-                    <div id="successMessage" class="alert alert-success d-none"></div>
+<div class="auth-shell">
+<div class="auth-wrap">
+    <a class="auth-mark t-wordmark t-wordmark--mark" href="<?php echo htmlspecialchars(site_url('index.php'), ENT_QUOTES, 'UTF-8'); ?>">TechZone</a>
+    <div class="auth-panel">
+        <h1 class="auth-title">Create an account</h1>
+        <p class="auth-lead">Track orders, reorder parts and review what you bought.</p>
+                    <div id="errorMessage" class="alert alert-danger pg-alert pg-alert--error d-none"></div>
+                    <div id="successMessage" class="alert alert-success pg-alert pg-alert--ok d-none"></div>
                     
                         <form id="signupForm" novalidate>
-                            <div class="row">
-                                <div class="col-12 mb-3">
-                                    <label class="form-label">Full name</label>
-                                    <input type="text" class="form-control" id="name" name="name" placeholder="Enter your full name">
+                            <div class="auth-stack">
+                                <div class="field">
+                                    <label class="field__label" for="name">Full name</label>
+                                    <input type="text" class="field__input" id="name" name="name" placeholder="Enter your full name">
                                 </div>
-                                <div class="col-12 mb-3">
-                                    <label class="form-label">Email</label>
-                                    <input type="text" class="form-control" id="email" name="email" placeholder="Enter your email">
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-12 mb-3">
-                                    <label class="form-label">Password</label>
-                                    <input type="password" class="form-control" id="password" name="password" placeholder="Create a password">
-                                    <p class="form-hint">At least 8 characters</p>
-                                </div>
-                                <div class="col-12 mb-3">
-                                    <label class="form-label">Confirm password</label>
-                                    <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password">
+                                <div class="field">
+                                    <label class="field__label" for="email">Email</label>
+                                    <input type="text" class="field__input" id="email" name="email" placeholder="Enter your email">
                                 </div>
                             </div>
-                            <div class="row">
-                                <div class="col-12 mb-3">
-                                    <label class="form-label">Phone</label>
-                                    <input type="text" class="form-control" id="phone" name="phone" placeholder="03xx-xxxxxxx" maxlength="12">
+                            <div class="auth-stack">
+                                <div class="field">
+                                    <label class="field__label" for="password">Password</label>
+                                    <input type="password" class="field__input" id="password" name="password" placeholder="Create a password">
+                                    <p class="field__hint">At least 8 characters</p>
+                                </div>
+                                <div class="field">
+                                    <label class="field__label" for="confirmPassword">Confirm password</label>
+                                    <input type="password" class="field__input" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password">
                                 </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">City</label>
-                                <input type="text" class="form-control" id="city" name="city" placeholder="Enter your city">
+                            <div class="auth-stack">
+                                <div class="field">
+                                    <label class="field__label" for="phone">Phone</label>
+                                    <input type="text" class="field__input" id="phone" name="phone" placeholder="03xx-xxxxxxx" maxlength="12">
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Address</label>
-                                <textarea class="form-control" id="address" name="address" rows="2" placeholder="Enter your address"></textarea>
+                            <div class="field">
+                                <label class="field__label" for="city">City</label>
+                                <input type="text" class="field__input" id="city" name="city" placeholder="Enter your city">
                             </div>
-                            <button type="submit" class="btn btn-ink w-100">Create account</button>
+                            <div class="field">
+                                <label class="field__label" for="address">Address</label>
+                                <textarea class="field__input" id="address" name="address" rows="2" placeholder="Enter your address"></textarea>
+                            </div>
+                            <button type="submit" class="btn--primary btn--block">Create account</button>
                         </form>
                         
-                        <div class="auth__foot">
-                            <p class="mb-0">Already have an account? <a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="text-link">Sign in</a></p>
+                        <div class="auth-foot">
+                            <p class="mb-0">Already have an account? <a href="<?php echo htmlspecialchars(site_url('auth/login.php'), ENT_QUOTES, 'UTF-8'); ?>" class="pg-link">Sign in</a></p>
                         </div>
     </div>
+</div>
 </div>
 <script src="<?php echo htmlspecialchars(marketing_script_url('form-validation.js'), ENT_QUOTES, 'UTF-8'); ?>"></script>
 <script>

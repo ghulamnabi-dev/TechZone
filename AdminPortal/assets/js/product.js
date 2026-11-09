@@ -281,6 +281,7 @@
         $('prdThreshold').value = p.low_stock_threshold != null ? p.low_stock_threshold : 5;
         $('prdSeoTitleInput').value = p.seo_title || '';
         $('prdSeoDesc').value = p.seo_description || '';
+        if ($('prdSeller') && p.seller_id) $('prdSeller').value = String(p.seller_id);
         var r = form.querySelector('input[name="status"][value="' + (p.status || 'draft') + '"]');
         if (r) r.checked = true;
         showImage(p.imagelink ? p.imagelink + (p.imagelink.indexOf('?') > -1 ? '&' : '?') + 'v=' + encodeURIComponent(p.updated_at || '') : '');
@@ -299,6 +300,7 @@
             seo_title: $('prdSeoTitleInput').value.trim(),
             seo_description: $('prdSeoDesc').value.trim()
         };
+        if ($('prdSeller')) b.seller_id = $('prdSeller').value;
         if (isNew) b.inventory = $('prdOpening').value.trim();
         else b.id = id;
         return b;

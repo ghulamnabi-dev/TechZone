@@ -12,7 +12,7 @@ $tzE = $tzE ?? static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES
     <div class="cmdk-panel" role="dialog" aria-modal="true" aria-labelledby="cmdkLabel">
         <label class="cmdk-input" id="cmdkLabel">
             <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
-            <input type="text" id="cmdkInput" placeholder="Search orders, products, customers…" autocomplete="off" spellcheck="false"
+            <input type="text" id="cmdkInput" placeholder="<?= function_exists('is_seller') && is_seller() ? 'Search your orders and products…' : 'Search orders, products, customers…' ?>" autocomplete="off" spellcheck="false"
                    role="combobox" aria-expanded="true" aria-controls="cmdkList" aria-autocomplete="list">
             <kbd>Esc</kbd>
         </label>
@@ -20,7 +20,7 @@ $tzE = $tzE ?? static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES
         <div class="cmdk-foot">
             <span><kbd>↑</kbd><kbd>↓</kbd> to move</span>
             <span><kbd>↵</kbd> to open</span>
-            <span class="ms-auto">Order numbers, SKUs and phone numbers work too</span>
+            <span class="ms-auto"><?= function_exists('is_seller') && is_seller() ? 'Order numbers and SKUs work too' : 'Order numbers, SKUs and phone numbers work too' ?></span>
         </div>
     </div>
 </div>
@@ -39,7 +39,7 @@ $tzE = $tzE ?? static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES
                     <div><dt>Go to Home</dt><dd><kbd>G</kbd> then <kbd>H</kbd></dd></div>
                     <div><dt>Go to Orders</dt><dd><kbd>G</kbd> then <kbd>O</kbd></dd></div>
                     <div><dt>Go to Products</dt><dd><kbd>G</kbd> then <kbd>P</kbd></dd></div>
-                    <div><dt>Go to Customers</dt><dd><kbd>G</kbd> then <kbd>C</kbd></dd></div>
+                    <?php if (!(function_exists('is_seller') && is_seller())): ?><div><dt>Go to Customers</dt><dd><kbd>G</kbd> then <kbd>C</kbd></dd></div><?php endif; ?>
                     <div><dt>Save changes</dt><dd><kbd data-kbd-mod>⌘S</kbd> when the save bar is showing</dd></div>
                     <div><dt>Show this sheet</dt><dd><kbd>?</kbd></dd></div>
                     <div><dt>Close a dialog</dt><dd><kbd>Esc</kbd></dd></div>

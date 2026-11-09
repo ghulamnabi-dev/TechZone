@@ -23,6 +23,8 @@ function checkLogin($returnJson = false) {
             exit();
         }
     }
+    // Seller accounts: deny-by-default allowlist of scripts (core/permissions.php TZ_SELLER_ALLOWED)
+    seller_gate();
 }
 
 // Get admin name

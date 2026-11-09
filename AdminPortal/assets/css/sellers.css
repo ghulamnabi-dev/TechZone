@@ -1,0 +1,78 @@
+/* ==========================================================================
+   TechZone admin — marketplace pages: Sellers, seller detail, seller portal (home,
+   payouts, store profile). Light tokens from admin-style.css; classes are .sl-… / .st-…
+   ========================================================================== */
+
+/* KPI that is a link (seller home: payout due) */
+.kpi-link { display: block; color: inherit; text-decoration: none; transition: border-color .15s, box-shadow .15s; }
+.kpi-link:hover { color: inherit; border-color: #cdd1d8; box-shadow: 0 4px 12px rgba(16, 24, 40, .08); }
+.kpi-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* seller home to-do: two cards */
+.sl-todo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.home-card.is-zero .home-card-n { color: var(--ink-3); }
+
+/* payout figures (definition rows) */
+.sl-pay { margin: 0; display: grid; gap: 0; }
+.sl-pay > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line-2); }
+.sl-pay > div:first-child { border-top: 0; padding-top: 0; }
+.sl-pay dt { color: var(--ink-2); font-weight: 400; font-size: 13px; }
+.sl-pay dd { margin: 0; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.sl-pay .cell-sub { color: var(--ink-3); font-size: 12px; }
+.sl-pay-big { font-size: 18px; font-weight: 600; }
+.sl-hint { color: var(--ink-3); font-size: 12px; margin: 12px 0 0; }
+
+/* applications table */
+.sl-apps tbody tr { cursor: pointer; }
+.sl-apps tbody tr:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.sl-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+td.sl-chips { display: table-cell; }
+td.sl-chips .chip { margin: 1px 2px 1px 0; }
+.count-chip { margin-left: 4px; }
+
+/* application drawer */
+.sl-drawer { --bs-offcanvas-width: 460px; }
+.sl-drawer .offcanvas-header { border-bottom: 1px solid var(--line-2); align-items: flex-start; }
+.sl-drawer .offcanvas-title { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.sl-drawer-sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sl-drawer .offcanvas-body { font-size: 13px; }
+.sl-drawer-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line-2); background: var(--surface); }
+.sl-drawer-foot[hidden] { display: none; }
+.sl-kv { grid-template-columns: 90px minmax(0, 1fr); }
+
+/* approve result */
+.sl-done { display: flex; align-items: center; gap: 12px; }
+.sl-done-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--ok-bg); color: var(--ok); display: grid; place-items: center; flex-shrink: 0; }
+
+/* statements */
+.sl-statements td { vertical-align: middle; }
+.sl-statements tr.sl-current td { background: var(--canvas); }
+.sl-statements .cell-sub { display: block; color: var(--ink-3); font-size: 12px; }
+.sl-statements td.num .cell-sub { display: inline; }
+.sl-explain { border-top: 1px solid var(--line-2); font-size: 13px; color: var(--ink-2); }
+
+/* seller detail */
+.sl-status-radios { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sl-accounts { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.sl-accounts li { display: flex; gap: 10px; align-items: flex-start; }
+.sl-accounts strong { font-size: 13px; }
+tr[data-href] { cursor: pointer; }
+
+@media (max-width: 1199.98px) {
+    .sl-hide-md { display: none; }
+}
+@media (max-width: 767.98px) {
+    .sl-hide-sm { display: none; }
+    .sl-todo { grid-template-columns: minmax(0, 1fr); }
+    .sl-drawer { --bs-offcanvas-width: 100vw; }
+    .sl-status-radios { grid-template-columns: minmax(0, 1fr); }
+    .sl-statements th, .sl-statements td { padding-left: 8px; padding-right: 8px; }
+    #slAppSeg { width: 100%; }
+    #slAppSeg button { flex: 1; }
+}
+
+/* keep visually-hidden headers and wide tables inside their own scroller */
+.table-scroll { position: relative; }
+.sl-statements .cell-main, .sl-statements .cell-sub { white-space: nowrap; }
+.sl-statements th:last-child, .sl-statements td:last-child { padding-right: 16px; white-space: nowrap; }
+.sl-statements .ord-hint, .sl-statements .ord-mono { font-size: 12px; }

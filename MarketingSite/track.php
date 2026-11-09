@@ -78,49 +78,47 @@ $pageTitle = 'Track your order';
 require_once __DIR__ . '/includes/header.php';
 $h = static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 ?>
-<div class="container page">
-    <div class="row g-4 g-lg-5">
-        <div class="col-lg-5">
-            <div class="page-intro mb-4">
-                <h1>Track your order</h1>
-                <p class="lead-text">Enter your order number and the phone number you used at checkout.</p>
-            </div>
+<div class="container pg-page pg-track">
+    <div class="pg-track__grid">
+        <div class="pg-track__form">
+            <header class="pg-head">
+                <h1 class="pg-title">Track your order</h1>
+                <p class="pg-lead">Enter your order number and the phone number you used at checkout.</p>
+            </header>
             <?php if ($error): ?>
-                <div class="alert alert-danger" role="alert"><?= $h($error) ?></div>
+                <div class="alert alert-danger pg-alert pg-alert--error" role="alert"><?= $h($error) ?></div>
             <?php endif; ?>
-            <form method="post" action="<?= $h(site_url('track.php')) ?>" class="trk-form" novalidate>
+            <form method="post" action="<?= $h(site_url('track.php')) ?>" class="pg-form" novalidate>
                 <?= csrf_field() ?>
-                <div class="mb-3">
-                    <label class="form-label" for="trkOrder">Order number</label>
-                    <input type="text" class="form-control" id="trkOrder" name="order" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="e.g. 1234" value="<?= $h($orderNo) ?>" required>
+                <div class="field">
+                    <label class="field__label" for="trkOrder">Order number</label>
+                    <input type="text" class="field__input" id="trkOrder" name="order" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="For example 1234" value="<?= $h($orderNo) ?>" required>
                 </div>
-                <div class="mb-4">
-                    <label class="form-label" for="trkPhone">Phone number</label>
-                    <input type="tel" class="form-control" id="trkPhone" name="phone" autocomplete="tel" maxlength="20" placeholder="03xx-xxxxxxx" required>
-                    <p class="form-hint">The number on your order confirmation.</p>
+                <div class="field">
+                    <label class="field__label" for="trkPhone">Phone number</label>
+                    <input type="tel" class="field__input" id="trkPhone" name="phone" autocomplete="tel" maxlength="20" placeholder="03xx-xxxxxxx" required>
+                    <span class="field__hint">The number on your order confirmation.</span>
                 </div>
-                <button type="submit" class="btn btn-ink w-100">Track order</button>
+                <button type="submit" class="btn--primary btn--block">Track order</button>
             </form>
-            <p class="muted mt-3 mb-0" style="font-size:var(--fs-14)">Have an account? <a href="<?= $h(site_url('account/orders.php')) ?>">See all your orders</a>.</p>
+            <p class="pg-track__acct">Have an account? <a class="pg-link" href="<?= $h(site_url('account/orders.php')) ?>">See all your orders</a>.</p>
         </div>
-        <div class="col-lg-7">
+        <div class="pg-track__result">
             <?php if ($found):
                 $trkOrder = $found['order'];
                 $trkShipment = $found['shipment'];
                 $trkTimeline = $found['timeline']; ?>
-                <div class="trk-result">
-                    <div class="page-title mb-3">
-                        <h2 class="h3 m-0">Order #<?= (int) $trkOrder['id'] ?></h2>
-                        <span class="status status--<?= $h(strtolower((string) $trkOrder['status'])) ?>"><span class="status__dot" aria-hidden="true"></span><?= $h($trkOrder['status']) ?></span>
-                    </div>
-                    <p class="muted mb-4">Placed <?= $h(date('j F Y', strtotime((string) $trkOrder['order_date']))) ?> · <?= (int) $found['units'] ?> item<?= $found['units'] === 1 ? '' : 's' ?> · delivering to <?= $h($trkOrder['city']) ?></p>
-                    <?php include __DIR__ . '/includes/order-track.php'; ?>
+                <div class="pg-track__head">
+                    <h2 class="pg-h2">Order #<?= (int) $trkOrder['id'] ?></h2>
+                    <span class="acct-pill acct-pill--<?= $h(strtolower((string) $trkOrder['status'])) ?>"><?= $h($trkOrder['status']) ?></span>
                 </div>
+                <p class="pg-muted pg-track__meta">Placed <?= $h(date('j F Y', strtotime((string) $trkOrder['order_date']))) ?>, <?= (int) $found['units'] ?> item<?= $found['units'] === 1 ? '' : 's' ?>, delivering to <?= $h($trkOrder['city']) ?></p>
+                <?php include __DIR__ . '/includes/order-track.php'; ?>
             <?php else: ?>
-                <div class="trk-placeholder">
-                    <span class="trk-placeholder__icon" aria-hidden="true"><i class="fas fa-truck-fast"></i></span>
-                    <p class="mb-1"><strong>Where's my parcel?</strong></p>
-                    <p class="muted mb-0">Once your order ships you'll see the courier and tracking number here, and every step until it reaches your door.</p>
+                <div class="pg-track__empty">
+                    <ol class="pg-track__steps" aria-hidden="true"><li>Placed</li><li>Confirmed</li><li>Shipped</li><li>Delivered</li></ol>
+                    <p class="pg-track__q">Where's my parcel?</p>
+                    <p class="pg-muted">Once your order ships you'll see the courier and tracking number here, and every step until it reaches your door. Lahore orders usually arrive in 1 to 2 working days.</p>
                 </div>
             <?php endif; ?>
         </div>

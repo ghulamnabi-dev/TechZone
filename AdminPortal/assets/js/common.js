@@ -358,6 +358,20 @@ function initCommandPalette() {
         { label: 'Activity log', icon: 'fa-clock-rotate-left', href: url('settings.php?tab=activity'), keys: 'activity audit log history', cap: ['activity.view'] },
         { label: 'Profile', icon: 'fa-user', href: url('profile.php'), keys: 'profile account password' }
     ].filter(function (p) { return !p.cap || p.cap.some(tzCan); });
+    if (window.TZ_ROLE === 'seller') {
+        // seller portal: only their own pages (the server refuses the rest anyway)
+        PAGES = [
+            { label: 'Home', icon: 'fa-house', href: url('dashboard.php'), hint: 'G H', keys: 'home dashboard sales' },
+            { label: 'Orders', icon: 'fa-inbox', href: url('orders.php'), hint: 'G O', keys: 'orders fulfil ship', jump: true },
+            { label: 'Products', icon: 'fa-tag', href: url('products.php'), hint: 'G P', keys: 'products catalogue catalog listings', jump: true },
+            { label: 'Inventory', icon: 'fa-boxes-stacked', href: url('inventory.php'), keys: 'inventory stock low', jump: true },
+            { label: 'Payouts', icon: 'fa-money-check-dollar', href: url('payouts.php'), keys: 'payouts earnings commission statements money', jump: true },
+            { label: 'Store profile', icon: 'fa-store', href: url('store.php'), keys: 'store shop profile whatsapp address about' },
+            { label: 'Profile', icon: 'fa-user', href: url('profile.php'), keys: 'profile account password' }
+        ];
+    } else if (tzCan('sellers.view')) {
+        PAGES.splice(4, 0, { label: 'Sellers', icon: 'fa-store', href: url('sellers.php'), keys: 'sellers marketplace applications payouts shops', jump: true });
+    }
     var items = [];
     var sel = 0;
     var seq = 0;
@@ -608,6 +622,7 @@ function initNotifications() {
 function initShortcuts() {
     var pendingG = 0;
     var GO = { o: 'orders.php', p: 'products.php', c: 'customers.php', h: 'dashboard.php' };
+    if (window.TZ_ROLE === 'seller') delete GO.c;
     function typing(t) {
         return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
     }

@@ -12,9 +12,15 @@ var ORD_TABS = {
     cancelled: function (o) { return o.status === 'Cancelled'; },
     all: function () { return true; }
 };
+var ORD_SELLER = window.TZ_ROLE === 'seller';
+if (ORD_SELLER) {
+    // seller rows carry their own fulfilment state; "open" = not handed over yet or still travelling
+    ORD_TABS.unfulfilled = function (o) { return o.status !== 'Cancelled' && (o.fulfillment_status !== 'fulfilled' || (!o.shipped_by_me && (o.status === 'Pending' || o.status === 'Processing'))); };
+    delete ORD_TABS.unpaid;
+}
 var ORD_EMPTY = {
     open: 'No open orders. New orders appear here the moment they’re placed.',
-    unfulfilled: 'No unfulfilled orders. New orders appear here the moment they’re placed.',
+    unfulfilled: ORD_SELLER ? 'Nothing to fulfil. Orders with your products appear here the moment they’re placed.' : 'No unfulfilled orders. New orders appear here the moment they’re placed.',
     unpaid: 'No payments to collect.',
     completed: 'No delivered orders yet.',
     cancelled: 'No cancelled orders.',
@@ -172,14 +178,7 @@ window.onload = function () {
         });
     }
 
-    ordersGrid = createAdminGrid(document.getElementById('ordersTable'), {
-        storageKey: 'tz.grid.orders.v2',
-        noun: ['order', 'orders'],
-        emptyText: ORD_EMPTY[ordTab],
-        exportName: 'orders',
-        toolbar: { search: '#orderSearch', count: '#orderCount', exportBtn: '#ordersExport', resetBtn: '#ordersReset' },
-        selectable: true,
-        columns: [
+    var columns = [
             { field: 'id', headerName: 'Order', kind: 'id', width: 112, mobileWidth: 100, cellRenderer: ordOrderCell,
               getQuickFilterText: function (p) { return '#' + p.data.id + ' ' + p.data.id; } },
             { field: 'customer_name', headerName: 'Customer', kind: 'stack', flex: 1, minWidth: 200,
@@ -195,7 +194,25 @@ window.onload = function () {
             { field: 'fulfillment_status', headerName: 'Fulfilment', kind: 'status', width: 132 },
             { field: 'status', headerName: 'Status', kind: 'status', width: 128 },
             { field: 'total', headerName: 'Total', kind: 'money', width: 130 }
-        ],
+        ];
+    if (ORD_SELLER) {
+        columns = columns.filter(function (c) { return ['payment_status', 'customer_phone'].indexOf(c.field) === -1; });
+        columns.forEach(function (c) {
+            if (c.field === 'fulfillment_status') c.headerName = 'Your items';
+            if (c.field === 'total') c.headerName = 'Your subtotal';
+            if (c.field === 'customer_name') c.getQuickFilterText = function (p) { return [p.data.customer_name, p.data.city].join(' '); };
+        });
+        bulkActions = [];
+    }
+
+    ordersGrid = createAdminGrid(document.getElementById('ordersTable'), {
+        storageKey: ORD_SELLER ? 'tz.grid.orders.seller.v1' : 'tz.grid.orders.v2',
+        noun: ['order', 'orders'],
+        emptyText: ORD_EMPTY[ordTab],
+        exportName: 'orders',
+        toolbar: { search: '#orderSearch', count: '#orderCount', exportBtn: '#ordersExport', resetBtn: '#ordersReset' },
+        selectable: !ORD_SELLER,
+        columns: columns,
         rowActions: function (o) {
             return [{ icon: 'fa-arrow-right', label: 'Open order #' + o.id, attrs: 'data-open-order="' + parseInt(o.id, 10) + '"' }];
         },

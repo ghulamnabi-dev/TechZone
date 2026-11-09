@@ -69,6 +69,13 @@ $columns = [
                             "UPDATE admins SET role = 'owner' WHERE id = (SELECT id FROM (SELECT MIN(id) AS id FROM admins) x)"],
         'is_active'     => ['TINYINT(1) NOT NULL DEFAULT 1 AFTER role', null],
         'last_login_at' => ['DATETIME DEFAULT NULL AFTER is_active', null],
+        'seller_id'     => ['INT UNSIGNED DEFAULT NULL AFTER last_login_at', null],
+    ],
+    'categories' => [
+        'parent_id' => ['INT UNSIGNED DEFAULT NULL AFTER image', null],
+        'slug'      => ['VARCHAR(100) DEFAULT NULL AFTER parent_id', null],   // backfilled below (needs PHP)
+        'part_type' => ["ENUM('cpu','motherboard','memory','gpu','psu','case','cooler','storage','other') NOT NULL DEFAULT 'other' AFTER slug",
+                        "UPDATE categories SET part_type = 'storage' WHERE name = 'Storage Devices'"],
     ],
     'products' => [
         'status'              => ["ENUM('draft','active','archived') NOT NULL DEFAULT 'active' AFTER is_active",
@@ -80,6 +87,7 @@ $columns = [
         'low_stock_threshold' => ['INT NOT NULL DEFAULT 5 AFTER cost_price', null],
         'seo_title'           => ['VARCHAR(200) DEFAULT NULL AFTER low_stock_threshold', null],
         'seo_description'     => ['VARCHAR(320) DEFAULT NULL AFTER seo_title', null],
+        'seller_id'           => ['INT UNSIGNED NOT NULL DEFAULT 1 AFTER seo_description', null],
     ],
     'orders' => [
         'subtotal'           => ['DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER city',
@@ -97,6 +105,9 @@ $columns = [
         'cancel_reason'      => ['VARCHAR(255) DEFAULT NULL AFTER promo_code', null],
         'cancelled_at'       => ['DATETIME DEFAULT NULL AFTER cancel_reason',
                                  "UPDATE orders SET cancelled_at = updated_at WHERE status = 'Cancelled'"],
+    ],
+    'order_shipments' => [
+        'seller_id' => ['INT UNSIGNED DEFAULT NULL AFTER delivered_at', null],
     ],
     'order_items' => [
         'fulfilled_qty' => ['INT NOT NULL DEFAULT 0 AFTER quantity',
@@ -133,6 +144,49 @@ foreach ($columns as $table => $cols) {
     }
 }
 
+// admins.role gains 'seller' (a marketplace seller's staff account, scoped to their products)
+$st = $conn->prepare('SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+$st->execute([$db, 'admins', 'role']);
+if (strpos((string) $st->fetchColumn(), "'seller'") === false) {
+    $conn->exec("ALTER TABLE admins MODIFY COLUMN role ENUM('owner','manager','staff','seller') NOT NULL DEFAULT 'staff'");
+    $changes++;
+    say("~ admins.role += 'seller'");
+}
+
+// categories.slug: "Storage Devices" -> "storage-devices" (unique; a clash gets the id appended)
+$rows = $conn->query('SELECT id, name FROM categories WHERE slug IS NULL OR slug = \'\'')->fetchAll(PDO::FETCH_ASSOC);
+if ($rows) {
+    $taken = array_flip($conn->query("SELECT slug FROM categories WHERE slug IS NOT NULL AND slug <> ''")->fetchAll(PDO::FETCH_COLUMN));
+    $up = $conn->prepare('UPDATE categories SET slug = ? WHERE id = ?');
+    foreach ($rows as $r) {
+        $slug = trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower((string) $r['name'])), '-') ?: 'category';
+        if (isset($taken[$slug])) {
+            $slug .= '-' . $r['id'];
+        }
+        $taken[$slug] = true;
+        $up->execute([$slug, $r['id']]);
+    }
+    $changes++;
+    say('categories.slug: backfilled ' . count($rows) . ' row(s)');
+}
+
+// The house seller (id 1) must exist: products.seller_id defaults to it
+if ((int) $conn->query('SELECT COUNT(*) FROM sellers WHERE id = 1')->fetchColumn() === 0) {
+    $conn->exec("INSERT INTO sellers (id, slug, name, market, address, city, phone, whatsapp, rating, joined_at, status, commission_pct)
+        VALUES (1, 'techzone', 'TechZone', 'Hafeez Centre', 'Shop 214, 2nd floor, Hafeez Centre, Gulberg III', 'Lahore', NULL, NULL, 4.8, CURDATE(), 'active', 0.00)");
+    $changes++;
+    say('+ sellers: TechZone (house, id 1)');
+}
+
+// Price history: a product with no rate point gets one at today's price, so "the newest point
+// equals products.price" holds for every product (the seed provides 12 weekly points instead)
+$n = $conn->exec('INSERT INTO price_history (product_id, price, recorded_at)
+    SELECT p.id, p.price, NOW() FROM products p WHERE NOT EXISTS (SELECT 1 FROM price_history h WHERE h.product_id = p.id)');
+if ($n > 0) {
+    $changes++;
+    say("price_history: $n opening point(s)");
+}
+
 // COD orders are paid when the courier delivers them; that rule is already covered by
 // "Delivered -> paid" above. Cancelled orders keep payment 'pending' (nothing was collected).
 
@@ -141,6 +195,12 @@ $indexes = [
     ['products', 'idx_products_status', 'ADD KEY idx_products_status (status)'],
     ['orders', 'idx_orders_payment', 'ADD KEY idx_orders_payment (payment_status)'],
     ['orders', 'idx_orders_fulfillment', 'ADD KEY idx_orders_fulfillment (fulfillment_status)'],
+    ['admins', 'idx_admins_seller', 'ADD KEY idx_admins_seller (seller_id)'],
+    ['categories', 'uq_categories_slug', 'ADD UNIQUE KEY uq_categories_slug (slug)'],
+    ['categories', 'idx_categories_parent', 'ADD KEY idx_categories_parent (parent_id)'],
+    ['categories', 'idx_categories_part_type', 'ADD KEY idx_categories_part_type (part_type)'],
+    ['products', 'idx_products_seller', 'ADD KEY idx_products_seller (seller_id)'],
+    ['order_shipments', 'idx_order_shipments_seller', 'ADD KEY idx_order_shipments_seller (seller_id)'],
 ];
 foreach ($indexes as [$table, $name, $ddl]) {
     if (!index_exists($conn, $db, $table, $name)) {

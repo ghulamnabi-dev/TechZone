@@ -92,13 +92,15 @@ function initProductsGrid() {
             { colId: 'sku', headerName: 'SKU', kind: 'muted', width: 110, hide: true, valueGetter: function (p) { return productSku(p.data); } },
             { field: 'category_name', headerName: 'Category', kind: 'chip', width: 156,
               valueGetter: function (p) { return p.data.category_name || 'Uncategorised'; } },
+            window.TZ_ROLE !== 'seller' && { field: 'seller_name', headerName: 'Seller', kind: 'muted', width: 150,
+              valueGetter: function (p) { return p.data.seller_name || 'TechZone'; } },
             { field: 'price', headerName: 'Price', kind: 'money', width: 130 },
             { field: 'inventory', headerName: 'Inventory', kind: 'stock', width: 124,
               cellRenderer: function (p) { var t = document.createElement('template'); t.innerHTML = stockCell(p.value, p.data.low_stock_threshold); return t.content.firstChild; } },
             { field: 'sold', headerName: 'Sold', kind: 'number', width: 76 },
             { colId: 'status', headerName: 'Status', kind: 'status', width: 116,
               valueGetter: function (p) { return PRODUCT_STATUS_LABEL[productStatus(p.data)] || 'Draft'; } }
-        ],
+        ].filter(Boolean),
         rowActions: function (product) {
             var id = parseInt(product.id, 10);
             var active = isProductActive(product);

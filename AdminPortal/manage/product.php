@@ -15,10 +15,21 @@ $recordId = $isNew ? 0 : (isset($_GET['id']) ? max(0, (int) $_GET['id']) : 0);
 $navActive = 'products.php';
 $pageBack = ['href' => admin_url('manage/products.php'), 'label' => 'Products'];
 $product = null;
+$prdSeller = is_seller();
 if ($recordId > 0) {
-    $st = $conn->prepare('SELECT id, name, status, sku FROM products WHERE id = ?');
+    // sellers only ever open their own products (seller_scope_products_sql)
+    $st = $conn->prepare('SELECT p.id, p.name, p.status, p.sku, p.seller_id, sl.name AS seller_name FROM products p LEFT JOIN sellers sl ON sl.id = p.seller_id
+        WHERE p.id = ? AND ' . seller_scope_products_sql('p'));
     $st->execute([$recordId]);
     $product = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$product && $prdSeller) {
+        http_response_code(404);
+    }
+}
+// owner / manager choose which marketplace seller sells the product (side card)
+$prdSellers = [];
+if (can('sellers.manage')) {
+    $prdSellers = $conn->query("SELECT id, name, status FROM sellers ORDER BY id = 1 DESC, name")->fetchAll(PDO::FETCH_ASSOC);
 }
 if ($isNew) {
     $pageCap = 'products.write';
@@ -45,6 +56,8 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 <?php if (!$canWrite): ?>
     <div class="prd-readonly-note"><i class="fas fa-eye" aria-hidden="true"></i> You can view this product. Editing products and stock needs a manager or the owner.</div>
+<?php elseif ($prdSeller && $isNew): ?>
+    <div class="prd-readonly-note"><i class="fas fa-store" aria-hidden="true"></i> New products are listed under your shop. TechZone may review them before they go live.</div>
 <?php endif; ?>
 
 <form id="productForm" class="prd-layout" novalidate data-id="<?= (int) $recordId ?>" data-new="<?= $isNew ? '1' : '0' ?>" data-store="<?= $e($storeBase) ?>">
@@ -199,9 +212,29 @@ require_once __DIR__ . '/../includes/header.php';
                     <dt>SKU</dt><dd class="tabular" id="prdOrgSku">—</dd>
                     <dt>Created</dt><dd id="prdOrgCreated">—</dd>
                 </dl>
-                <p class="prd-hint mt-3 mb-0">Products are grouped by category; there are no product tags. <a href="<?= $e(admin_url('manage/categories.php')) ?>">Manage categories</a></p>
+                <?php if (!$prdSeller): ?><p class="prd-hint mt-3 mb-0">Products are grouped by category; there are no product tags. <a href="<?= $e(admin_url('manage/categories.php')) ?>">Manage categories</a></p><?php endif; ?>
             </div>
         </section>
+
+        <?php if ($prdSellers): ?>
+        <section class="panel" aria-labelledby="prdSellerTitle">
+            <div class="panel-head"><h2 class="panel-title" id="prdSellerTitle">Seller</h2></div>
+            <div class="panel-body">
+                <label class="form-label" for="prdSeller">Sold by</label>
+                <select class="form-select" id="prdSeller" name="seller_id">
+                    <?php foreach ($prdSellers as $sl): ?>
+                        <option value="<?= (int) $sl['id'] ?>"<?= (int) ($product['seller_id'] ?? 1) === (int) $sl['id'] ? ' selected' : '' ?>><?= $e($sl['name']) ?><?= (int) $sl['id'] === 1 ? ' (our own stock)' : ($sl['status'] !== 'active' ? ' · ' . $e($sl['status']) : '') ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">A marketplace seller sees and fulfils this product's orders, and it counts towards their payouts.</div>
+            </div>
+        </section>
+        <?php elseif (!$isNew && !$prdSeller && (int) ($product['seller_id'] ?? 1) !== 1): ?>
+        <section class="panel" aria-labelledby="prdSellerTitle">
+            <div class="panel-head"><h2 class="panel-title" id="prdSellerTitle">Seller</h2></div>
+            <div class="panel-body"><dl class="kv"><dt>Sold by</dt><dd><?= $e($product['seller_name'] ?? '') ?></dd></dl></div>
+        </section>
+        <?php endif; ?>
 
         <?php if (!$isNew): ?>
         <section class="panel" aria-labelledby="prdInsTitle">

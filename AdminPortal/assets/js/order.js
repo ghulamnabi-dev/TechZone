@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var busy = false;
     var e = escapeHtml;
 
-    var ROLE = { owner: 'Owner', manager: 'Manager', staff: 'Staff', customer: 'Customer' };
+    var ROLE = { owner: 'Owner', manager: 'Manager', staff: 'Staff', seller: 'Seller', customer: 'Customer' };
+    var SELLER = window.TZ_ROLE === 'seller';   // seller view: only their lines, no payment / contact details
     var PAY = { cash_on_delivery: 'Cash on delivery', jazzcash: 'JazzCash', easypaisa: 'Easypaisa', bank_transfer: 'Bank transfer' };
     var TL_ICON = {
         placed: 'fa-cart-shopping', confirmed: 'fa-circle-check', payment_recorded: 'fa-money-bill-wave', fulfilled: 'fa-box',
@@ -80,25 +81,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 h1.insertAdjacentElement('afterend', pills);
                 h1.parentNode.classList.add('ord-head');
             }
-            pills.innerHTML = statusPill(o.status) + statusPill(o.payment_status, o.payment_status === 'pending' ? 'Payment pending' : null) +
-                statusPill(o.fulfillment_status);
+            pills.innerHTML = SELLER ? statusPill(o.status) + statusPill(o.fulfillment_status, 'Your items: ' + o.fulfillment_status)
+                : statusPill(o.status) + statusPill(o.payment_status, o.payment_status === 'pending' ? 'Payment pending' : null) + statusPill(o.fulfillment_status);
         }
 
         // actions bar
-        var primary = A.confirm ? 'confirm' : (A.fulfil ? 'fulfil' : (A.ship ? 'ship' : (A.deliver ? 'deliver' : null)));
+        var primary = A.confirm ? 'confirm' : (A.fulfil && !SELLER ? 'fulfil' : (A.ship ? 'ship' : (A.fulfil ? 'fulfil' : (A.deliver ? 'deliver' : null))));
         var bar = '';
         var defs = [
             ['confirm', 'Confirm', 'fa-check'],
             ['payment', 'Record payment', 'fa-money-bill-wave'],
-            ['fulfil', 'Fulfil', 'fa-box'],
-            ['ship', 'Ship', 'fa-truck'],
+            ['fulfil', SELLER ? 'Fulfil your items' : 'Fulfil', 'fa-box'],
+            ['ship', SELLER ? 'Ship your items' : 'Ship', 'fa-truck'],
             ['deliver', 'Mark delivered', 'fa-house-circle-check']
         ];
         defs.forEach(function (d) {
             if (A[d[0]]) bar += btn(d[0], d[1], d[2], d[0] === primary ? 'btn-primary' : 'btn-secondary');
         });
         if (A.cancel) bar += btn('cancel', 'Cancel', 'fa-ban', 'btn-secondary ord-btn-danger');
-        bar += '<div class="dropdown d-inline-block"><button type="button" class="btn btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="ordPrintBtn">' +
+        if (!SELLER) bar += '<div class="dropdown d-inline-block"><button type="button" class="btn btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="ordPrintBtn">' +
             '<i class="fas fa-print" aria-hidden="true"></i> Print</button><ul class="dropdown-menu dropdown-menu-end">' +
             '<li><a class="dropdown-item" target="_blank" rel="noopener" href="' + e(adminUrl('manage/order-print.php?id=' + ORDER_ID + '&type=invoice&autoprint=1')) + '"><i class="fas fa-file-invoice"></i> Invoice</a></li>' +
             '<li><a class="dropdown-item" target="_blank" rel="noopener" href="' + e(adminUrl('manage/order-print.php?id=' + ORDER_ID + '&type=packing&autoprint=1')) + '"><i class="fas fa-boxes-packing"></i> Packing slip</a></li></ul></div>';
@@ -106,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (actions) actions.innerHTML = bar;
 
         renderItems(A);
-        renderPayment(A);
+        if (document.getElementById('ordPayment')) renderPayment(A);
         renderShipping(A);
         renderTimeline();
         renderCustomer();
@@ -127,13 +128,18 @@ document.addEventListener('DOMContentLoaded', function () {
             html += '<li class="ord-line">' + img +
                 '<div class="ord-line-main"><div class="ord-line-name">' +
                 (it.product_id ? '<a href="' + e(adminUrl('manage/product.php?id=' + parseInt(it.product_id, 10))) + '">' + e(it.product_name) + '</a>' : e(it.product_name)) + '</div>' +
-                '<div class="ord-line-sub">' + [v ? e(v) : '', it.sku ? '<span class="ord-sku">' + e(it.sku) + '</span>' : ''].filter(Boolean).join(' · ') + '</div>' +
+                '<div class="ord-line-sub">' + [v ? e(v) : '', it.sku ? '<span class="ord-sku">' + e(it.sku) + '</span>' : '',
+                    !SELLER && it.seller_id && parseInt(it.seller_id, 10) !== 1 ? '<span class="ord-seller"><i class="fas fa-store" aria-hidden="true"></i> Sold by ' + e(it.seller_name || 'a marketplace seller') + '</span>' : ''].filter(Boolean).join(' · ') + '</div>' +
                 (badge ? '<div class="ord-line-badge">' + badge + '</div>' : '') + '</div>' +
                 '<div class="ord-line-qty tabular">' + formatPKR(it.price) + ' <span class="ord-x">×</span> ' + formatNumber(q) + '</div>' +
                 '<div class="ord-line-total tabular">' + formatPKR(it.subtotal) + '</div></li>';
         });
         if (!(D.items || []).length) html += '<li class="ord-empty">No line items.</li>';
         html += '</ul>';
+        if (SELLER) {
+            html += '<div class="ord-seller-total"><span>Your subtotal <span class="ord-hint">' + e(plural(o.units || 0, 'item')) + '</span></span><strong class="tabular">' + formatPKR(o.subtotal) + '</strong></div>' +
+                '<p class="ord-hint ord-seller-note"><i class="fas fa-lock" aria-hidden="true"></i> Only your items on this order are shown. TechZone handles payment and the rest of the order.</p>';
+        }
         document.getElementById('ordItems').innerHTML = html;
     }
 
@@ -163,8 +169,31 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('ordPayment').innerHTML = h;
     }
 
+    function shipList() {
+        var list = D.shipments || [];
+        if (!list.length) return '';
+        return '<ul class="ord-ship-list">' + list.map(function (s) {
+            var by = SELLER ? (s.own ? 'You' : 'TechZone') : (s.seller_id ? (s.seller_name || 'Seller') : 'TechZone');
+            return '<li><div class="ord-ship-head"><strong>' + (s.courier ? e(s.courier) : '<span class="ord-hint">Courier not recorded</span>') + '</strong>' +
+                (s.tracking_number ? ' <span class="ord-mono">' + e(s.tracking_number) + '</span>' : '') +
+                ' ' + (s.delivered_at ? statusPill('delivered') : statusPill('shipped')) + '</div>' +
+                '<div class="ord-hint">Shipped by ' + e(by) + ' · ' + e(formatDateTime(s.shipped_at)) + (s.delivered_at ? ' · delivered ' + e(formatDateTime(s.delivered_at)) : '') + '</div></li>';
+        }).join('') + '</ul>';
+    }
+
     function renderShipping(A) {
         var o = D.order, s = D.shipment, c = D.customer || {};
+        if (SELLER) {
+            var mine = (D.shipments || []).filter(function (x) { return x.own; })[0];
+            var anyHouse = (D.shipments || []).some(function (x) { return !x.own; });
+            document.getElementById('ordShipPill').innerHTML = mine || anyHouse ? (s && s.delivered_at ? statusPill('delivered') : statusPill('shipped'))
+                : (o.status === 'Cancelled' ? statusPill('cancelled') : statusPill('pending', 'Not shipped'));
+            document.getElementById('ordShipAction').innerHTML = A.ship ? btn('ship', 'Ship your items', null, 'btn-secondary btn-sm') : '';
+            document.getElementById('ordShipping').innerHTML = '<dl class="ord-kv"><dt>Ship to</dt><dd>' + e(o.customer_name) + '<br>' + e(o.city || '') +
+                '<div class="ord-hint">The customer’s address and phone go on the courier slip TechZone sends you.</div></dd></dl>' +
+                (shipList() || '<p class="ord-hint mb-0 mt-3">Not shipped yet. Ship your items once they are packed; the customer sees the courier and tracking number.</p>');
+            return;
+        }
         var pill = s ? (s.delivered_at ? statusPill('delivered') : statusPill('shipped')) : (o.status === 'Cancelled' ? statusPill('cancelled') : statusPill('pending', 'Not shipped'));
         document.getElementById('ordShipPill').innerHTML = pill;
         var act = '';
@@ -181,6 +210,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (s.delivered_at) h += '<dt>Delivered</dt><dd>' + e(formatDateTime(s.delivered_at)) + '</dd>';
         }
         h += '</dl>';
+        if ((D.shipments || []).length > 1 || (D.shipments || []).some(function (x) { return x.seller_id; })) h += '<h3 class="ord-sub-title">Shipments</h3>' + shipList();
         document.getElementById('ordShipping').innerHTML = h;
     }
 
@@ -222,6 +252,12 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderCustomer() {
         var o = D.order, c = D.customer;
         var h = '';
+        if (SELLER) {
+            document.getElementById('ordCustomer').innerHTML = '<div class="ord-cust-head"><span class="avatar" aria-hidden="true">' + e(String(o.customer_name || '?').charAt(0).toUpperCase()) +
+                '</span><div><strong>' + e(o.customer_name) + '</strong><div class="ord-hint">' + e(o.city || '') + '</div></div></div>' +
+                '<p class="ord-hint mb-0 mt-2">TechZone keeps the customer’s contact details. Message TechZone on the order if something is unclear.</p>';
+            return;
+        }
         if (c) {
             h += '<div class="ord-cust-head"><span class="avatar" aria-hidden="true">' + e(String(c.name || '?').charAt(0).toUpperCase()) + '</span><div>' +
                 '<a class="ord-cust-name" href="' + e(adminUrl('manage/customer.php?id=' + parseInt(c.id, 10))) + '">' + e(c.name) + '</a>' +
@@ -254,7 +290,8 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderSummary() {
         var o = D.order;
         var h = '<dl class="ord-kv ord-kv-tight">';
-        h += '<dt>Channel</dt><dd>Storefront</dd>';
+        h += '<dt>Channel</dt><dd>' + (SELLER ? 'TechZone marketplace' : 'Storefront') + '</dd>';
+        if (SELLER) h += '<dt>Subtotal</dt><dd class="tabular">' + formatPKR(o.subtotal) + '</dd>';
         h += '<dt>Placed</dt><dd>' + e(formatDateTime(o.order_date)) + '</dd>';
         h += '<dt>Updated</dt><dd>' + e(formatDateTime(o.updated_at)) + '</dd>';
         if (o.promo_code) h += '<dt>Discount</dt><dd><span class="code-chip">' + e(o.promo_code) + '</span></dd>';
@@ -276,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('ordPayRef').value = '';
         modal('ordPayModal').show();
     }
-    document.getElementById('ordPayForm').addEventListener('submit', function (ev) {
+    if (document.getElementById('ordPayForm')) document.getElementById('ordPayForm').addEventListener('submit', function (ev) {
         ev.preventDefault();
         var amt = document.getElementById('ordPayAmount');
         var v = parseFloat(amt.value);
@@ -339,11 +376,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (noteWrap) noteWrap.hidden = mode === 'tracking';
         ['ordShipTracking', 'ordShipOther'].forEach(function (id) { document.getElementById(id).classList.remove('is-invalid'); });
         var left = (D.items || []).reduce(function (sum, it) { return sum + Math.max(0, (parseInt(it.quantity, 10) || 0) - (parseInt(it.fulfilled_qty, 10) || 0)); }, 0);
-        document.getElementById('ordShipModalTitle').textContent = mode === 'tracking' ? 'Edit tracking' : 'Ship order #' + ORDER_ID;
-        document.getElementById('ordShipSubmit').textContent = mode === 'tracking' ? 'Save tracking' : 'Ship order';
+        document.getElementById('ordShipModalTitle').textContent = mode === 'tracking' ? 'Edit tracking' : (SELLER ? 'Ship your items on #' + ORDER_ID : 'Ship order #' + ORDER_ID);
+        document.getElementById('ordShipSubmit').textContent = mode === 'tracking' ? 'Save tracking' : (SELLER ? 'Ship your items' : 'Ship order');
         document.getElementById('ordShipText').textContent = mode === 'tracking'
             ? 'The customer sees the new tracking number on their order page.'
-            : (left > 0 ? 'Shipping marks the remaining ' + plural(left, 'item') + ' as fulfilled. ' : '') + 'The customer sees the courier and tracking number on their order page.';
+            : (left > 0 ? 'Shipping marks ' + (SELLER ? 'your remaining ' : 'the remaining ') + plural(left, 'item') + ' as fulfilled. ' : '') +
+              (SELLER ? 'Only your items go in this shipment; TechZone ships the rest of the order. ' : '') + 'The customer sees the courier and tracking number on their order page.';
         modal('ordShipModal').show();
     }
     document.getElementById('ordShipCourier').addEventListener('change', function () {
@@ -366,7 +404,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var payload = { courier: courier, tracking: trEl.value.trim() };
         var note = document.getElementById('ordShipNote');
         if (shipMode === 'ship' && note && note.value.trim()) payload.note = note.value.trim();
-        act(shipMode === 'tracking' ? 'tracking' : 'ship', payload, shipMode === 'tracking' ? 'Tracking updated' : 'Order shipped')
+        act(shipMode === 'tracking' ? 'tracking' : 'ship', payload, shipMode === 'tracking' ? 'Tracking updated' : (SELLER ? 'Your items shipped' : 'Order shipped'))
             .then(function (done) { if (done) modal('ordShipModal').hide(); });
     });
 
@@ -381,12 +419,12 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('ordCancelOther').classList.remove('is-invalid');
         modal('ordCancelModal').show();
     }
-    document.getElementById('ordCancelReason').addEventListener('change', function () {
+    if (document.getElementById('ordCancelForm')) document.getElementById('ordCancelReason').addEventListener('change', function () {
         var other = this.value === 'Other';
         document.getElementById('ordCancelOtherWrap').hidden = !other;
         if (other) document.getElementById('ordCancelOther').focus();
     });
-    document.getElementById('ordCancelForm').addEventListener('submit', function (ev) {
+    if (document.getElementById('ordCancelForm')) document.getElementById('ordCancelForm').addEventListener('submit', function (ev) {
         ev.preventDefault();
         var reason = document.getElementById('ordCancelReason').value;
         var other = document.getElementById('ordCancelOther');

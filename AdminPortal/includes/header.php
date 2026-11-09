@@ -28,16 +28,29 @@ $adminCsrfToken = csrf_token();
 $tzE = static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 $tzAsset = static fn(string $rel): string => htmlspecialchars(admin_url($rel), ENT_QUOTES, 'UTF-8') . '?v=' . (int) @filemtime(__DIR__ . '/../' . $rel);
 
+// Seller accounts (core/permissions.php): their shop name in the topbar, their own counts only
+$tzSellerId = current_seller_id();
+$tzSellerName = $tzAdmin['seller_name'] ?? null;
+
 // Counts for the sidebar badges and the notification bell (cheap aggregate queries).
-$tzCounts = ['unfulfilled' => 0, 'unpaid' => 0, 'pending_reviews' => 0, 'new_messages' => 0, 'low_stock' => 0, 'today_orders' => 0];
+$tzCounts = ['unfulfilled' => 0, 'unpaid' => 0, 'pending_reviews' => 0, 'new_messages' => 0, 'low_stock' => 0, 'today_orders' => 0, 'pending_sellers' => 0];
 try {
+    if ($tzSellerId !== null) {
+        require_once __DIR__ . '/../../core/marketplace.php';
+        $tzCounts['unfulfilled'] = count(seller_orders_to_fulfil($conn, $tzSellerId));
+        $st = $conn->prepare("SELECT COUNT(*) FROM products WHERE seller_id = ? AND status <> 'archived' AND inventory <= low_stock_threshold");
+        $st->execute([$tzSellerId]);
+        $tzCounts['low_stock'] = (int) $st->fetchColumn();
+    } else {
     $tzCounts = array_map('intval', $conn->query("SELECT
         (SELECT COUNT(*) FROM orders WHERE status <> 'Cancelled' AND fulfillment_status <> 'fulfilled') AS unfulfilled,
         (SELECT COUNT(*) FROM orders WHERE status <> 'Cancelled' AND payment_status = 'pending') AS unpaid,
         (SELECT COUNT(*) FROM reviews WHERE status = 'Pending') AS pending_reviews,
         (SELECT COUNT(*) FROM contact_messages WHERE status = 'new') AS new_messages,
         (SELECT COUNT(*) FROM products WHERE status <> 'archived' AND inventory <= low_stock_threshold) AS low_stock,
-        (SELECT COUNT(*) FROM orders WHERE order_date >= CURDATE()) AS today_orders")->fetch(PDO::FETCH_ASSOC));
+        (SELECT COUNT(*) FROM orders WHERE order_date >= CURDATE()) AS today_orders,
+        (SELECT COUNT(*) FROM seller_applications WHERE status = 'pending') AS pending_sellers")->fetch(PDO::FETCH_ASSOC));
+    }
 } catch (PDOException $e) {
     log_exception($e, 'admin-shell-counts');
 }
@@ -60,6 +73,7 @@ $tzBellCount = admin_notifications($conn)['unseen'];
     <script>
         window.TZ_CAPS = <?= json_encode(admin_capabilities()) ?>;
         window.TZ_ROLE = <?= json_encode($adminRole) ?>;
+        window.TZ_SELLER = <?= json_encode($tzSellerId !== null ? ['id' => $tzSellerId, 'name' => $tzSellerName] : null) ?>;
     </script>
 <?php if (!empty($useGrid)): ?>
     <!-- AG Grid Community 36.2.0 (MIT, vendored: assets/vendor/ag-grid/LICENSE.txt) + our wrapper -->
@@ -67,7 +81,7 @@ $tzBellCount = admin_notifications($conn)['unseen'];
     <script src="<?= $tzAsset('assets/js/grid.js') ?>"></script>
 <?php endif; ?>
 </head>
-<body class="admin-body">
+<body class="admin-body<?= $tzSellerId !== null ? ' is-seller' : '' ?>">
 <?php include __DIR__ . '/url-script.php'; ?>
 <?php include __DIR__ . '/sidebar.php'; ?>
 <div class="sidebar-backdrop" data-sidebar-close></div>
@@ -79,11 +93,18 @@ $tzBellCount = admin_notifications($conn)['unseen'];
         <div class="topbar-search">
             <button type="button" class="search-trigger" data-search-open aria-haspopup="dialog" aria-label="Search (Ctrl K)">
                 <i class="fas fa-magnifying-glass"></i>
-                <span class="search-trigger-text">Search orders, products, customers</span>
+                <span class="search-trigger-text"><?= $tzSellerId !== null ? 'Search your orders and products' : 'Search orders, products, customers' ?></span>
                 <kbd class="search-kbd" data-kbd-mod>⌘K</kbd>
             </button>
         </div>
         <div class="admin-header-right">
+            <?php if ($tzSellerId !== null): ?>
+            <a class="seller-chip" href="<?= $tzE(admin_url('manage/store.php')) ?>" title="Your shop on TechZone">
+                <i class="fas fa-store" aria-hidden="true"></i>
+                <span class="seller-chip-name"><?= $tzE($tzSellerName ?? 'Your shop') ?></span>
+                <span class="role-badge role-seller">Seller</span>
+            </a>
+            <?php endif; ?>
             <div class="dropdown ntf" id="ntf">
                 <button type="button" class="topbar-icon" id="ntfBell" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true"
                         aria-label="Notifications<?= $tzBellCount ? ' (' . $tzBellCount . ' new)' : '' ?>">
@@ -100,7 +121,7 @@ $tzBellCount = admin_notifications($conn)['unseen'];
                     <span class="avatar" aria-hidden="true"><?= $tzE($adminInitial) ?></span>
                     <span class="who">
                         <strong><?= $tzE($adminName) ?></strong>
-                        <span class="role-badge role-<?= $tzE($adminRole) ?>"><?= $tzE($adminRoleLabel) ?></span>
+                        <?php if ($tzSellerId === null): ?><span class="role-badge role-<?= $tzE($adminRole) ?>"><?= $tzE($adminRoleLabel) ?></span><?php endif; ?>
                     </span>
                     <i class="fas fa-chevron-down caret"></i>
                 </button>
@@ -108,10 +129,11 @@ $tzBellCount = admin_notifications($conn)['unseen'];
                     <li class="account-head">
                         <strong><?= $tzE($adminName) ?></strong>
                         <span><?= $tzE($tzAdmin['email'] ?? '') ?></span>
-                        <span class="role-badge role-<?= $tzE($adminRole) ?>"><?= $tzE($adminRoleLabel) ?></span>
+                        <span class="role-badge role-<?= $tzE($adminRole) ?>"><?= $tzE($adminRoleLabel) ?><?= $tzSellerName ? ' · ' . $tzE($tzSellerName) : '' ?></span>
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="<?= $tzE(admin_url('manage/profile.php')) ?>"><i class="fas fa-user"></i> Profile</a></li>
+                    <?php if ($tzSellerId !== null): ?><li><a class="dropdown-item" href="<?= $tzE(admin_url('manage/store.php')) ?>"><i class="fas fa-store"></i> Store profile</a></li><?php endif; ?>
                     <li><a class="dropdown-item" href="<?= $tzE(rtrim(dirname(admin_portal_base_path() ?: '/'), '/') . '/MarketingSite/index.php') ?>" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> View storefront</a></li>
                     <li><button type="button" class="dropdown-item" data-shortcuts-open><i class="fas fa-keyboard"></i> Keyboard shortcuts <kbd class="ms-auto">?</kbd></button></li>
                     <li><hr class="dropdown-divider"></li>

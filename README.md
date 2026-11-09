@@ -1,71 +1,84 @@
-# TechZone — storefront + admin for a PC-hardware shop
+# TechZone — a PC-hardware marketplace for Lahore
 
 [![CI](https://github.com/gn-4200/TechZone/actions/workflows/ci.yml/badge.svg)](https://github.com/gn-4200/TechZone/actions/workflows/ci.yml)
 ![PHP 8.3](https://img.shields.io/badge/PHP-8.3-777BB4?logo=php&logoColor=white)
 ![MariaDB / MySQL](https://img.shields.io/badge/MariaDB%20%2F%20MySQL-PDO-003545?logo=mariadb&logoColor=white)
-![Bootstrap 5](https://img.shields.io/badge/Bootstrap-5-7952B3?logo=bootstrap&logoColor=white)
+![No framework](https://img.shields.io/badge/framework-none-1B1D22)
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 
-**TechZone** is a small online shop for PC hardware and accessories, written in plain PHP with no framework. Customers browse a catalogue with size/colour variations, fill a cart, apply promo codes and check out with cash on delivery or a JazzCash placeholder; shop staff run the business from a separate admin portal with a KPI dashboard, an order queue, product and promotion management, review moderation and analytics. Most of the effort went into the unglamorous parts: CSRF, sessions, login throttling, upload validation and a checkout that cannot oversell.
+PC builders in Pakistan check component prices the way traders check rates — walk Hafeez Centre or Hall Road, ask *"aaj ka rate kya hai?"*, compare, then buy. **TechZone is where you check today's rate, then buy**, from TechZone itself or from vetted shops in the same markets. It is a complete commerce system in plain PHP with no framework: a storefront with a live rate board, price history and a PC builder that only shows parts that fit; a back-office modelled on how shop staff actually work; and a marketplace with a scoped seller portal and weekly payouts.
 
 <p align="center">
-  <img src="docs/screenshots/cover.png" alt="TechZone — storefront home on the left, admin dashboard on the right" width="100%">
+  <img src="docs/screenshots/cover.png" alt="Storefront home with the live rate board, and an order page in the admin with its timeline" width="100%">
 </p>
 
-<details>
-<summary><strong>More screens</strong> — catalogue, product, cart, checkout, admin orders, products, analytics, mobile</summary>
+<details open>
+<summary><strong>Storefront</strong> — rate board, PC builder, product pages, marketplace</summary>
 <br>
 
-| Product catalogue | Product details with colour variations |
+| PC builder — only parts that fit, totalled at today's rates | Picking a part: incompatible ones hidden, with the reason |
 |---|---|
-| ![Paged product grid with search, category filter and sort](docs/screenshots/02-store-products.png) | ![Product page with colour options, stock and reviews](docs/screenshots/03-store-product.png) |
+| ![Complete AM5 build with power meter and total](docs/screenshots/03-builder.png) | ![Motherboard picker filtered to the processor's socket](docs/screenshots/04-builder-picker.png) |
 
-| Cart | Checkout (COD / JazzCash) |
+| Today's rates — 7-day change and 12-week history | Product page — rate history, installments, seller, specs |
 |---|---|
-| ![Cart with two items and a promo-code box](docs/screenshots/04-store-cart.png) | ![Shipping form and payment method](docs/screenshots/05-store-checkout.png) |
+| ![Full rate board with sparklines](docs/screenshots/05-rates.png) | ![Samsung Odyssey G5 product page](docs/screenshots/06-product.png) |
 
-| Customer order history | Admin — orders |
+| Catalogue with spec facets | Compare |
 |---|---|
-| ![My Orders list with status badges](docs/screenshots/06-store-orders.png) | ![Order table with search and status filter](docs/screenshots/11-admin-orders.png) |
+| ![Processors with socket and core-count filters](docs/screenshots/07-catalogue.png) | ![Three graphics cards side by side, differences marked](docs/screenshots/08-compare.png) |
 
-| Admin — order details and status update | Admin — product editor |
+| Sell on TechZone | Checkout |
 |---|---|
-| ![Order modal with customer, items and Update status](docs/screenshots/12-admin-order-modal.png) | ![Product modal with image, stock and variations](docs/screenshots/14-admin-product-modal.png) |
+| ![Seller programme landing page](docs/screenshots/09-sell.png) | ![Checkout with shipping zone and payment options](docs/screenshots/10-checkout.png) |
 
-| Admin — products | Admin — analytics |
+| Order tracking for customers | Mobile |
 |---|---|
-| ![Product table with stock dots and status](docs/screenshots/13-admin-products.png) | ![Top sellers and revenue by category](docs/screenshots/15-admin-analytics.png) |
+| ![Customer order page with 4-step tracker](docs/screenshots/11-track.png) | <img src="docs/screenshots/40-mobile-home.png" alt="Home on a phone" width="260"> <img src="docs/screenshots/41-mobile-product.png" alt="Product page on a phone" width="260"> |
 
-| Admin — promotions | Full pages |
-|---|---|
-| ![Promotions with codes, date ranges and live/ended status](docs/screenshots/16-admin-promotions.png) | [Store home](docs/screenshots/01-store-home.png) · [Admin dashboard](docs/screenshots/10-admin-dashboard.png) |
+Full home page: [docs/screenshots/02-home-full.png](docs/screenshots/02-home-full.png)
 
-| Mobile — storefront | Mobile — admin |
+</details>
+
+<details>
+<summary><strong>Back-office</strong> — operations home, order workflow, inventory ledger, activity log, sellers</summary>
+<br>
+
+| Operations home | Order page — fulfil, pay, ship, timeline |
 |---|---|
-| <img src="docs/screenshots/20-mobile-store.png" alt="Storefront home on a phone" width="260"> | <img src="docs/screenshots/21-mobile-admin.png" alt="Admin dashboard on a phone" width="260"> |
+| ![Today vs yesterday, to-do cards, 30-day sales](docs/screenshots/20-admin-home.png) | ![Order with payment, shipping, notes and event timeline](docs/screenshots/21-admin-order.png) |
+
+| Orders queue | Product editor |
+|---|---|
+| ![Tabbed order queue on AG Grid](docs/screenshots/22-admin-orders.png) | ![Product page with pricing, margin, stock ledger, variants, SEO](docs/screenshots/23-admin-product.png) |
+
+| Inventory — days of cover and adjustment history | Activity log with before/after diffs |
+|---|---|
+| ![Inventory levels and recent adjustments](docs/screenshots/24-admin-inventory.png) | ![Audit log row expanded to show changed fields](docs/screenshots/25-admin-activity.png) |
+
+| Ctrl+K search | Seller applications |
+|---|---|
+| ![Grouped search results for orders, products, customers](docs/screenshots/26-admin-search.png) | ![Applications queue with approve and reject](docs/screenshots/27-admin-sellers.png) |
+
+| Seller portal — only the seller's own lines | Printable invoice |
+|---|---|
+| ![A seller's view of a mixed order](docs/screenshots/28-seller-portal.png) | ![A4 invoice](docs/screenshots/29-invoice.png) |
 
 </details>
 
 ## What it does
 
-**Storefront** (`MarketingSite/`)
-- **Catalogue** — eight categories, search, category filter, sort and paging; product pages with stock, average rating and customer reviews.
-- **Variations** — size and colour options per product, each with its own stock and price modifier.
-- **Cart and promo codes** — session cart (max 50 lines, 1–100 per add), percentage or fixed-amount codes validated again at checkout.
-- **Checkout** — cash on delivery or JazzCash (the wallet number is collected; no gateway is called, see limitations).
-- **Accounts** — sign-up, login, profile, password change, forgot/reset password, order history and order details.
-- **Reviews and contact** — logged-in customers can review a product once (reviews start as Pending until an admin approves them); a contact form feeds the admin inbox.
+**Storefront** (`MarketingSite/`) — design contract in [`docs/STOREFRONT.md`](docs/STOREFRONT.md)
+- **Today's rates** — a live board of the most-watched parts with the change since last week; every product keeps a weekly price history shown as a sparkline with its 12-week low and high. "Price drops this week" is a page of its own.
+- **PC builder** — processor → motherboard → memory → graphics → storage → power → case → cooler. Compatibility rules (socket, memory type, form factor, GPU length, cooler clearance and TDP, power draw with a recommended PSU) live in `core/builder.php`; the UI only offers parts that fit, explains the ones that don't, totals the build at today's rates, and adds all parts to the cart in one request. Builds live in the URL, so they can be shared.
+- **Catalogue** — category tree, attribute facets per category (socket, cores, VRAM, memory type, panel size…) with counts, seller filter, sort by biggest drop. Products without a photo get a deliberate spec tile; dropping a photo into `AdminPortal/uploads/catalog/` replaces it without touching the database.
+- **Product pages** — rate history, bank installment plans, the seller with an "Ask on WhatsApp" link, wishlist and compare, back-in-stock alerts, specifications, and compatibility hints for components ("Fits AM5 boards: 3 in stock").
+- **Marketplace** — "Sold by …" on every product, seller directory and pages, and a Sell on TechZone programme with an application form.
+- **Orders** — cart with free-delivery progress, checkout priced by shipping zone, promo codes (percent, fixed, free shipping, scoped to a category or product), cash on delivery or JazzCash, a 4-step tracker on the customer's order page and a public Track your order page.
+- **Help centre** — shipping fees and delivery times read live from the shipping zones, installment tables from settings, returns, warranty claims, FAQ; a store page for the Hafeez Centre shop.
 
-**Admin portal** (`AdminPortal/`)
-- **Dashboard** — revenue, orders, customers and product KPIs, month-over-month change, a 12-month sales chart, category breakdown, recent orders, top sellers and low-stock list.
-- **Orders** — search and filter; status is one of Pending → Processing → Shipped → Delivered, or Cancelled.
-- **Products** — create/edit with image upload, inventory, active flag and size/colour variations; **categories** with images.
-- **Customers, reviews, messages** — read customers, moderate reviews, work through contact messages.
-- **Promotions** — banners and codes with discount, date range, ordering and live/ended status.
-- **Analytics** — top-selling products and revenue by category.
-
-**Admin data grids.** Orders, products, customers, categories, reviews, messages and promotions are AG Grid Community tables themed to the admin's dark tokens: per-column filters and sorting, a quick search, 10/25/50/100 paging, column order/width/sort remembered per browser (with a reset), CSV export of the current view, and bulk actions on checked rows — change order status, activate/deactivate or delete products, approve/reject reviews, mark messages read. Bulk actions call the same CSRF-protected endpoints one row at a time and report progress. On phones the grid scrolls inside its card with the key column and the row actions pinned.
+**Back-office** (`AdminPortal/`) — design contract in [`docs/ADMIN.md`](docs/ADMIN.md), described below.
 
 ## The back-office
 
@@ -76,6 +89,7 @@ The admin is modelled on how shop staff actually work, not on CRUD tables (desig
 - **Roles are enforced server-side.** Owner / Manager / Staff capabilities in `core/permissions.php`; the UI hides what you cannot do, the APIs return 403.
 - **Everything is attributable.** `audit_log` records who changed what with before/after diffs; the Activity page filters and exports it.
 - **Settings that real stores have:** store details, shipping zones with free-over thresholds (used by checkout), payment method toggles, staff accounts with roles.
+- **Marketplace back-office.** Seller applications are approved or rejected in the admin; an approved seller gets a portal in the same shell that is scoped on the server: they see only their own products, only orders containing their products and only their own lines on those orders (no customer contact or payment details), can fulfil and ship their lines, and get weekly payout statements (gross − 8% commission) that the owner marks paid.
 - **Product editor, customer profiles, discount builder** as full pages with a contextual save bar; **⌘K** global search; notifications for new orders, payments, low stock, pending reviews.
 
 ## Architecture
@@ -156,7 +170,7 @@ Then open `http://localhost:8080/MarketingSite/` or `/AdminPortal/`.
 | Admin | `admin@techzone.pk` | `Admin@1234` |
 | Customer | `ali.raza@example.pk` | `Customer@123` |
 
-The seed contains 12 customers (all with the customer password above), 32 products, 40 orders and three promotions (`TECH10`, `WELCOME1000`, `SUMMER15`, the last one ended). Change these credentials before exposing the app anywhere.
+The seed contains 12 customers (all with the customer password above), 75 products (35 of them PC-builder parts with full compatibility attributes), 12 weekly rate points per product, four sellers (TechZone plus three partner shops), 45 orders and four promotions (`TECH10`, `WELCOME1000`, `FREESHIP`, and `SUMMER15`, which has ended). **Prices are demo data**: plausible Lahore market rates for November 2026, not live quotes. Product photos for the new parts go in `AdminPortal/uploads/catalog/` as `NN-anything.png|jpg|webp` (NN = product id); until then the storefront shows a spec tile. Change these credentials before exposing the app anywhere.
 
 ### Configuration
 
@@ -189,20 +203,25 @@ There is no unit-test suite yet. [`.github/workflows/ci.yml`](.github/workflows/
 - **Server-side pricing** — the cart stores ids and quantities; prices, variation modifiers and promo codes are recomputed from the database at order time.
 - **Shipped like a service** — Docker image with production `php.ini`, hidden Apache internals and no PHP in `uploads/`; Compose seeds MariaDB on first start; CI boots the real stack.
 - **Consistent API contract** — JSON everywhere with `Cache-Control: no-store` and honest status codes (401, 403, 404, 405, 409, 422, 429, 500).
+- **Stock as a ledger, history as events** — stock only changes through `inventory_adjustments` (the seed and `migrate.php` both verify `SUM(delta) = inventory`); every order step is an `order_events` row; every admin write is an `audit_log` row with a before/after diff.
+- **Authorization on the server, per row** — Owner / Manager / Staff / Seller capabilities in `core/permissions.php`; sellers are additionally scoped per product and per order line, and other sellers' records return 404.
+- **Rules as code, not UI** — builder compatibility, shipping zones and discount eligibility are pure functions in `core/` used identically by the storefront, the APIs and the admin.
 
 ## Known limitations / roadmap
 
-- [ ] No automated unit or integration tests beyond the CI smoke script.
+- [ ] Automated checks are end-to-end (Playwright flows and the CI smoke script); there are no PHP unit tests yet.
 - [ ] JazzCash is a placeholder: the wallet number is stored with the order, but no payment gateway is integrated and nothing is charged.
 - [ ] Customer logout (`auth/logout.php`) is a GET, so a cross-site link can sign a customer out (no data change).
 - [ ] The CSP is report-only until the inline scripts move to files or nonces.
 - [ ] `CSRF_STRICT` defaults to `0` in code; set it to `1` (as `.env.example` does) for any real deployment.
-- [ ] Order status is validated against the five allowed values, but any status can be set from any other, and cancelling does not return stock.
-- [ ] Products have a single image.
+- [ ] Products have a single image, and many catalogue parts still use the spec tile until real photos are added.
+- [ ] Prices and price history are demo data.
+- [ ] Payouts are statements only; no money is moved.
 - [ ] Deploy a demo with seeded data.
 
 ## License
 
 MIT © Ghulam Nabi
 
+Third-party: Archivo and Manrope fonts (SIL Open Font License, self-hosted in `MarketingSite/assets/fonts/`).
 - Admin data grids: [AG Grid Community](https://www.ag-grid.com/) 36.2 (MIT), vendored in `AdminPortal/assets/vendor/ag-grid/` with its licence.

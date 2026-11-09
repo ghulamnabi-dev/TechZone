@@ -140,115 +140,118 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <?php $h = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); ?>
-<div class="container page">
+<div class="container pg-page co-page">
     <nav aria-label="Checkout steps">
-        <ol class="crumbs crumbs--steps">
+        <ol class="co-steps">
             <li><a href="<?php echo $h(site_url('shop/cart.php')); ?>">Cart</a></li>
-            <li aria-current="step"><strong>Delivery and payment</strong></li>
+            <li aria-current="step">Delivery and payment</li>
             <li>Confirmation</li>
         </ol>
     </nav>
-    <div class="page-title"><h1>Checkout</h1></div>
+    <h1 class="pg-title">Checkout</h1>
 
     <?php if ($error): ?>
-        <div class="alert alert-danger" role="alert"><?php echo $h($error); ?></div>
+        <div class="pg-alert pg-alert--error alert alert-danger" role="alert"><?php echo $h($error); ?></div>
     <?php endif; ?>
 
-    <div class="row g-4 g-lg-5">
-        <div class="col-lg-7">
-            <form method="POST" id="checkoutForm" class="form-stack">
-                <?php echo csrf_field(); ?>
-                <fieldset class="form-section">
-                    <legend>Delivery details</legend>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label" for="co_name">Full name</label>
-                            <input type="text" class="form-control" id="co_name" name="customer_name" autocomplete="name" value="<?php echo $h($customer['name']); ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label" for="co_email">Email</label>
-                            <input type="email" class="form-control" id="co_email" name="customer_email" autocomplete="email" value="<?php echo $h($customer['email']); ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label" for="co_phone">Phone</label>
-                            <input type="tel" class="form-control" id="co_phone" name="customer_phone" autocomplete="tel" value="<?php echo $h($customer['phone'] ?? ''); ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label" for="co_city">City</label>
-                            <input type="text" class="form-control" id="co_city" name="city" autocomplete="address-level2" value="<?php echo $h($customer['city'] ?? ''); ?>" required>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label" for="co_address">Address</label>
-                            <textarea class="form-control" id="co_address" name="address" rows="3" autocomplete="street-address" required><?php echo $h($customer['address'] ?? ''); ?></textarea>
-                        </div>
+    <div class="co-grid">
+        <form method="POST" id="checkoutForm" class="co-form">
+            <?php echo csrf_field(); ?>
+            <fieldset class="co-section">
+                <legend class="co-section__title"><span class="co-section__n">1</span>Contact</legend>
+                <div class="pg-form__row">
+                    <div class="field">
+                        <label class="field__label" for="co_name">Full name</label>
+                        <input type="text" class="field__input" id="co_name" name="customer_name" autocomplete="name" value="<?php echo $h($customer['name']); ?>" required>
                     </div>
-                </fieldset>
+                    <div class="field">
+                        <label class="field__label" for="co_phone">Mobile number</label>
+                        <input type="tel" class="field__input" id="co_phone" name="customer_phone" autocomplete="tel" value="<?php echo $h($customer['phone'] ?? ''); ?>" required>
+                        <span class="field__hint">We call to confirm cash orders.</span>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="field__label" for="co_email">Email</label>
+                    <input type="email" class="field__input" id="co_email" name="customer_email" autocomplete="email" value="<?php echo $h($customer['email']); ?>" required>
+                </div>
+            </fieldset>
 
-                <fieldset class="form-section">
-                    <legend>Payment</legend>
-                    <?php $payChecked = in_array((string) ($_POST['payment_method'] ?? ''), $payAvailable, true) ? (string) $_POST['payment_method'] : ($payAvailable[0] ?? ''); ?>
-                    <div class="pay-options">
-                        <?php if ($payOpts['cash_on_delivery']['enabled']): $codOk = $payOpts['cash_on_delivery']['available']; ?>
-                        <label class="payment-method-card pay-option<?php echo $codOk ? '' : ' is-disabled'; ?>" for="payment_cod">
-                            <input class="form-check-input" type="radio" name="payment_method" id="payment_cod" value="cash_on_delivery"<?php echo $payChecked === 'cash_on_delivery' ? ' checked' : ''; ?><?php echo $codOk ? '' : ' disabled'; ?> onchange="toggleJazzCash()" data-cod-limit="<?php echo (int) setting('cod_limit', 0); ?>">
-                            <span class="pay-option__text"><strong>Cash on delivery</strong><span id="codNote"><?php echo $h($payOpts['cash_on_delivery']['reason'] ?? 'Pay the courier when your order arrives'); ?></span></span>
-                        </label>
-                        <?php endif; ?>
-                        <?php if ($payOpts['jazzcash']['enabled']): ?>
-                        <label class="payment-method-card pay-option" for="payment_jazzcash">
-                            <input class="form-check-input" type="radio" name="payment_method" id="payment_jazzcash" value="jazzcash"<?php echo $payChecked === 'jazzcash' ? ' checked' : ''; ?> onchange="toggleJazzCash()">
-                            <span class="pay-option__text"><strong>JazzCash</strong><span>Pay from your JazzCash mobile account</span></span>
-                        </label>
-                        <?php endif; ?>
-                    </div>
-                    <?php if (!$payAvailable): ?>
-                        <p class="alert alert-warning mt-3 mb-0" role="alert">Online payment options are paused right now. Please contact us to place your order.</p>
+            <fieldset class="co-section">
+                <legend class="co-section__title"><span class="co-section__n">2</span>Delivery address</legend>
+                <div class="field">
+                    <label class="field__label" for="co_address">Address</label>
+                    <textarea class="field__input" id="co_address" name="address" rows="3" autocomplete="street-address" placeholder="House, street, area" required><?php echo $h($customer['address'] ?? ''); ?></textarea>
+                </div>
+                <div class="field co-city">
+                    <label class="field__label" for="co_city">City</label>
+                    <input type="text" class="field__input" id="co_city" name="city" autocomplete="address-level2" value="<?php echo $h($customer['city'] ?? ''); ?>" required>
+                    <span class="field__hint">The delivery fee updates as you type.</span>
+                </div>
+            </fieldset>
+
+            <fieldset class="co-section">
+                <legend class="co-section__title"><span class="co-section__n">3</span>Payment</legend>
+                <?php $payChecked = in_array((string) ($_POST['payment_method'] ?? ''), $payAvailable, true) ? (string) $_POST['payment_method'] : ($payAvailable[0] ?? ''); ?>
+                <div class="co-pay">
+                    <?php if ($payOpts['cash_on_delivery']['enabled']): $codOk = $payOpts['cash_on_delivery']['available']; ?>
+                    <label class="co-pay__card payment-method-card pay-option<?php echo $codOk ? '' : ' is-disabled'; ?>" for="payment_cod">
+                        <input class="co-pay__radio" type="radio" name="payment_method" id="payment_cod" value="cash_on_delivery"<?php echo $payChecked === 'cash_on_delivery' ? ' checked' : ''; ?><?php echo $codOk ? '' : ' disabled'; ?> onchange="toggleJazzCash()" data-cod-limit="<?php echo (int) setting('cod_limit', 0); ?>">
+                        <span class="co-pay__text"><strong>Cash on delivery</strong><span id="codNote"><?php echo $h($payOpts['cash_on_delivery']['reason'] ?? 'Pay the courier when your order arrives'); ?></span></span>
+                    </label>
                     <?php endif; ?>
-                    <div id="jazzcash_fields" class="mt-3" style="display: none;">
-                        <label class="form-label" for="jazzcash_number">JazzCash account number</label>
-                        <input type="text" class="form-control" name="jazzcash_number" id="jazzcash_number" placeholder="03XX-XXXXXXX" pattern="[0-9]{4}-[0-9]{7}" maxlength="12" inputmode="numeric">
-                        <p class="form-hint">Format: 03XX-XXXXXXX</p>
-                    </div>
-                </fieldset>
-
-                <button type="submit" class="btn btn-ink w-100"<?php echo $payAvailable ? '' : ' disabled'; ?>>Place order</button>
-                <p class="form-hint text-center mt-2">You will see your order number on the next page.</p>
-            </form>
-        </div>
-
-        <div class="col-lg-5">
-            <div class="summary summary--sticky">
-                <h2 class="summary__title">Order summary</h2>
-                <ul class="summary__items">
-                    <?php foreach ($cart as $item): ?>
-                        <li>
-                            <span class="summary__item-name"><?php echo $h($item['name']); ?>
-                                <?php if (!empty($item['size']) || !empty($item['color'])): ?>
-                                    <small><?php echo $h(trim(($item['size'] ?? '') . ' ' . ($item['color'] ?? ''))); ?></small>
-                                <?php endif; ?>
-                                <small>Qty <?php echo (int) $item['quantity']; ?> &times; <?php echo format_pkr($item['price']); ?></small>
-                            </span>
-                            <span class="summary__item-price"><?php echo format_pkr($item['price'] * $item['quantity']); ?></span>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
-                <dl class="summary__rows">
-                    <div><dt>Subtotal (<?php echo array_sum(array_column($cart, 'quantity')); ?> items)</dt><dd><?php echo format_pkr($subtotal); ?></dd></div>
-                    <?php if ($discount > 0): ?>
-                        <div class="is-discount"><dt>Discount (<?php echo $h($applied_promo_code); ?>)</dt><dd>&minus;<?php echo format_pkr($discount); ?></dd></div>
+                    <?php if ($payOpts['jazzcash']['enabled']): ?>
+                    <label class="co-pay__card payment-method-card pay-option" for="payment_jazzcash">
+                        <input class="co-pay__radio" type="radio" name="payment_method" id="payment_jazzcash" value="jazzcash"<?php echo $payChecked === 'jazzcash' ? ' checked' : ''; ?> onchange="toggleJazzCash()">
+                        <span class="co-pay__text"><strong>JazzCash</strong><span>Pay from your JazzCash mobile account</span></span>
+                    </label>
                     <?php endif; ?>
-                    <div><dt id="shipLabel">Shipping<?php if ($quote['zone']): ?> · <?php echo $h($quote['zone']['name']); ?><?php endif; ?></dt><dd id="shipFee"><?php echo $shipping > 0 ? format_pkr($shipping) : ($free_shipping_code ? 'Free · ' . $h($applied_promo_code) : 'Free'); ?></dd></div>
-                    <div class="summary__total"><dt>Total</dt><dd id="orderTotal"><?php echo format_pkr($total); ?></dd></div>
-                </dl>
-                <p class="summary__note" id="shipNote"<?php if ($free_shipping_code || ($quote['remaining_for_free'] === null && !$quote['eta'])): ?> hidden<?php endif; ?>><?php
-                    if (!$free_shipping_code && $quote['remaining_for_free'] !== null) {
-                        echo 'Add ' . format_pkr($quote['remaining_for_free']) . ' more for free delivery to ' . $h($shipCity) . '.';
-                    } elseif ($quote['eta']) {
-                        echo 'Delivery in ' . $h($quote['eta']) . '.';
-                    }
-                ?></p>
-            </div>
-        </div>
+                </div>
+                <?php if (!$payAvailable): ?>
+                    <p class="pg-alert pg-alert--warn" role="alert">Online payment options are paused right now. Please contact us to place your order.</p>
+                <?php endif; ?>
+                <div id="jazzcash_fields" class="field co-jazz" style="display: none;">
+                    <label class="field__label" for="jazzcash_number">JazzCash account number</label>
+                    <input type="text" class="field__input" name="jazzcash_number" id="jazzcash_number" placeholder="03XX-XXXXXXX" pattern="[0-9]{4}-[0-9]{7}" maxlength="12" inputmode="numeric">
+                    <span class="field__hint">You approve the payment on your phone.</span>
+                </div>
+            </fieldset>
+
+            <button type="submit" class="btn--primary btn--block co-submit"<?php echo $payAvailable ? '' : ' disabled'; ?>>Place order</button>
+            <p class="co-fine">You will see your order number on the next page. By placing the order you accept our <a href="<?php echo $h(site_url('help/returns.php')); ?>">returns</a> and <a href="<?php echo $h(site_url('help/warranty.php')); ?>">warranty</a> terms.</p>
+        </form>
+
+        <aside class="co-sum" aria-labelledby="coSumTitle">
+            <h2 class="co-sum__title" id="coSumTitle">Your order</h2>
+            <ul class="co-sum__items">
+                <?php foreach ($cart as $item): ?>
+                    <li>
+                        <span class="co-sum__qty pg-num"><?php echo (int) $item['quantity']; ?>&times;</span>
+                        <span class="co-sum__name"><?php echo $h($item['name']); ?>
+                            <?php if (!empty($item['size']) || !empty($item['color'])): ?>
+                                <small><?php echo $h(trim(($item['size'] ?? '') . ' ' . ($item['color'] ?? ''))); ?></small>
+                            <?php endif; ?>
+                        </span>
+                        <span class="co-sum__price"><?php echo format_pkr($item['price'] * $item['quantity']); ?></span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <dl class="co-sum__rows">
+                <div><dt>Subtotal, <?php echo array_sum(array_column($cart, 'quantity')); ?> items</dt><dd><?php echo format_pkr($subtotal); ?></dd></div>
+                <?php if ($discount > 0): ?>
+                    <div class="is-saving"><dt>Discount (<?php echo $h($applied_promo_code); ?>)</dt><dd>&minus;<?php echo format_pkr($discount); ?></dd></div>
+                <?php endif; ?>
+                <div><dt id="shipLabel">Shipping<?php if ($quote['zone']): ?> · <?php echo $h($quote['zone']['name']); ?><?php endif; ?></dt><dd id="shipFee"><?php echo $shipping > 0 ? format_pkr($shipping) : ($free_shipping_code ? 'Free · ' . $h($applied_promo_code) : 'Free'); ?></dd></div>
+                <div class="co-sum__total"><dt>Total</dt><dd id="orderTotal"><?php echo format_pkr($total); ?></dd></div>
+            </dl>
+            <p class="co-sum__note" id="shipNote"<?php if ($free_shipping_code || ($quote['remaining_for_free'] === null && !$quote['eta'])): ?> hidden<?php endif; ?>><?php
+                if (!$free_shipping_code && $quote['remaining_for_free'] !== null) {
+                    echo 'Add ' . format_pkr($quote['remaining_for_free']) . ' more for free delivery to ' . $h($shipCity) . '.';
+                } elseif ($quote['eta']) {
+                    echo 'Delivery in ' . $h($quote['eta']) . '.';
+                }
+            ?></p>
+            <a class="co-sum__edit" href="<?php echo $h(site_url('shop/cart.php')); ?>">Edit cart</a>
+        </aside>
     </div>
 </div>
 

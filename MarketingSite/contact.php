@@ -30,60 +30,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$csrfOk) {
 }
 ?>
 
-<div class="container page">
-    <div class="page-intro">
-        <h1>Contact</h1>
-        <p class="lead-text">Questions about a part, a build or an order? Send us a message and we will reply within one working day. For order questions, include your order number.</p>
-    </div>
+<?php require_once __DIR__ . '/includes/pages.php'; $store = pg_store(); $week = pg_week_hours($store['hours_text']); ?>
+<div class="container pg-page pg-contact">
+    <div class="pg-contact__grid">
+        <div>
+            <header class="pg-head">
+                <h1 class="pg-title">Contact us</h1>
+                <p class="pg-lead">Questions about a part, a build or an order? Write to us and we reply within one working day. For an order, include its number.</p>
+            </header>
 
-    <?php if ($message): ?>
-        <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
-    <?php endif; ?>
-    <?php if ($error): ?>
-        <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
-    <?php endif; ?>
+            <?php if ($message): ?>
+                <div class="alert alert-success pg-alert pg-alert--ok"><?php echo htmlspecialchars($message); ?></div>
+            <?php endif; ?>
+            <?php if ($error): ?>
+                <div class="alert alert-danger pg-alert pg-alert--error"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
 
-    <div class="row g-4 g-lg-5">
-        <div class="col-lg-7">
-            <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
-            <form method="POST" id="contactForm" novalidate>
-                <?= csrf_field() ?>
-                <div class="row g-3">
-                    <div class="col-sm-6">
-                        <label for="contactName" class="form-label">Name</label>
-                        <input type="text" class="form-control" id="contactName" name="name" autocomplete="name">
-                    </div>
-                    <div class="col-sm-6">
-                        <label for="contactEmail" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="contactEmail" name="email" autocomplete="email">
-                    </div>
-                    <div class="col-12">
-                        <label for="contactSubject" class="form-label">Subject</label>
-                        <input type="text" class="form-control" id="contactSubject" name="subject" autocomplete="off" placeholder="For example: order #1042, or RTX 4060 availability">
-                    </div>
-                    <div class="col-12">
-                        <label for="contactMessage" class="form-label">Message</label>
-                        <textarea class="form-control" id="contactMessage" name="message" rows="6" autocomplete="off"></textarea>
-                    </div>
-                    <div class="col-12">
-                        <button type="submit" class="btn btn-ink contact-send" id="submitBtn">Send message</button>
-                    </div>
+            <div id="errorMessage" class="alert alert-danger pg-alert pg-alert--error d-none" role="alert"></div>
+            <form method="POST" id="contactForm" class="pg-form" novalidate>
+                <?php echo csrf_field(); ?>
+                <div class="pg-form__row">
+                    <div class="field"><label for="contactName" class="field__label">Name</label><input type="text" class="field__input" id="contactName" name="name" autocomplete="name"></div>
+                    <div class="field"><label for="contactEmail" class="field__label">Email</label><input type="email" class="field__input" id="contactEmail" name="email" autocomplete="email"></div>
                 </div>
+                <div class="field"><label for="contactSubject" class="field__label">Subject</label><input type="text" class="field__input" id="contactSubject" name="subject" autocomplete="off" placeholder="For example: order #1042, or RTX 4060 availability"></div>
+                <div class="field"><label for="contactMessage" class="field__label">Message</label><textarea class="field__input" id="contactMessage" name="message" rows="6" autocomplete="off"></textarea></div>
+                <div><button type="submit" class="btn--primary contact-send" id="submitBtn">Send message</button></div>
             </form>
+            <p class="pg-contact__more">A faulty part? Use the <a class="pg-link" href="<?php echo htmlspecialchars(site_url('help/warranty.php'), ENT_QUOTES, 'UTF-8'); ?>">warranty claim form</a>. Most other answers are in the <a class="pg-link" href="<?php echo htmlspecialchars(site_url('help/index.php'), ENT_QUOTES, 'UTF-8'); ?>">help centre</a>.</p>
         </div>
 
-        <div class="col-lg-5">
-            <aside class="info-box">
-                <h2 class="info-box__title">TechZone, Lahore</h2>
-                <dl class="info-list">
-                    <div><dt>Address</dt><dd>Hafeez Centre, Gulberg III, Lahore</dd></div>
-                    <div><dt>Phone</dt><dd><a href="tel:+923011427871">+92 301 1427871</a></dd></div>
-                    <div><dt>Email</dt><dd><a href="mailto:info@techzone.pk">info@techzone.pk</a></dd></div>
-                    <div><dt>Hours</dt><dd>Monday to Saturday, 10am to 8pm<br>Closed on Sunday</dd></div>
-                </dl>
-                <p class="muted mb-0">Order pickup is available during shop hours once we confirm your order is ready.</p>
-            </aside>
-        </div>
+        <aside class="pg-storebox pg-band-signal" aria-labelledby="storeboxTitle">
+            <h2 class="pg-storebox__title" id="storeboxTitle">The shop</h2>
+            <p class="pg-storebox__addr"><?php echo pg_e($store['address']); ?></p>
+            <p class="pg-storebox__today"><?php echo pg_e(pg_today_line($week)); ?></p>
+            <dl class="pg-storebox__dl">
+                <div><dt>Phone</dt><dd><a href="tel:<?php echo pg_e(preg_replace('/[^\d+]/', '', $store['phone'])); ?>"><?php echo pg_e($store['phone']); ?></a></dd></div>
+                <div><dt>WhatsApp</dt><dd><a href="<?php echo pg_e(pg_whatsapp_url($store['whatsapp'])); ?>" target="_blank" rel="noopener"><?php echo pg_e($store['whatsapp_text']); ?></a></dd></div>
+                <div><dt>Email</dt><dd><a href="mailto:<?php echo pg_e($store['email']); ?>"><?php echo pg_e($store['email']); ?></a></dd></div>
+                <div><dt>Hours</dt><dd><?php echo pg_e($store['hours_text']); ?></dd></div>
+            </dl>
+            <a class="btn--primary" href="<?php echo pg_e(site_url('store.php')); ?>">Directions and parking</a>
+        </aside>
     </div>
 </div>
 

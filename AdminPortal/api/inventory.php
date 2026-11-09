@@ -6,6 +6,9 @@
  *   GET ?product_id=N      that product's adjustment history (newest first, max 200)
  *   POST {product_id, variation_id?, delta, reason, reference?, note?}
  *                          one manual adjustment through adjust_inventory(); needs inventory.adjust
+ *
+ * Seller accounts: the list and the ledger cover only their products (seller_scope_products_sql);
+ * ?product_id= and POST run assert_product_owned(); staff names in the ledger show as "TechZone".
  */
 ob_start();
 
@@ -27,9 +30,11 @@ $method = $_SERVER['REQUEST_METHOD'];
 /** Ledger rows with product and staff names. */
 function inventory_ledger(PDO $conn, ?int $productId, int $limit): array
 {
-    $where = $productId !== null ? 'WHERE a.product_id = ?' : '';
+    $where = 'WHERE ' . seller_scope_products_sql('p') . ($productId !== null ? ' AND a.product_id = ?' : '');
+    $sid = current_seller_id();
+    $by = $sid === null ? 'ad.name' : "CASE WHEN ad.id IS NULL THEN NULL WHEN ad.seller_id = " . (int) $sid . " THEN ad.name ELSE 'TechZone' END";
     $st = $conn->prepare("SELECT a.id, a.product_id, a.variation_id, a.delta, a.reason, a.reference, a.created_at,
-            p.name AS product_name, p.sku, v.variation_value, ad.name AS admin_name
+            p.name AS product_name, p.sku, v.variation_value, $by AS admin_name
         FROM inventory_adjustments a
         JOIN products p ON p.id = a.product_id
         LEFT JOIN product_variations v ON v.id = a.variation_id
@@ -45,6 +50,7 @@ try {
     if ($method === 'GET') {
         if (isset($_GET['product_id'])) {
             $pid = v_id($_GET['product_id']);
+            assert_product_owned($pid, 404);
             json_response(['success' => true, 'adjustments' => inventory_ledger($conn, $pid, 200)]);
         }
         $rows = $conn->query("SELECT p.id, p.name, p.sku, p.imagelink, p.status, p.inventory, p.low_stock_threshold, p.updated_at,
@@ -56,6 +62,7 @@ try {
                        FROM order_items i JOIN orders o ON o.id = i.order_id
                        WHERE o.status <> 'Cancelled' AND o.order_date >= NOW() - INTERVAL 30 DAY
                        GROUP BY i.product_id) s ON s.product_id = p.id
+            WHERE " . seller_scope_products_sql('p') . "
             ORDER BY p.name")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as &$r) {
             $stock = (int) $r['inventory'];
@@ -111,6 +118,7 @@ try {
         validation_problem($errors);
     }
 
+    assert_product_owned($productId);
     $st = $conn->prepare('SELECT name, sku, inventory FROM products WHERE id = ?');
     $st->execute([$productId]);
     $product = $st->fetch(PDO::FETCH_ASSOC);
