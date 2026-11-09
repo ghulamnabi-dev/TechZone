@@ -209,6 +209,7 @@ $tzNavCurrent = static function (array $c) use ($tzCurrentCategory, $tzAllCatego
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php require_once __DIR__ . '/../../core/boot_ui.php'; tz_boot_ui('store'); ?>
     <meta name="csrf-token" content="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
     <meta name="theme-color" content="#FFD400">
     <title><?php echo isset($pageTitle) ? htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') . ' - ' : ''; ?>TechZone.pk</title>
@@ -219,12 +220,12 @@ $tzNavCurrent = static function (array $c) use ($tzCurrentCategory, $tzAllCatego
     <link rel="preload" href="<?php echo $tzE(site_url('assets/fonts/archivo/archivo-latin-wdth-normal.woff2')); ?>" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?php echo $tzE(site_url('assets/fonts/manrope-latin-400-normal.woff2')); ?>" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?php echo $tzE(site_url('assets/fonts/manrope-latin-700-normal.woff2')); ?>" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" data-tz-critical href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="<?php echo $tzE($tzAsset('css/tokens.css')); ?>">
-    <link rel="stylesheet" href="<?php echo $tzE($tzAsset('css/style.css')); ?>">
+    <link rel="stylesheet" data-tz-critical href="<?php echo $tzE($tzAsset('css/tokens.css')); ?>">
+    <link rel="stylesheet" data-tz-critical href="<?php echo $tzE($tzAsset('css/style.css')); ?>">
     <?php if (is_file($tzPagesCss)): ?>
-    <link rel="stylesheet" href="<?php echo $tzE($tzAsset('css/pages.css')); ?>">
+    <link rel="stylesheet" data-tz-critical href="<?php echo $tzE($tzAsset('css/pages.css')); ?>">
     <?php endif; ?>
     <script>
     window.MARKETING_SITE_BASE = <?php echo json_encode(marketing_site_base_path()); ?>;

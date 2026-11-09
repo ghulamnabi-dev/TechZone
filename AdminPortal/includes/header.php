@@ -64,12 +64,13 @@ $tzBellCount = admin_notifications($conn)['unseen'];
     <meta charset="utf-8">
     <title><?php if (isset($pageTitle)) echo $tzE($pageTitle) . ' · '; ?>TechZone Admin</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?php require_once __DIR__ . '/../../core/boot_ui.php'; tz_boot_ui('admin'); ?>
     <meta name="color-scheme" content="light">
     <meta name="csrf-token" content="<?= $tzE($adminCsrfToken) ?>">
     <link rel="preload" href="<?= $tzE(admin_url('assets/fonts/inter-latin-400-normal.woff2')) ?>" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" data-tz-critical href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="<?= $tzAsset('assets/css/admin-style.css') ?>">
+    <link rel="stylesheet" data-tz-critical href="<?= $tzAsset('assets/css/admin-style.css') ?>">
     <script>
         window.TZ_CAPS = <?= json_encode(admin_capabilities()) ?>;
         window.TZ_ROLE = <?= json_encode($adminRole) ?>;
