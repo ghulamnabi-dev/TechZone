@@ -72,7 +72,7 @@ Full home page: [docs/screenshots/02-home-full.png](docs/screenshots/02-home-ful
 **Storefront** (`MarketingSite/`) — design contract in [`docs/STOREFRONT.md`](docs/STOREFRONT.md)
 - **Today's rates** — a live board of the most-watched parts with the change since last week; every product keeps a weekly price history shown as a sparkline with its 12-week low and high. "Price drops this week" is a page of its own.
 - **PC builder** — processor → motherboard → memory → graphics → storage → power → case → cooler. Compatibility rules (socket, memory type, form factor, GPU length, cooler clearance and TDP, power draw with a recommended PSU) live in `core/builder.php`; the UI only offers parts that fit, explains the ones that don't, totals the build at today's rates, and adds all parts to the cart in one request. Builds live in the URL, so they can be shared.
-- **Catalogue** — category tree, attribute facets per category (socket, cores, VRAM, memory type, panel size…) with counts, seller filter, sort by biggest drop. Products without a photo get a deliberate spec tile; dropping a photo into `AdminPortal/uploads/catalog/` replaces it without touching the database.
+- **Catalogue** — category tree, attribute facets per category (socket, cores, VRAM, memory type, panel size…) with counts, seller filter, sort by biggest drop. Every product has a real photo (1000×1000 WebP, ~45 KB each); a product added without one gets a deliberate spec tile instead of a broken image.
 - **Product pages** — rate history, bank installment plans, the seller with an "Ask on WhatsApp" link, wishlist and compare, back-in-stock alerts, specifications, and compatibility hints for components ("Fits AM5 boards: 3 in stock").
 - **Marketplace** — "Sold by …" on every product, seller directory and pages, and a Sell on TechZone programme with an application form.
 - **Orders** — cart with free-delivery progress, checkout priced by shipping zone, promo codes (percent, fixed, free shipping, scoped to a category or product), cash on delivery or JazzCash, a 4-step tracker on the customer's order page and a public Track your order page.
@@ -170,7 +170,7 @@ Then open `http://localhost:8080/MarketingSite/` or `/AdminPortal/`.
 | Admin | `admin@techzone.pk` | `Admin@1234` |
 | Customer | `ali.raza@example.pk` | `Customer@123` |
 
-The seed contains 12 customers (all with the customer password above), 75 products (35 of them PC-builder parts with full compatibility attributes), 12 weekly rate points per product, four sellers (TechZone plus three partner shops), 45 orders and four promotions (`TECH10`, `WELCOME1000`, `FREESHIP`, and `SUMMER15`, which has ended). **Prices are demo data**: plausible Lahore market rates for November 2026, not live quotes. Product photos for the new parts go in `AdminPortal/uploads/catalog/` as `NN-anything.png|jpg|webp` (NN = product id); until then the storefront shows a spec tile. Change these credentials before exposing the app anywhere.
+The seed contains 12 customers (all with the customer password above), 75 products (35 of them PC-builder parts with full compatibility attributes), 12 weekly rate points per product, four sellers (TechZone plus three partner shops), 45 orders and four promotions (`TECH10`, `WELCOME1000`, `FREESHIP`, and `SUMMER15`, which has ended). **Prices are demo data**: plausible Lahore market rates for November 2026, not live quotes. Product photos live in `AdminPortal/uploads/catalog/` as `NN-name.webp` (NN = product id); `migrate.php` links a newly dropped photo to its product without overwriting one uploaded in the admin. Photos are manufacturer and retailer product shots used for demonstration only; the brands belong to their owners. Change these credentials before exposing the app anywhere.
 
 ### Configuration
 
@@ -214,7 +214,7 @@ There is no unit-test suite yet. [`.github/workflows/ci.yml`](.github/workflows/
 - [ ] Customer logout (`auth/logout.php`) is a GET, so a cross-site link can sign a customer out (no data change).
 - [ ] The CSP is report-only until the inline scripts move to files or nonces.
 - [ ] `CSRF_STRICT` defaults to `0` in code; set it to `1` (as `.env.example` does) for any real deployment.
-- [ ] Products have a single image, and many catalogue parts still use the spec tile until real photos are added.
+- [ ] Products have a single image; a gallery with several angles per product is not built yet.
 - [ ] Prices and price history are demo data.
 - [ ] Payouts are statements only; no money is moved.
 - [ ] Deploy a demo with seeded data.

@@ -187,6 +187,30 @@ if ($n > 0) {
     say("price_history: $n opening point(s)");
 }
 
+// Catalogue photos: AdminPortal/uploads/catalog/NN-name.{webp,png,jpg} is the photo of product NN.
+// A product gets it only when it has no image yet or still points at one of the v1 placeholder
+// screenshots; a photo someone uploaded in the admin is never overwritten.
+$legacy = [
+    'uploads/695d7e54382e4_mouse.png', 'uploads/695e02d88682a_keyboard.png', 'uploads/695e07b640c78_headphones.png',
+    'uploads/695e07fd24255_monitor.png', 'uploads/695e082da3b60_desk.png', 'uploads/695e0869cb62e_Screenshot_2026-01-07_020804.png',
+    'uploads/695e08dbaed9c_Screenshot_2026-01-07_121813.png', 'uploads/695e097ba5fe3_Screenshot_2026-01-07_122012.png',
+    'uploads/695e09df646a2_Screenshot_2026-01-07_122229.png', 'uploads/69bf29110ebb4_695e08dbaed9c_Screenshot_2026-01-07_121813.png',
+];
+$catalogDir = __DIR__ . '/../AdminPortal/uploads/catalog';
+$photos = 0;
+$fill = $conn->prepare('UPDATE products SET imagelink = ? WHERE id = ? AND (imagelink IS NULL OR imagelink = \'\' OR imagelink IN ('
+    . implode(', ', array_fill(0, count($legacy), '?')) . '))');
+foreach (is_dir($catalogDir) ? (scandir($catalogDir) ?: []) : [] as $f) {
+    if (preg_match('/^(\d{2,})-[A-Za-z0-9._-]+\.(webp|png|jpe?g)$/i', $f, $m)) {
+        $fill->execute(array_merge(['uploads/catalog/' . $f, (int) $m[1]], $legacy));
+        $photos += $fill->rowCount();
+    }
+}
+if ($photos > 0) {
+    $changes++;
+    say("products.imagelink: $photos product(s) now use their catalogue photo");
+}
+
 // COD orders are paid when the courier delivers them; that rule is already covered by
 // "Delivered -> paid" above. Cancelled orders keep payment 'pending' (nothing was collected).
 

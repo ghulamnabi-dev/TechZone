@@ -38,7 +38,7 @@ Rules: yellow is never a gradient, never a tint, never a background for body cop
 
 **Motion** — exactly one orchestrated moment: on home load the rate-board figures tick from last week's price to today's (600 ms, 40 ms stagger, ease-out). Everything else moves only in response to the user (hover, open, add to cart confirmation). `prefers-reduced-motion`: no tick.
 
-**Imagery** — product photos on `--concrete` wells, `object-fit: contain`, 24px inset, never cropped. Products without a photo render a **spec tile**: concrete well, a 64px outlined category glyph (inline SVG, 1.5px stroke, graphite), and the model name in Archivo condensed 600 — deliberate, not broken. `product_image_url($product)` resolves in this order: `AdminPortal/uploads/catalog/{id:02d}-*.{png,jpg,webp}` (first match, so the owner can drop photos in without touching the DB) → `products.imagelink` → spec tile.
+**Imagery** — product photos on `--concrete` wells, `object-fit: contain`, 24px inset, never cropped. Catalogue photos are 1000×1000 WebP on white with an 8% margin, rendered with `mix-blend-mode: multiply` so the white drops into the well. Products without a photo render a **spec tile**: concrete well, a 64px outlined category glyph (inline SVG, 1.5px stroke, graphite), and the model name in Archivo condensed 600 — deliberate, not broken. `product_image_url($product)` resolves in this order: `products.imagelink` (the image the admin shows and replaces; skipped if the file is missing) → `AdminPortal/uploads/catalog/{id:02d}-*.{png,jpg,webp}` (a photo dropped in before `migrate.php` links it to the product) → spec tile.
 
 ## Information architecture
 

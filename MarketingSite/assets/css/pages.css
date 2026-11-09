@@ -102,7 +102,7 @@ select.field__input { appearance: none; padding-right: 40px; background-image: u
 .bld-slot:first-child.is-empty .bld-slot__choose { border-style: solid; border-color: var(--graphite); }
 .bld-slot__note { grid-column: 2 / -1; margin-top: 6px; font-size: var(--type-13); color: var(--steel); }
 .bld-thumb { position: relative; display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--radius-control); background: var(--concrete); overflow: hidden; color: var(--graphite); }
-.bld-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+.bld-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 4px; mix-blend-mode: multiply; }
 .bld-thumb--tile .spec-glyph { width: 30px; height: 30px; }
 .bld-slot__part { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .bld-slot__name { font-weight: 700; font-size: var(--type-15); line-height: 1.3; color: var(--graphite); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -393,7 +393,7 @@ select.field__input { appearance: none; padding-right: 40px; background-image: u
 .cmp-corner { border-bottom: 1.5px solid var(--graphite); }
 .cmp-prod { vertical-align: top; padding: 0 0 16px 20px; border-bottom: 1.5px solid var(--graphite); text-align: left; font-weight: 400; }
 .cmp-prod__media { position: relative; display: block; aspect-ratio: 1 / 1; max-width: 220px; margin-bottom: 12px; border-radius: var(--radius-card); background: var(--concrete); overflow: hidden; }
-.cmp-prod__media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 16px; }
+.cmp-prod__media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 16px; mix-blend-mode: multiply; }
 .cmp-prod__name { display: block; font-weight: 700; font-size: var(--type-16); line-height: 1.3; color: var(--graphite); text-decoration: none; }
 .cmp-prod__name:hover { text-decoration: underline; text-underline-offset: 3px; color: var(--graphite); }
 .cmp-prod__remove { display: inline-block; margin-top: 6px; font-size: var(--type-13); color: var(--steel); }
@@ -688,7 +688,7 @@ body:has(#compare) #compareBar { display: none !important; }
 .cart-items { list-style: none; margin: 0; padding: 0; border-top: 1.5px solid var(--graphite); }
 .cart-item { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto 120px; gap: 8px 24px; align-items: start; padding: 20px 0; border-bottom: 1px solid var(--line); }
 .cart-item__media { position: relative; display: block; width: 112px; height: 112px; border-radius: var(--radius-card); background: var(--concrete); overflow: hidden; }
-.cart-item__media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 10px; }
+.cart-item__media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 10px; mix-blend-mode: multiply; }
 .cart-item__media .spec-tile .spec-glyph { width: 44px; }
 .cart-item__info { min-width: 0; padding-top: 2px; }
 .cart-item__name { display: block; font-weight: 700; font-size: var(--type-16); line-height: 1.35; color: var(--graphite); text-decoration: none; }
@@ -838,7 +838,7 @@ body:has(#compare) #compareBar { display: none !important; }
 .acct-items { list-style: none; margin: 12px 0 0; padding: 0; border-top: 1.5px solid var(--graphite); }
 .acct-item { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .acct-item__media { position: relative; display: block; width: 64px; height: 64px; border-radius: var(--radius-control); background: var(--concrete); overflow: hidden; }
-.acct-item__media img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+.acct-item__media img { width: 100%; height: 100%; object-fit: contain; padding: 6px; mix-blend-mode: multiply; }
 .acct-item__name { display: block; font-weight: 700; color: var(--graphite); text-decoration: none; }
 .acct-item__name:hover { text-decoration: underline; color: var(--graphite); }
 .acct-item__meta { font-size: var(--type-13); color: var(--steel); }

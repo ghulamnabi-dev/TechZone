@@ -404,9 +404,9 @@ if (!function_exists('remember_recently_viewed')) {
 if (!function_exists('product_image_url')) {
     /**
      * Web URL of a product's photo, or null when it has none (render a spec tile instead).
-     * Order: AdminPortal/uploads/catalog/{id:02d}-*.{png,jpg,jpeg,webp} (first match by file name, so
-     * the owner can drop photos in without touching the database) → products.imagelink → null.
-     * The catalog folder is listed once per request.
+     * Order: products.imagelink (what the admin shows and replaces; skipped when a local file is
+     * missing) → AdminPortal/uploads/catalog/{id:02d}-*.{png,jpg,jpeg,webp} (a photo dropped in before
+     * `php database/migrate.php` links it) → null. The catalog folder is listed once per request.
      *
      * @param array $p product row with 'id' (or 'product_id') and optionally 'imagelink'
      */
@@ -424,20 +424,30 @@ if (!function_exists('product_image_url')) {
                 }
             }
         }
+        // 1. the product's own image (what the admin shows and replaces), when it exists
+        $link = trim(str_replace('\\', '/', (string) ($p['imagelink'] ?? '')));
+        if ($link !== '' && preg_match('#^https?://#i', $link)) {
+            return $link;
+        }
+        if ($link !== '') {
+            $rel = ltrim($link, '/');
+            $pos = strpos($rel, 'uploads/');
+            if ($pos === false) {
+                return $link;
+            }
+            $rel = substr($rel, $pos);
+            $root = function_exists('admin_portal_filesystem_root') ? admin_portal_filesystem_root() : '';
+            if ($root === '' || is_file($root . '/' . $rel)) {
+                return admin_portal_asset_url(implode('/', array_map('rawurlencode', explode('/', $rel))));
+            }
+        }
+        // 2. a catalogue photo dropped into uploads/catalog/NN-*.webp before the DB was migrated
         $id = (int) ($p['id'] ?? $p['product_id'] ?? 0);
         if ($id > 0 && isset($catalog[$id])) {
             return admin_portal_asset_url('uploads/catalog/' . rawurlencode($catalog[$id]));
         }
-        $link = trim(str_replace('\\', '/', (string) ($p['imagelink'] ?? '')));
-        if ($link === '') {
-            return null;
-        }
-        if (preg_match('#^https?://#i', $link)) {
-            return $link;
-        }
-        $rel = ltrim($link, '/');
-        $pos = strpos($rel, 'uploads/');
-        return $pos === false ? $link : admin_portal_asset_url(substr($rel, $pos));
+        // 3. none: the caller renders the spec tile
+        return null;
     }
 }
 

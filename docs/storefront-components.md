@@ -43,7 +43,7 @@ Archivo is self-hosted as one variable woff2 with both axes (`assets/fonts/archi
 
 | Helper | Returns | Example |
 |---|---|---|
-| `product_image_url(array $p): ?string` | `uploads/catalog/{id:02d}-*` → `imagelink` → null | `$src = product_image_url($p);` |
+| `product_image_url(array $p): ?string` | `imagelink` (if the file exists) → `uploads/catalog/{id:02d}-*` → null | `$src = product_image_url($p);` |
 | `render_product_media(array $p, array $opts)` | `<img>` (lazy, width/height) or spec tile | `<?= render_product_media($p, ['width' => 600]) ?>` |
 | `render_spec_tile(array $p, string $size)` | concrete well + glyph + model name (`'md'`/`'sm'`) | `<?= render_spec_tile($p, 'sm') ?>` |
 | `spec_glyph(string $type, int $size)` | outlined SVG glyph (cpu … storage, generic) | `<?= spec_glyph('gpu', 32) ?>` |
