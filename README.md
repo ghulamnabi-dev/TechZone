@@ -1,6 +1,6 @@
 # TechZone — a PC-hardware marketplace for Lahore
 
-[![CI](https://github.com/gn-4200/TechZone/actions/workflows/ci.yml/badge.svg)](https://github.com/gn-4200/TechZone/actions/workflows/ci.yml)
+[![CI](https://github.com/ghulamnabi-dev/TechZone/actions/workflows/ci.yml/badge.svg)](https://github.com/ghulamnabi-dev/TechZone/actions/workflows/ci.yml)
 ![PHP 8.3](https://img.shields.io/badge/PHP-8.3-777BB4?logo=php&logoColor=white)
 ![MariaDB / MySQL](https://img.shields.io/badge/MariaDB%20%2F%20MySQL-PDO-003545?logo=mariadb&logoColor=white)
 ![No framework](https://img.shields.io/badge/framework-none-1B1D22)
