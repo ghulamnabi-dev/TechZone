@@ -99,6 +99,27 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </section>
 
+        <section class="panel prd-specs" aria-labelledby="prdSpecsTitle" id="prdSpecs">
+            <div class="panel-head"><h2 class="panel-title" id="prdSpecsTitle">Specifications</h2><span class="panel-sub" id="prdSpecsSub">Product page, catalogue filters and the PC builder</span></div>
+            <div class="panel-body">
+                <p class="prd-spec-note" id="prdSpecsNote" hidden></p>
+                <div class="prd-grid2" id="prdSpecFields"></div>
+                <div class="prd-spec-block">
+                    <div class="prd-spec-head"><h3>Card highlights</h3><span class="prd-hint">Two short specs under the name on product cards and the rate board</span></div>
+                    <div class="prd-grid2">
+                        <div class="prd-field"><label class="form-label" for="prdKs1">First</label><input type="text" class="form-control" id="prdKs1" name="attr.key_spec_1" maxlength="40" autocomplete="off" data-attr-key="key_spec_1"></div>
+                        <div class="prd-field"><label class="form-label" for="prdKs2">Second</label><input type="text" class="form-control" id="prdKs2" name="attr.key_spec_2" maxlength="40" autocomplete="off" data-attr-key="key_spec_2"></div>
+                    </div>
+                </div>
+                <div class="prd-spec-block">
+                    <div class="prd-spec-head"><h3>More specifications</h3><span class="prd-hint">Anything else shown in the specs table</span></div>
+                    <div id="prdSpecExtra" class="prd-spec-extra"></div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="prdSpecAdd" data-cap="products.write"><i class="fas fa-plus"></i> Add specification</button>
+                </div>
+                <datalist id="prdSpecKeys"></datalist>
+            </div>
+        </section>
+
         <section class="panel" aria-labelledby="prdPricingTitle">
             <div class="panel-head"><h2 class="panel-title" id="prdPricingTitle">Pricing</h2></div>
             <div class="panel-body">
@@ -318,4 +339,5 @@ require_once __DIR__ . '/../includes/header.php';
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
 <script src="<?= $tzAsset('assets/js/form-helpers.js') ?>"></script>
 <script src="<?= $tzAsset('assets/js/stock-adjust.js') ?>"></script>
+<script src="<?= $tzAsset('assets/js/product-specs.js') ?>"></script>
 <script src="<?= $tzAsset('assets/js/product.js') ?>"></script>

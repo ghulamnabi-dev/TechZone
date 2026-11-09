@@ -13,6 +13,7 @@
     var pendingImage = null;      // new product: picked before the first save
     var saveBar = null;
     var saving = false;
+    var savedSpecs = { form: { fields: [] }, rows: [] };   // last saved Specifications state (Discard returns to it)
     var $ = function (s) { return document.getElementById(s); };
     var saveBtn = $('prdSave');
 
@@ -285,6 +286,11 @@
         var r = form.querySelector('input[name="status"][value="' + (p.status || 'draft') + '"]');
         if (r) r.checked = true;
         showImage(p.imagelink ? p.imagelink + (p.imagelink.indexOf('?') > -1 ? '&' : '?') + 'v=' + encodeURIComponent(p.updated_at || '') : '');
+        fillSpecs(p);
+    }
+    function fillSpecs(p) {
+        savedSpecs = { form: p.attribute_form || { fields: [] }, rows: p.attributes || [] };
+        tzSpecs.render(savedSpecs.form, savedSpecs.rows);
     }
     function payload() {
         var b = {
@@ -298,7 +304,8 @@
             low_stock_threshold: $('prdThreshold').value.trim(),
             status: status(),
             seo_title: $('prdSeoTitleInput').value.trim(),
-            seo_description: $('prdSeoDesc').value.trim()
+            seo_description: $('prdSeoDesc').value.trim(),
+            attributes: tzSpecs.collect()
         };
         if ($('prdSeller')) b.seller_id = $('prdSeller').value;
         if (isNew) b.inventory = $('prdOpening').value.trim();
@@ -352,6 +359,11 @@
             if (!res.ok) { showNotification(res.data.message || 'Could not load the product', 'error'); return; }
             product = res.data.product;
             if (!keepForm) fill(product);
+            else {
+                // after a save: show the specifications as stored (normalised numbers, list order)
+                fillSpecs(product);
+                if (saveBar) saveBar.markClean();
+            }
             renderAll();
             renderInsights(product.insights);
             if (saveBar && !keepForm) saveBar.markClean();
@@ -375,7 +387,22 @@
 
     /* ---------- wire up ---------- */
     document.addEventListener('DOMContentLoaded', function () {
-        saveBar = initSaveBar(form, { onSave: save, onDiscard: function () { tzClearErrors(form); renderAll(); setSaveState(); } });
+        saveBar = initSaveBar(form, { onSave: save, onDiscard: function () {
+            tzClearErrors(form);
+            tzSpecs.render(savedSpecs.form, savedSpecs.rows);   // also undoes added / removed rows
+            renderAll();
+            saveBar.refresh();
+            setSaveState();
+        } });
+        // a new category brings its own specification fields; values typed so far are kept
+        $('prdCategory').addEventListener('change', function () {
+            var rows = tzSpecs.rows();
+            tzSpecs.form($('prdCategory').value).then(function (f) {
+                tzSpecs.render(f, rows);
+                saveBar.refresh();
+                setSaveState();
+            });
+        });
         form.addEventListener('input', function () { renderAll(); setSaveState(); });
         form.addEventListener('change', function () { renderAll(); setSaveState(); });
         form.addEventListener('submit', function (e) { e.preventDefault(); save(); });
@@ -416,11 +443,14 @@
             if (isNew) {
                 var draft = form.querySelector('input[name="status"][value="draft"]');
                 draft.checked = true;
-                renderAll();
-                saveBar.markClean();
-                setSaveState();
-                $('prdName').focus();
-                return;
+                return tzSpecs.form('').then(function (f) {
+                    savedSpecs = { form: f, rows: [] };
+                    tzSpecs.render(f, []);
+                    renderAll();
+                    saveBar.markClean();
+                    setSaveState();
+                    $('prdName').focus();
+                });
             }
             return load(false).then(function () { loadLedger(); loadVariants(); });
         });

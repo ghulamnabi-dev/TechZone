@@ -17,7 +17,7 @@ Home                 today vs yesterday, orders to fulfil, payments to collect, 
 Orders               tabs: Open · Unfulfilled · Unpaid · Completed · Cancelled · All   → Order page
   Order #1234        items + fulfil · payment · shipping/tracking · customer · notes · timeline · print
 Products             grid (status, stock, price) → Product page (editor)
-  Product            media · pricing (price, compare-at, cost) · inventory + adjustments · variants · status · SEO
+  Product            media · specifications · pricing (price, compare-at, cost) · inventory + adjustments · variants · status · SEO
 Inventory            stock levels, low-stock, adjustment history
 Customers            grid → Customer page: profile, tags, notes, lifetime value, order timeline
 Discounts            list → Discount builder: type, applies to, minimum, usage limit, schedule, usage stats
@@ -93,3 +93,5 @@ Grid (AG Grid Community): white surface, --line borders, 44px rows, header 36px 
 ## Storefront coupling
 
 Checkout computes shipping from `shipping_zones` by the customer's city and applies free-over thresholds; the promo engine uses `promotions.kind/applies_to/min_order/usage_limit`. Order placement writes `order_events: placed` and `inventory_adjustments: sold` inside the existing transaction in `core/orders.php`.
+
+The product editor's **Specifications** card (`core/attributes.php`, `assets/js/product-specs.js`) writes `product_attributes`, which feeds the storefront specs table, the catalogue facets and the PC builder's rules (`core/builder.php`). Builder part types have a fixed field list; the values the rules compare (socket, memory type, form factor, cooler type and sockets, PSU efficiency) are fixed choices, and the fields marked as builder fields are required before the product can be Active (drafts may be incomplete). Other categories are offered the keys their sibling products use. `key_spec_1/2` are the two card highlights; anything else is a free row. The card saves with the product (same request, transaction and audit entry, as `spec.<key>` before/after pairs); changing the category keeps typed values, moving those without a field to "More specifications".

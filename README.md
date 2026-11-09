@@ -49,9 +49,9 @@ Full home page: [docs/screenshots/02-home-full.png](docs/screenshots/02-home-ful
 |---|---|
 | ![Today vs yesterday, to-do cards, 30-day sales](docs/screenshots/20-admin-home.png) | ![Order with payment, shipping, notes and event timeline](docs/screenshots/21-admin-order.png) |
 
-| Orders queue | Product editor |
+| Orders queue | Product editor — specifications drive the PC builder |
 |---|---|
-| ![Tabbed order queue on AG Grid](docs/screenshots/22-admin-orders.png) | ![Product page with pricing, margin, stock ledger, variants, SEO](docs/screenshots/23-admin-product.png) |
+| ![Tabbed order queue on AG Grid](docs/screenshots/22-admin-orders.png) | ![Product editor with builder-aware specifications, pricing and margin, stock ledger, variants, SEO](docs/screenshots/23-admin-product.png) |
 
 | Inventory — days of cover and adjustment history | Activity log with before/after diffs |
 |---|---|
@@ -90,6 +90,7 @@ The admin is modelled on how shop staff actually work, not on CRUD tables (desig
 - **Everything is attributable.** `audit_log` records who changed what with before/after diffs; the Activity page filters and exports it.
 - **Settings that real stores have:** store details, shipping zones with free-over thresholds (used by checkout), payment method toggles, staff accounts with roles.
 - **Marketplace back-office.** Seller applications are approved or rejected in the admin; an approved seller gets a portal in the same shell that is scoped on the server: they see only their own products, only orders containing their products and only their own lines on those orders (no customer contact or payment details), can fulfil and ship their lines, and get weekly payout statements (gross − 8% commission) that the owner marks paid.
+- **Specifications drive the storefront.** The product editor's Specifications card gives each part type its own fields (socket, memory type, form factor, card length, wattage…). Values the PC builder compares are fixed choices, and the fields it needs are required before a part can go Active, so a typo can't break compatibility. Monitors, mice and chairs get the fields their sibling products already use. Changes save with the product in one transaction and one audit entry.
 - **Product editor, customer profiles, discount builder** as full pages with a contextual save bar; **⌘K** global search; notifications for new orders, payments, low stock, pending reviews.
 
 ## Architecture

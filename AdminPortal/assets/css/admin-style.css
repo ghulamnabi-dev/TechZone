@@ -807,6 +807,11 @@ textarea.form-control { padding: 8px 10px; }
 .admin-grid .ag-overlay-no-matching-rows-center { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--ink-2); font-size: 13px; }
 .admin-grid .ag-overlay-no-matching-rows-center::before { content: "\f002"; font: var(--fa-font-solid); font-size: 14px; width: 40px; height: 40px; border-radius: 50%; background: var(--canvas); border: 1px solid var(--line); color: var(--ink-2); display: grid; place-items: center; }
 .admin-grid .ag-root-wrapper-body.ag-layout-auto-height { min-height: 184px; }
+/* AG Grid treats the horizontal scrollbar as an overlay ("invisible") and lays it over the last 16px of an
+   auto-height grid, but the thin scrollbar styled above gives it a real track: the last row was clipped and
+   its bottom edge did not take taps. Reserve the strip below the rows instead. */
+.admin-grid .ag-root.ag-layout-auto-height:has(> .ag-body-horizontal-scroll.ag-scrollbar-invisible:not(.ag-hidden):not(.ag-invisible)) { padding-bottom: 16px; }
+.admin-grid .ag-body-horizontal-scroll.ag-scrollbar-invisible .ag-body-horizontal-scroll-viewport { background: transparent; }
 .admin-grid .ag-layout-auto-height .ag-center-cols-viewport, .admin-grid .ag-layout-auto-height .ag-center-cols-container { min-height: 144px; }
 
 /* popups (filter menu, page-size list) render on <body> */
@@ -985,6 +990,33 @@ textarea.form-control { padding: 8px 10px; }
 /* variants table */
 .prd-variants .table { margin: 0; }
 .prd-empty { padding: 20px 16px; text-align: center; color: var(--ink-3); }
+
+/* specifications card (assets/js/product-specs.js) */
+.prd-spec-note { display: flex; gap: 8px; align-items: baseline; margin: 0 0 14px; padding: 9px 12px; border-radius: var(--radius-sm);
+    background: var(--canvas); border: 1px solid var(--line-2); color: var(--ink-2); font-size: 12.5px; line-height: 1.45; }
+.prd-spec-note i, .prd-spec-req i { color: #8a6d00; font-size: 11px; }
+.prd-spec-req { display: inline-flex; align-items: center; }
+.prd-spec-block { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-2); }
+#prdSpecFields[hidden] + .prd-spec-block { margin-top: 0; padding-top: 0; border-top: 0; }
+.prd-spec-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.prd-spec-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
+.prd-spec-multi { display: flex; flex-wrap: wrap; gap: 6px; }
+.prd-spec-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+    background: var(--surface); font-size: 13px; cursor: pointer; user-select: none; }
+.prd-spec-chip:has(input:checked) { border-color: var(--ink); background: var(--canvas); }
+.prd-spec-chip .form-check-input { margin: 0; }
+.prd-spec-multi.is-invalid, .prd-spec-multi[aria-invalid="true"] { outline: 1px solid var(--danger); outline-offset: 3px; border-radius: var(--radius-sm); }
+.prd-spec-extra { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.prd-spec-extra:empty { display: none; }
+.prd-spec-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 34px; gap: 8px; align-items: center; }
+.prd-spec-row .btn-icon { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--radius-sm);
+    color: var(--ink-3); background: transparent; }
+.prd-spec-row .btn-icon:hover, .prd-spec-row .btn-icon:focus-visible { color: var(--danger); background: var(--danger-bg); }
+@media (max-width: 575.98px) {
+    .prd-spec-row { grid-template-columns: minmax(0, 1fr) 34px; }
+    .prd-spec-row [data-extra-value] { grid-column: 1; grid-row: 2; }
+    .prd-spec-row .btn-icon { grid-column: 2; grid-row: 1 / span 2; }
+}
 
 /* SEO snippet */
 .prd-snippet { padding: 14px 16px; border: 1px solid var(--line-2); border-radius: var(--radius); background: #fff; font-family: Arial, sans-serif; }

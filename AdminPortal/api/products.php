@@ -20,6 +20,7 @@ require_once __DIR__ . '/../../core/inventory.php';
 require_once __DIR__ . '/../../core/audit.php';
 require_once __DIR__ . '/../../core/settings.php';
 require_once __DIR__ . '/../../core/catalog.php';   // record_price_point(): rate history for the storefront
+require_once __DIR__ . '/../../core/attributes.php';   // Specifications card: attribute_form / _validate / _save
 
 /** For JSON: browser-ready path; DB still stores uploads/filename */
 function product_imagelink_for_client(?string $link): string
@@ -83,9 +84,10 @@ const PRODUCT_EDITOR_FIELDS = ['name', 'category_id', 'sku', 'description', 'pri
  * Validate the product page's JSON body. Collects every problem so the page can show them
  * inline under each field (validation_problem()).
  *
+ * @param array<string,string> $extraErrors problems found elsewhere (specifications), reported together
  * @return array normalised values keyed by PRODUCT_EDITOR_FIELDS (+ 'inventory' on create)
  */
-function product_editor_input(PDO $conn, array $d, ?int $id): array
+function product_editor_input(PDO $conn, array $d, ?int $id, array $extraErrors = []): array
 {
     $errors = [];
     $money = static function ($v, bool $nullable) {
@@ -168,10 +170,21 @@ function product_editor_input(PDO $conn, array $d, ?int $id): array
             $errors['inventory'] = 'Opening stock must be a whole number (0 or more).';
         }
     }
+    $errors += $extraErrors;
     if ($errors) {
         validation_problem($errors);
     }
     return $out;
+}
+
+/** Ordered [{key, value}] rows of a product's specifications, for the editor. */
+function product_attribute_rows(PDO $conn, int $id): array
+{
+    $rows = [];
+    foreach (product_attributes($conn, $id) as $k => $v) {
+        $rows[] = ['key' => $k, 'value' => $v];
+    }
+    return $rows;
 }
 
 /** Sales and rating figures for the product page's Insights card. */
@@ -230,6 +243,11 @@ $sellerScope = seller_scope_products_sql('p');
 try {
     // GET - all products or one product
     if ($method === 'GET') {
+        // Specifications card: the field list for a category (the page refetches it when the category changes)
+        if (isset($_GET['attribute_form'])) {
+            $cat = ($_GET['category_id'] ?? '') === '' ? null : v_id($_GET['category_id']);
+            json_response(['success' => true, 'form' => attribute_form($conn, $cat ?: null)]);
+        }
         if (isset($_GET['id'])) {
             assert_product_owned(v_id($_GET['id']), 404);
             $stmt = $conn->prepare("SELECT p.*, c.name AS category_name, sl.name AS seller_name FROM products p LEFT JOIN categories c ON p.category_id = c.id
@@ -241,6 +259,8 @@ try {
             }
             $product['imagelink'] = product_imagelink_for_client($product['imagelink'] ?? '');
             $product['insights'] = product_insights($conn, (int) $product['id']);
+            $product['attributes'] = product_attribute_rows($conn, (int) $product['id']);
+            $product['attribute_form'] = attribute_form($conn, $product['category_id'] !== null ? (int) $product['category_id'] : null);
             json_response(['success' => true, 'product' => $product]);
         }
 
@@ -282,7 +302,16 @@ try {
                 json_error('Product not found', 404);
             }
         }
-        $in = product_editor_input($conn, $data, $id);
+        // Specifications ride along with the save when the page sends them (older clients do not)
+        $attrs = null;
+        $attrErrors = [];
+        if (array_key_exists('attributes', $data)) {
+            $catRaw = $data['category_id'] ?? '';
+            $catId = ($catRaw === '' || $catRaw === null) ? null : v_id($catRaw);
+            [$attrs, $attrErrors] = attribute_validate(attribute_form($conn, $catId ?: null), $data['attributes'],
+                ($data['status'] ?? '') === 'active');
+        }
+        $in = product_editor_input($conn, $data, $id, $attrErrors);
         $sellerChoice = product_seller_choice($conn, $data);
         if ($id === null) {
             $in['seller_id'] = $sellerChoice ?? HOUSE_SELLER;
@@ -308,8 +337,12 @@ try {
                     adjust_inventory($conn, $id, null, $opening, 'received', 'Opening stock', (int) $_SESSION['admin_id']);
                 }
                 record_price_point($conn, $id, (float) $in['price']);
+                if ($attrs) {
+                    attribute_save($conn, $id, $attrs);
+                }
                 audit('product.create', 'product', $id, "Created {$in['sku']} {$in['name']}" . ($in['status'] !== 'active' ? " as {$in['status']}" : ''),
-                    null, ['price' => $in['price'], 'status' => $in['status'], 'inventory' => $opening, 'seller_id' => $in['seller_id']]);
+                    null, ['price' => $in['price'], 'status' => $in['status'], 'inventory' => $opening, 'seller_id' => $in['seller_id']]
+                        + ($attrs ? ['specifications' => count($attrs)] : []));
                 $conn->commit();
                 json_response(['success' => true, 'message' => 'Product created', 'id' => $id, 'product_id' => $id]);
             }
@@ -330,10 +363,19 @@ try {
                     $after[$long] = '…';
                 }
             }
+            if ($attrs !== null) {
+                // one audit entry for the whole save: spec changes appear as "spec.socket" etc.
+                [$ab, $aa] = attribute_save($conn, $id, $attrs);
+                foreach ($aa as $k => $v) {
+                    $before["spec.$k"] = $ab[$k];
+                    $after["spec.$k"] = $v;
+                }
+            }
             if ($after) {
                 $verb = isset($after['status']) && count($after) === 1 ? ['active' => 'Activated', 'draft' => 'Moved to draft', 'archived' => 'Archived'][$in['status']] : 'Updated';
                 audit(isset($after['status']) && count($after) === 1 ? 'product.status' : 'product.update', 'product', $id,
-                    "$verb {$in['sku']} {$in['name']}" . ($verb === 'Updated' ? ' (' . implode(', ', array_keys($after)) . ')' : ''), $before, $after);
+                    "$verb {$in['sku']} {$in['name']}" . ($verb === 'Updated' ? ' (' . implode(', ', array_unique(array_map(
+                        static fn($k) => str_starts_with($k, 'spec.') ? 'specifications' : $k, array_keys($after)))) . ')' : ''), $before, $after);
             }
             $conn->commit();
         } catch (Throwable $e) {
