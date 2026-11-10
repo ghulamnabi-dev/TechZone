@@ -59,7 +59,7 @@ function pg_products(PDO $conn, string $where = '1 = 1', array $params = [], str
 /** Store details from Settings → Store (with the shop's real defaults). */
 function pg_store(): array
 {
-    $wa = preg_replace('/\D/', '', (string) setting('whatsapp_number', '923011427871'));
+    $wa = preg_replace('/\D/', '', (string) setting('whatsapp_number', '923001234567'));
     $waLocal = strlen($wa) === 12 && str_starts_with($wa, '92') ? '0' . substr($wa, 2, 3) . ' ' . substr($wa, 5) : $wa;
     return [
         'name' => (string) setting('store_name', 'TechZone'),

@@ -16,7 +16,7 @@ $tzFooterSet = static function (string $key, string $fallback = '') {
 $tzFootAddress = $tzFooterSet('store_address', 'Shop 214, 2nd floor, Hafeez Centre, Gulberg III, Lahore');
 $tzFootHours = $tzFooterSet('store_hours', 'Mon–Sat 11 am – 10 pm, Sunday closed');
 $tzFootPhone = $tzFooterSet('store_phone', '042-35761234');
-$tzFootWa = $tzFooterSet('whatsapp_number', '923011427871');
+$tzFootWa = $tzFooterSet('whatsapp_number', '923001234567');
 $tzFootEmail = $tzFooterSet('store_email', 'support@techzone.pk');
 $tzFootLegal = $tzFooterSet('store_legal_name', 'TechZone Traders');
 ?>
