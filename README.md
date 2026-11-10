@@ -127,7 +127,7 @@ This is the part of the project I care most about. Everything below is implement
 - **CSRF** — one 256-bit token per session, compared with `hash_equals`. Every POST/PUT/PATCH/DELETE must carry it as an `X-CSRF-Token` header, a form field or a JSON key; wrong tokens are always a 403. `CSRF_STRICT=1` makes the token mandatory (the recommended setting); the default transition mode still accepts token-less requests from the same `Origin`.
 - **Sessions** — `HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS, strict mode, cookies only; `session_regenerate_id(true)` after every login and password change. Admin and customer identities live under separate keys and log out independently.
 - **Login throttling** — 5 failures in 15 minutes locks the scope for 15 minutes (HTTP 429), counted per client IP (stored as a sha256 hash) and per session, for admin, customer, reset and sign-up scopes.
-- **No account enumeration** — unknown email, no password and wrong password all give `Invalid email or password.`; a dummy `password_verify()` keeps timing alike.
+- **One sign-in message** — unknown email, no password and wrong password all give `Invalid email or password.` This does not prevent account enumeration on its own: sign-up and sign-in timing still leak it (see Known limitations).
 - **Password reset** — 256-bit tokens, only the sha256 is stored, one hour expiry, single use (deleted in the same transaction that sets the password).
 - **Admin sign-up is closed** — it returns 403 unless `ADMIN_SIGNUP_CODE` is set, then needs the matching invite code (`hash_equals`); wrong codes are throttled.
 - **Uploads** — MIME detected with `finfo` (client type and name ignored), JPEG/PNG/WebP only, `getimagesize()` must agree, 2 MB cap, random 128-bit file names; deletion is confined to the uploads folder with `realpath()`. PHP execution is disabled there in the Docker image.
@@ -214,6 +214,10 @@ There is no unit-test suite yet. [`.github/workflows/ci.yml`](.github/workflows/
 - [ ] Automated checks are end-to-end (Playwright flows and the CI smoke script); there are no PHP unit tests yet.
 - [ ] JazzCash is a placeholder: the wallet number is stored with the order, but no payment gateway is integrated and nothing is charged.
 - [ ] Customer logout (`auth/logout.php`) is a GET, so a cross-site link can sign a customer out (no data change).
+- [ ] Sign-up answers `Email already registered` (409) and is not throttled, so registered e-mails can be discovered there.
+- [ ] Sign-in timing differs for known and unknown e-mails: `verify_password_constant()` builds its dummy hash on each request, so an unknown e-mail costs two bcrypt operations and a known one costs one. The dummy hash should be a fixed constant.
+- [ ] The lockout can be reset: a successful sign-in clears the failed-attempt counter for that client IP (`login_clear_failures()`), and there is no per-account counter, so signing in to one's own account between guesses avoids the lock.
+- [ ] There is no automated test that one seller cannot read another seller's order.
 - [ ] The CSP is report-only until the inline scripts move to files or nonces.
 - [ ] `CSRF_STRICT` defaults to `0` in code; set it to `1` (as `.env.example` does) for any real deployment.
 - [ ] Products have a single image; a gallery with several angles per product is not built yet.
