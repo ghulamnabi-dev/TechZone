@@ -104,7 +104,7 @@ Promo bar (black, signal text): store notice from settings — hidden when empty
 │ ┌ SIGNAL block: Visit us ─────────────┐ ┌ store map (SVG, roads of Gulberg, one pin) ┐ │
 │ │ Hafeez Centre, Shop 214, 2nd floor  │ │                                             │ │
 │ │ Open today 11 am – 10 pm            │ │                                             │ │
-│ │ 0301 1427871 · WhatsApp             │ │                                             │ │
+│ │ 0300 1234567 · WhatsApp             │ │                                             │ │
 │ └─────────────────────────────────────┘ └─────────────────────────────────────────────┘ │
 │ Recently viewed (if any)                                                                 │
 ├▓ 6px signal band ▓────────────────────────────────────────────────────────────────────────┤

@@ -73,7 +73,7 @@ INSERT INTO settings (setting_key, value, updated_by) VALUES
 -- Storefront v2: installments (0% markup bank plans), WhatsApp (digits for wa.me links), the shop line
 INSERT INTO settings (setting_key, value, updated_by) VALUES
 ('installment_plans', '{"banks":["Meezan","HBL","Alfalah"],"months":[3,6,12],"markup_pct":0,"min_amount":20000}', 1),
-('whatsapp_number', '"923011427871"', 1),
+('whatsapp_number', '"923001234567"', 1),
 ('store_address_line', '"Hafeez Centre, Shop 214, 2nd floor"', 1);
 
 -- Shipping zones (a city in no zone ships at the default zone's rate)
@@ -411,7 +411,7 @@ WHERE id IN (4, 15, 26, 29, 30);
 -- Marketplace: sellers (1 = TechZone, the house), ~25% of the catalogue sold by partner shops
 -- -----------------------------------------------------------------------------
 INSERT INTO sellers (id, slug, name, market, address, city, phone, whatsapp, rating, about, joined_at, status, commission_pct) VALUES
-(1, 'techzone', 'TechZone', 'Hafeez Centre', 'Shop 214, 2nd floor, Hafeez Centre, Gulberg III', 'Lahore', '042-35761234', '923011427871', 4.8, 'Our own shop in Hafeez Centre since 2019. Every part is checked before dispatch.', CURDATE() - INTERVAL 400 DAY, 'active', 0.00),
+(1, 'techzone', 'TechZone', 'Hafeez Centre', 'Shop 214, 2nd floor, Hafeez Centre, Gulberg III', 'Lahore', '042-35761234', '923001234567', 4.8, 'Our own shop in Hafeez Centre since 2019. Every part is checked before dispatch.', CURDATE() - INTERVAL 400 DAY, 'active', 0.00),
 (2, 'rizwan-computers', 'Rizwan Computers', 'Hall Road', 'Shop 7, Rex Centre, Hall Road', 'Lahore', '042-37321458', '923214567812', 4.5, 'Hall Road wholesaler for processors, boards, memory and power supplies.', CURDATE() - INTERVAL 150 DAY, 'active', 8.00),
 (3, 'al-fatah-tech', 'Al-Fatah Tech', 'Hafeez Centre', 'Shop 31, Ground floor, Hafeez Centre, Gulberg III', 'Lahore', '042-35870332', '923334455661', 4.3, 'Monitors, graphics cards and storage with official warranty.', CURDATE() - INTERVAL 110 DAY, 'active', 8.00),
 (4, 'gamers-den-pk', 'Gamers Den PK', 'DHA Phase 5', '58-CCA, Commercial Area, DHA Phase 5', 'Lahore', '0321-4440987', '923214440987', 4.7, 'Gaming builds, cases, cooling and peripherals. Build advice on WhatsApp.', CURDATE() - INTERVAL 75 DAY, 'active', 8.00);

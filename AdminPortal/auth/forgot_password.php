@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Please enter a valid email address.';
         } else {
-            // Validate: all three must match one admin (normalize phone: strip spaces and dashes so 0301-1427871 = 03011427871)
+            // Validate: all three must match one admin (normalize phone: strip spaces and dashes so 0300-1234567 = 03001234567)
             $phoneNorm = preg_replace('/[\s\-]+/', '', $phone);
             $stmt = $conn->prepare("SELECT id FROM admins WHERE email = ? AND username = ? AND (phone = ? OR REPLACE(REPLACE(COALESCE(phone,''), ' ', ''), '-', '') = ?)");
             $stmt->execute([$email, $username, $phone, $phoneNorm]);

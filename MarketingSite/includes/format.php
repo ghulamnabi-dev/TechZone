@@ -330,7 +330,7 @@ if (!function_exists('render_product_card')) {
 }
 
 if (!function_exists('format_phone_pk')) {
-    /** "923011427871" / "+92 301 1427871" → "0301 1427871"; landlines are returned as given. */
+    /** "923001234567" / "+92 300 1234567" → "0300 1234567"; landlines are returned as given. */
     function format_phone_pk(string $n): string
     {
         $d = preg_replace('/\D+/', '', $n);
@@ -343,7 +343,7 @@ if (!function_exists('format_phone_pk')) {
         return trim($n);
     }
 
-    /** Digits for wa.me ("0301 1427871" → "923011427871"). */
+    /** Digits for wa.me ("0300 1234567" → "923001234567"). */
     function whatsapp_digits(string $n): string
     {
         $d = preg_replace('/\D+/', '', $n);
