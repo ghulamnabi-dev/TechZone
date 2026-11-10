@@ -72,6 +72,9 @@ jobs:
           mariadb -h127.0.0.1 -P3306 -utz -ptz techzone_db < database/seed.sql
           mariadb -h127.0.0.1 -P3306 -utz -ptz techzone_db -e "SELECT COUNT(*) AS products FROM products"
 
+      - name: Concurrent checkout (12 buyers, 3 units)
+        run: php tests/concurrent_checkout.php
+
       - name: Start PHP built-in server
         run: |
           php -d display_errors=0 -d log_errors=1 -d error_log=/tmp/php-errors.log \
