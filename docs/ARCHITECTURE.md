@@ -14,7 +14,7 @@ TechZone is deliberately framework-free PHP. The structure is **two thin front-e
       database.php    PDO from DATABASE_URL / MYSQL_URL or DB_* vars (12-factor), emulation off
       security.php    CSRF: token issue, hash_equals check, header / field / JSON body, strict mode
       session.php     secure cookie params, id regeneration after login, scoped logout
-      auth.php        login throttling (per IP + session), constant-time password check, policy
+      auth.php        login throttling (per IP + session), password check with a dummy verify, policy
       validation.php  v_str / v_int / v_id / v_email / v_enum / v_link / v_phone …
       uploads.php     image upload validation (finfo, type whitelist, size, random names), safe delete
       orders.php      place_order(): one transaction, FOR UPDATE locks, re-pricing, guarded decrement

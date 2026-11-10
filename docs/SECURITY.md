@@ -86,9 +86,10 @@ environment (see `.env.example`).
 * Passwords are stored with `password_hash(PASSWORD_DEFAULT)` (bcrypt) and checked with
   `password_verify()`. Hashes are upgraded on login when `password_needs_rehash()` says
   so.
-* **No account enumeration**: an unknown email, an account without a password and a
+* **One sign-in message**: an unknown email, an account without a password and a
   wrong password all return `Invalid email or password.` A dummy `password_verify()`
-  runs for unknown emails, so the response time is the same.
+  runs for unknown emails. This does not make the response time equal, and sign-up
+  still reveals registered emails: see Known gaps.
 * **Throttling**: 5 failures within 15 minutes lock the scope for 15 minutes. Failures
   are counted per client IP in the `login_attempts` table (IP stored as a sha256 hash)
   **and** per session. The scopes are `admin`, `customer`, `admin_reset`,
@@ -189,5 +190,20 @@ it discloses filesystem paths.
   variable is unset is still 0 (transition mode).
 * Customer logout (`auth/logout.php`) is a GET, so a cross-site link can sign a customer
   out (no data change).
+* **Account enumeration at sign-up.** `MarketingSite/api/signup.php` and
+  `AdminPortal/api/signup.php` answer `Email already registered` (409). Customer
+  sign-up is not throttled, so registered emails can be discovered there.
+* **Sign-in timing is not equal.** `verify_password_constant()` in `core/auth.php`
+  keeps its dummy hash in a `static`, which lasts one request only. An unknown email
+  therefore costs `password_hash()` plus `password_verify()` (two bcrypt operations)
+  and a known email costs one. Fix: verify against a fixed, precomputed dummy hash.
+  This has been read from the code, not measured.
+* **The lockout can be reset.** `login_clear_failures()` deletes the per-IP row on any
+  successful sign-in, and failures are not counted per account. Someone with their own
+  account can sign in to it between guesses at another account and never be locked.
+  Fix: count failures per target account as well, and do not clear the IP counter on
+  success.
+* **Seller isolation has no automated test.** The scoping is in the queries, but no
+  test signs in as one seller and requests another seller's order.
 * The CSP is report-only. Enforcing it needs the inline scripts moved to files (or
   nonces).
