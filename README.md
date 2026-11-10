@@ -196,11 +196,13 @@ There is no unit-test suite yet. [`.github/workflows/ci.yml`](.github/workflows/
 1. **Lint** — `php -l` on every PHP file (PHP 8.3) and `composer validate --strict`.
 2. **Smoke test** — starts MariaDB 11 as a service, applies `schema.sql` and `seed.sql`, launches `php -S`, and curls real endpoints: public pages return 200, `/` redirects, the dev tool is a 404, `/AdminPortal/api/customers.php` is a 401 when logged out. It then logs in as admin, checks that the customers API returns data without a `password` field, that the dashboard API works, that a cross-origin `PUT` to the orders API is rejected with 403, and that a bad customer login returns the generic error. The PHP error log must stay empty.
 
+A concurrency test, [`tests/concurrent_checkout.php`](tests/concurrent_checkout.php) creates a throwaway product with 3 units, starts 12 separate PHP processes that each call `place_order()` at the same instant on their own database connection, and then checks the database: exactly 3 orders, 9 refusals, stock 0 and a stock ledger that adds up. Run it with `docker compose exec web php tests/concurrent_checkout.php` (add `--buyers=30 --stock=5` to change the numbers). It is not part of CI yet.
+
 ## Engineering highlights
 
 - **Framework-free, but not ad hoc** — one `core/` library for bootstrap, sessions, CSRF, validation, uploads and checkout, used identically by both apps.
 - **12-factor configuration** — `DATABASE_URL` or discrete variables, `.env` for development, real environment wins; failures return a generic 500 and never reveal the DSN.
-- **Concurrency-safe checkout** — ordered row locks plus a guarded decrement; a 12-concurrent-checkout test against 3 units produced exactly 3 orders and stock 0 (see `docs/SECURITY.md`).
+- **Concurrency-safe checkout** — ordered row locks plus a guarded decrement. `tests/concurrent_checkout.php` sends 12 checkouts at once for 3 units and requires exactly 3 orders and stock 0 (see `docs/SECURITY.md`).
 - **Server-side pricing** — the cart stores ids and quantities; prices, variation modifiers and promo codes are recomputed from the database at order time.
 - **Shipped like a service** — Docker image with production `php.ini`, hidden Apache internals and no PHP in `uploads/`; Compose seeds MariaDB on first start; CI boots the real stack.
 - **Consistent API contract** — JSON everywhere with `Cache-Control: no-store` and honest status codes (401, 403, 404, 405, 409, 422, 429, 500).

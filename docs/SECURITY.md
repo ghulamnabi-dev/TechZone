@@ -173,8 +173,10 @@ or a small HTML page otherwise. Debug details are included only when `APP_DEBUG=
 4. It inserts the order and its items, then decrements stock with a guarded
    `UPDATE … WHERE inventory >= ?`.
 
-Any error rolls back the whole order. A test with 12 concurrent checkouts for 3 units
-produced exactly 3 orders and stock 0.
+Any error rolls back the whole order. `tests/concurrent_checkout.php` checks this: 12
+separate processes call `place_order()` at the same instant for a product with 3 units, and
+the test passes only if the database then holds exactly 3 orders, stock 0 and a ledger that
+adds up.
 
 ## 11. Developer tools
 
